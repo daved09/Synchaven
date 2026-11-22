@@ -108,6 +108,25 @@ Die vollständige API-Referenz steht in [docs/API.md](docs/API.md). Kurzüberbli
 Wiederkehrende Termine werden vom Server in Einzelvorkommen expandiert, sodass eine Android-App
 keine eigene RRULE-Logik benötigt.
 
+## Android-App
+
+Unter `Android/` liegt eine native App (Kotlin, Jetpack Compose, Material 3) mit denselben Funktionen wie die
+Weboberfläche: Anmeldung/Registrierung, Monats-, Wochen-, Tages- und Listenansicht, Termine anlegen, bearbeiten,
+löschen (auch einzelne Vorkommen) und per langem Drücken verschieben, Wiederholungen, Suche, Kalender verwalten,
+.ics-Import/-Export, Kontakte mit Adressbüchern, .vcf-Import/-Export und eine Anleitung für DAVx⁵.
+
+Beim ersten Start die Adresse des Servers eintragen (z. B. `http://homeserver.local:8080`). Unverschlüsseltes HTTP ist
+für Server im Heimnetz erlaubt; selbst installierte Zertifizierungsstellen werden akzeptiert.
+
+```bash
+cd Android
+./gradlew assembleRelease          # → app/build/outputs/apk/release/SyncHaven.apk
+./gradlew testDebugUnitTest        # Unit-Tests der Datums-, Wiederholungs- und Kontaktlogik
+```
+
+Aufbau: `data/` (Retrofit-API, Repositories, DataStore für Sitzung und Einstellungen), `ui/<bereich>/`
+(Compose-Bildschirme mit je einem ViewModel), `util/` (Portierung der Hilfslogik aus `frontend/src/utils`).
+
 ## Entwicklung
 
 Voraussetzungen: Rust (stable), Node.js ≥ 20.
@@ -142,6 +161,7 @@ frontend/           Vue 3 + Vuetify 3 (Material 3) + Pinia
   src/components/   Monats-, Wochen-/Tages-, Listenansicht, Kontaktdetails, Dialoge
   src/views/        Anmeldung, Kalender, Kontakte
   src/plugins/      Vuetify-Setup und M3-Farbschema-Generator
+Android/            Android-App (Kotlin, Jetpack Compose, Material 3, MVVM)
 docs/API.md         API-Referenz
 Dockerfile          Mehrstufiger Build → schlankes Debian-Image
 ```

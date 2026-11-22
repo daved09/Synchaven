@@ -1,0 +1,254 @@
+package de.dave.synchaven.ui.contacts
+
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.ImportContacts
+import androidx.compose.material.icons.outlined.MoreVert
+import androidx.compose.material.icons.outlined.PersonAdd
+import androidx.compose.material.icons.outlined.Refresh
+import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.Sync
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import de.dave.synchaven.R
+import de.dave.synchaven.data.model.AddressBook
+import de.dave.synchaven.data.model.Contact
+import de.dave.synchaven.ui.common.CollectMessages
+import de.dave.synchaven.ui.common.ErrorBox
+import de.dave.synchaven.ui.common.LoadingBox
+import de.dave.synchaven.ui.common.MainBottomBar
+import de.dave.synchaven.ui.common.MainTab
+import de.dave.synchaven.ui.common.appViewModel
+import de.dave.synchaven.ui.theme.onColor
+import de.dave.synchaven.ui.theme.parseHexColor
+import de.dave.synchaven.util.avatarColor
+import de.dave.synchaven.util.displayName
+import de.dave.synchaven.util.displayNameText
+import de.dave.synchaven.util.initials
+import de.dave.synchaven.util.subtitle
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
+@Composable
+fun ContactsScreen(
+    onSelectTab: (MainTab) -> Unit,
+    onOpenContact: (String) -> Unit,
+    /** Neuer Kontakt, vorbelegt mit dem gewählten Adressbuch */
+    onNewContact: (String?) -> Unit,
+) {
+    val vm = appViewModel { ContactsViewModel(it.contactRepository, it.fileTransfer, it.sessionStore) }
+    val s by vm.state.collectAsStateWithLifecycle()
+    val snackbar = remember { SnackbarHostState() }
+    CollectMessages(vm.messages.flow, snackbar)
+
+    var searching by rememberSaveable { mutableStateOf(false) }
+    var menu by remember { mutableStateOf(false) }
+    var manageBooks by rememberSaveable { mutableStateOf(false) }
+    var davSetup by rememberSaveable { mutableStateOf(false) }
+
+    // Import/Export: das Adressbuch, für das die Dateiauswahl geöffnet wurde
+    var fileBookId by rememberSaveable { mutableStateOf<String?>(null) }
+    val fileBook = s.addressBooks.firstOrNull { it.id == fileBookId }
+    val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/vcard")) { uri ->
+        if (uri != null && fileBook != null) vm.exportAddressBook(fileBook, uri)
+    }
+    val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null && fileBook != null) vm.importAddressBook(fileBook, uri)
+    }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(stringResource(R.string.tab_contacts)) },
+                actions = {
+                    IconButton(onClick = {
+                        if (searching) vm.onQueryChange("")
+                        searching = !searching
+                    }) { Icon(if (searching) Icons.Outlined.Close else Icons.Outlined.Search, stringResource(R.string.action_search)) }
+                    Box {
+                        IconButton(onClick = { menu = true }) { Icon(Icons.Outlined.MoreVert, stringResource(R.string.action_more)) }
+                        DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.contacts_manage_books)) },
+                                leadingIcon = { Icon(Icons.Outlined.ImportContacts, null) },
+                                onClick = { menu = false; manageBooks = true },
+                            )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.contacts_dav_sync)) },
+                                leadingIcon = { Icon(Icons.Outlined.Sync, null) },
+                                onClick = { menu = false; davSetup = true },
+                            )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.action_refresh)) },
+                                leadingIcon = { Icon(Icons.Outlined.Refresh, null) },
+                                onClick = { menu = false; vm.refresh() },
+                            )
+                        }
+                    }
+                },
+            )
+        },
+        bottomBar = { MainBottomBar(MainTab.CONTACTS, onSelectTab) },
+        floatingActionButton = {
+            FloatingActionButton(onClick = { onNewContact(s.selectedBookId) }) { Icon(Icons.Outlined.PersonAdd, stringResource(R.string.contacts_new)) }
+        },
+        snackbarHost = { SnackbarHost(snackbar) },
+    ) { padding ->
+        Column(Modifier.fillMaxSize().padding(padding)) {
+            if (searching) {
+                OutlinedTextField(
+                    value = s.query,
+                    onValueChange = vm::onQueryChange,
+                    placeholder = { Text(stringResource(R.string.contacts_search_hint)) },
+                    leadingIcon = { Icon(Icons.Outlined.Search, null) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                )
+            }
+            if (s.addressBooks.size > 1) {
+                BookFilter(s.addressBooks, s.selectedBookId, vm::selectBook)
+            }
+            when {
+                s.loading -> LoadingBox()
+                s.error != null && s.groups.isEmpty() -> ErrorBox(s.error!!, onRetry = vm::refresh)
+                else -> PullToRefreshBox(isRefreshing = s.refreshing, onRefresh = vm::refresh, modifier = Modifier.fillMaxSize()) {
+                    if (s.groups.isEmpty()) {
+                        Box(Modifier.fillMaxSize().padding(32.dp), contentAlignment = Alignment.Center) {
+                            Text(
+                                stringResource(if (s.query.isBlank()) R.string.contacts_empty else R.string.contacts_no_results),
+                                textAlign = TextAlign.Center,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    } else {
+                        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 88.dp)) {
+                            for (group in s.groups) {
+                                stickyHeader(key = "h" + group.letter) {
+                                    Text(
+                                        group.letter,
+                                        Modifier
+                                            .fillMaxWidth()
+                                            .background(MaterialTheme.colorScheme.surface)
+                                            .padding(horizontal = 24.dp, vertical = 6.dp),
+                                        style = MaterialTheme.typography.titleSmall,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        fontWeight = FontWeight.Bold,
+                                    )
+                                }
+                                items(group.contacts, key = { it.id }) { c ->
+                                    ContactRow(c) { onOpenContact(c.id) }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (manageBooks) {
+        AddressBooksDialog(
+            books = s.addressBooks,
+            onSave = vm::saveAddressBook,
+            onDelete = vm::deleteAddressBook,
+            onExport = { book ->
+                fileBookId = book.id
+                exportLauncher.launch("${book.name.replace(Regex("[^\\p{L}\\p{N}_-]+"), "_")}.vcf")
+            },
+            onImport = { book ->
+                fileBookId = book.id
+                importLauncher.launch(arrayOf("text/vcard", "text/x-vcard", "text/directory", "application/octet-stream", "text/plain"))
+            },
+            onDismiss = { manageBooks = false },
+        )
+    }
+    if (davSetup) DavSetupDialog(vm.davInfo, onDismiss = { davSetup = false })
+}
+
+@Composable
+private fun BookFilter(books: List<AddressBook>, selected: String?, onSelect: (String?) -> Unit) {
+    LazyRow(
+        contentPadding = PaddingValues(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        item {
+            FilterChip(selected = selected == null, onClick = { onSelect(null) }, label = { Text(stringResource(R.string.contacts_filter_all)) })
+        }
+        items(books, key = { it.id }) { b ->
+            FilterChip(
+                selected = selected == b.id,
+                onClick = { onSelect(if (selected == b.id) null else b.id) },
+                label = { Text(stringResource(R.string.contacts_book_chip, b.name, b.contactCount)) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun ContactRow(c: Contact, onClick: () -> Unit) {
+    ListItem(
+        headlineContent = { Text(c.displayNameText().asString(), maxLines = 1, overflow = TextOverflow.Ellipsis) },
+        supportingContent = c.subtitle().takeIf { it.isNotBlank() }?.let {
+            { Text(it, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+        },
+        leadingContent = { Avatar(c, 40) },
+        modifier = Modifier.clickable(onClick = onClick),
+    )
+}
+
+/** Runder Avatar mit Initialen in einer aus der UID abgeleiteten Farbe */
+@Composable
+fun Avatar(c: Contact, sizeDp: Int) {
+    val color = parseHexColor(c.avatarColor())
+    Box(Modifier.size(sizeDp.dp).background(color, CircleShape), contentAlignment = Alignment.Center) {
+        Text(
+            c.initials(),
+            color = onColor(color),
+            style = if (sizeDp >= 72) MaterialTheme.typography.headlineMedium else MaterialTheme.typography.titleMedium,
+        )
+    }
+}

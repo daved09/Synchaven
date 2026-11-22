@@ -33,6 +33,11 @@ docker compose up -d
 Danach <http://localhost:8080> öffnen und ein Konto registrieren. Die Daten (SQLite-Datenbank und
 JWT-Secret) liegen im Volume `synchaven-data` unter `/data`.
 
+Statt des Volumes kann auch ein Verzeichnis des Hosts eingebunden werden (`./data:/data`). Dann `PUID` und
+`PGID` auf die IDs des Besitzers setzen (`id -u` / `id -g`): Der Container passt beim Start die Rechte von
+`/data` an und führt das Programm mit diesen IDs aus, nie als root. Wird der Container per `user:` gestartet,
+entfällt die Anpassung – das Verzeichnis muss dann diesem Benutzer gehören.
+
 Nach Codeänderungen: `./build.sh && docker compose up -d` – Compose ersetzt den Container dann
 durch einen mit dem neuen Image.
 
@@ -75,6 +80,7 @@ docker run -d --name synchaven -p 8080:8080 -v synchaven-data:/data ghcr.io/dave
 | `JWT_SECRET`         | *(automatisch)*   | Eigenes Secret (≥ 32 Zeichen) |
 | `CORS_ORIGINS`       | `*`               | Erlaubte Browser-Origins, kommagetrennt |
 | `RUST_LOG`           | `synchaven=info`  | Log-Level |
+| `PUID` / `PGID`      | `10001`           | Benutzer-/Gruppen-ID für Programm und `/data` (nur Docker) |
 
 **Hinweis:** Für den Betrieb im Internet einen Reverse-Proxy mit HTTPS (z. B. Caddy, Traefik, nginx)
 vorschalten und nach dem Anlegen der eigenen Konten `ALLOW_REGISTRATION=false` setzen.

@@ -14,8 +14,14 @@ services:
       CORS_ORIGINS: "*"
       # Optional: festes JWT-Secret (≥ 32 Zeichen). Ohne Angabe wird eines in /data erzeugt.
       # JWT_SECRET: "bitte-durch-einen-langen-zufallswert-ersetzen"
+      # Benutzer-/Gruppen-ID, mit der das Programm läuft und der /data gehört.
+      # Für einen Bind-Mount (z. B. ./data:/data) die eigenen IDs eintragen: `id -u` / `id -g`
+      # PUID: "1000"
+      # PGID: "1000"
     volumes:
       - synchaven-data:/data
+      # Alternativ ein Verzeichnis auf dem Host (dann PUID/PGID setzen):
+      # - ./data:/data
 
 volumes:
   synchaven-data:

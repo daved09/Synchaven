@@ -61,7 +61,14 @@ fn load_or_create_secret(data_dir: &std::path::Path) -> anyhow::Result<String> {
     let mut bytes = [0u8; 48];
     rand::thread_rng().fill_bytes(&mut bytes);
     let secret: String = bytes.iter().map(|b| format!("{b:02x}")).collect();
-    std::fs::write(&path, &secret).context("jwt_secret kann nicht gespeichert werden")?;
+    std::fs::write(&path, &secret).with_context(|| {
+        format!(
+            "{} kann nicht gespeichert werden – hat der Prozess Schreibrechte für {}? \
+             (Docker: PUID/PGID auf den Besitzer des Datenverzeichnisses setzen)",
+            path.display(),
+            data_dir.display()
+        )
+    })?;
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;

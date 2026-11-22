@@ -28,14 +28,19 @@ RUN useradd --system --uid 10001 --home-dir /data synchaven \
     && mkdir -p /data /app/static && chown synchaven:synchaven /data
 COPY --from=api /app/target/release/synchaven /usr/local/bin/synchaven
 COPY --from=web /web/dist /app/static
+COPY docker/entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod 755 /usr/local/bin/docker-entrypoint.sh
 
 ENV BIND_ADDR=0.0.0.0:8080 \
     DATA_DIR=/data \
     STATIC_DIR=/app/static \
-    RUST_LOG=synchaven=info,tower_http=warn
+    RUST_LOG=synchaven=info,tower_http=warn \
+    PUID=10001 \
+    PGID=10001
 
-USER synchaven
+# Kein USER: das Entrypoint-Skript passt als root die Rechte von /data an (PUID/PGID)
+# und startet das Programm danach ohne Root-Rechte.
 VOLUME ["/data"]
 EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 CMD ["synchaven", "healthcheck"]
-ENTRYPOINT ["synchaven"]
+ENTRYPOINT ["docker-entrypoint.sh"]

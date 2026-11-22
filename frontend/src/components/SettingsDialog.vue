@@ -1,9 +1,19 @@
 <script setup lang="ts">
 import { SEED_COLORS } from '@/plugins/theme'
+import type { ViewMode } from '@/api/types'
+import { useAuthStore } from '@/stores/auth'
+import { useNotifyStore } from '@/stores/notify'
 import { useSettingsStore } from '@/stores/settings'
 
 const open = defineModel<boolean>({ required: true })
 const { settings } = useSettingsStore()
+const auth = useAuthStore()
+const notify = useNotifyStore()
+
+/** Die Standardansicht gehört zum Benutzerkonto */
+function setDefaultView(v: ViewMode) {
+  auth.update({ default_view: v }).catch((e) => notify.fail(e))
+}
 
 const weekStarts = [
   { title: 'Montag', value: 1 },
@@ -47,7 +57,10 @@ const hours = Array.from({ length: 13 }, (_, h) => ({ title: `${String(h).padSta
         </div>
 
         <div class="text-title-small mb-2">Kalender</div>
-        <v-select v-model="settings.defaultView" :items="views" label="Standardansicht" />
+        <v-select
+          :model-value="auth.user?.default_view ?? settings.defaultView" :items="views" label="Standardansicht"
+          @update:model-value="setDefaultView"
+        />
         <v-select v-model="settings.weekStartsOn" :items="weekStarts" label="Woche beginnt am" />
         <v-select v-model="settings.dayStartHour" :items="hours" label="Tagesansicht scrollt zu" />
         <v-switch v-model="settings.showWeekNumbers" label="Kalenderwochen anzeigen" color="primary" inset hide-details />

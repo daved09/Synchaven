@@ -60,7 +60,7 @@ const days = computed(() => {
 // --- URL-Synchronisierung (?view=week&date=2026-11-22) ---
 function readRoute() {
   const m = route.query.view as ViewMode | undefined
-  if (m && modes.some((x) => x.value === m)) view.mode = m
+  if (m && modes.some((x) => x.value === m)) view.show(m)
   const d = parseDayKey((route.query.date as string) ?? '')
   if (d) view.date = d
 }
@@ -212,10 +212,10 @@ function onKey(e: KeyboardEvent) {
   if (t.closest('input, textarea, select, [contenteditable="true"], .v-overlay')) return
   const k = e.key.toLowerCase()
   const byKey: Record<string, () => void> = {
-    m: () => (view.mode = 'month'),
-    w: () => (view.mode = 'week'),
-    t: () => (view.mode = 'day'),
-    l: () => (view.mode = 'list'),
+    m: () => view.select('month'),
+    w: () => view.select('week'),
+    t: () => view.select('day'),
+    l: () => view.select('list'),
     h: () => view.today(),
     c: () => newEvent(),
     n: () => newEvent(),
@@ -223,7 +223,7 @@ function onKey(e: KeyboardEvent) {
     arrowright: () => view.step(1),
     j: () => view.step(1),
     k: () => view.step(-1),
-    '/': () => { view.mode = 'list'; searchOpen.value = true },
+    '/': () => { view.show('list'); searchOpen.value = true },
   }
   const fn = byKey[k]
   if (fn) {
@@ -312,11 +312,12 @@ function onKey(e: KeyboardEvent) {
     </template>
     <v-btn
       v-if="!searchOpen" icon="mdi-magnify" title="Suchen (/)"
-      @click="view.mode = 'list'; searchOpen = true"
+      @click="view.show('list'); searchOpen = true"
     />
 
     <v-btn-toggle
-      v-if="lgAndUp" v-model="view.mode" mandatory divided variant="outlined" rounded="xl" density="comfortable" class="mx-2"
+      v-if="lgAndUp" :model-value="view.mode" mandatory divided variant="outlined" rounded="xl" density="comfortable" class="mx-2"
+      @update:model-value="(m: ViewMode) => view.select(m)"
     >
       <v-btn v-for="m in modes" :key="m.value" :value="m.value" :title="`${m.title} (${m.key})`">{{ m.title }}</v-btn>
     </v-btn-toggle>
@@ -327,7 +328,7 @@ function onKey(e: KeyboardEvent) {
       <v-list density="compact" rounded="lg">
         <v-list-item
           v-for="m in modes" :key="m.value" :prepend-icon="m.icon" :title="m.title" :active="view.mode === m.value"
-          @click="view.mode = m.value"
+          @click="view.select(m.value)"
         />
       </v-list>
     </v-menu>

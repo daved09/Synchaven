@@ -19,6 +19,8 @@ data class User(
     val id: String,
     val email: String,
     val name: String = "",
+    /** Standardansicht des Kalenders: `month`, `week`, `day` oder `list` */
+    @SerialName("default_view") val defaultView: String = "month",
     @SerialName("created_at") val createdAt: String = "",
 )
 
@@ -41,6 +43,7 @@ data class UpdateMeRequest(
     val email: String? = null,
     @SerialName("current_password") val currentPassword: String? = null,
     @SerialName("new_password") val newPassword: String? = null,
+    @SerialName("default_view") val defaultView: String? = null,
 )
 
 @Serializable

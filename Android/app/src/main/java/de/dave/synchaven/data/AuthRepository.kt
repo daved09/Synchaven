@@ -9,6 +9,7 @@ import de.dave.synchaven.data.model.ServerInfo
 import de.dave.synchaven.data.model.UpdateMeRequest
 import de.dave.synchaven.data.model.User
 import de.dave.synchaven.data.store.SessionStore
+import de.dave.synchaven.data.store.ViewMode
 
 /** Anmeldung, Registrierung und Benutzerkonto. */
 class AuthRepository(
@@ -36,6 +37,9 @@ class AuthRepository(
 
     suspend fun updateMe(request: UpdateMeRequest): User =
         apiCall { api.updateMe(request) }.also { sessionStore.updateUser(it) }
+
+    /** Speichert die Standardansicht des Kalenders im Benutzerkonto */
+    suspend fun setDefaultView(mode: ViewMode): User = updateMe(UpdateMeRequest(defaultView = mode.apiValue))
 
     suspend fun logout() = sessionStore.clear()
 }

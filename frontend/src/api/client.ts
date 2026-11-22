@@ -1,6 +1,6 @@
 import type {
   AddressBook, AddressBookInput, AuthResponse, CalEvent, Calendar, CalendarInput, Contact, ContactImportResult,
-  ContactInput, EventInput, ImportResult, Occurrence, ServerInfo, User,
+  ContactInput, EventInput, ImportResult, Occurrence, ServerInfo, User, ViewMode,
 } from './types'
 
 const BASE = '/api'
@@ -81,7 +81,9 @@ export const api = {
   register: (email: string, password: string, name: string) =>
     request<AuthResponse>('POST', '/auth/register', { body: { email, password, name } }),
   me: () => request<User>('GET', '/auth/me'),
-  updateMe: (data: { name?: string; email?: string; current_password?: string; new_password?: string }) =>
+  updateMe: (data: {
+    name?: string; email?: string; current_password?: string; new_password?: string; default_view?: ViewMode
+  }) =>
     request<User>('PUT', '/auth/me', { body: data }),
 
   calendars: () => request<Calendar[]>('GET', '/calendars'),

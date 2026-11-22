@@ -1,12 +1,15 @@
 import { defineStore } from 'pinia'
 import { reactive, watch } from 'vue'
 
-export type ViewMode = 'month' | 'week' | 'day' | 'list'
+import type { ViewMode } from '@/api/types'
+
+export type { ViewMode }
 
 export interface Settings {
   themeMode: 'system' | 'light' | 'dark'
   seedColor: string
   weekStartsOn: number
+  /** Zwischenspeicher der Standardansicht aus dem Benutzerkonto (für den ersten Aufbau vor `/auth/me`) */
   defaultView: ViewMode
   showWeekNumbers: boolean
   dayStartHour: number

@@ -14,6 +14,7 @@ pub struct UserRow {
     pub email: String,
     pub name: String,
     pub password_hash: String,
+    pub default_view: String,
     pub created_at: String,
 }
 
@@ -22,12 +23,20 @@ pub struct User {
     pub id: String,
     pub email: String,
     pub name: String,
+    /// Standardansicht des Kalenders: `month`, `week`, `day` oder `list`
+    pub default_view: String,
     pub created_at: DateTime<Utc>,
 }
 
 impl From<UserRow> for User {
     fn from(r: UserRow) -> Self {
-        Self { id: r.id, email: r.email, name: r.name, created_at: from_db(&r.created_at) }
+        Self {
+            id: r.id,
+            email: r.email,
+            name: r.name,
+            default_view: r.default_view,
+            created_at: from_db(&r.created_at),
+        }
     }
 }
 

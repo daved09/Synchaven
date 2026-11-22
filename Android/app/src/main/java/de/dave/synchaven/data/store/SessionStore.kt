@@ -16,6 +16,8 @@ data class Session(
     val userId: String,
     val email: String,
     val name: String,
+    /** Standardansicht des Kalenders aus dem Benutzerkonto */
+    val defaultView: ViewMode,
 )
 
 sealed interface SessionState {
@@ -35,6 +37,7 @@ class SessionStore(private val dataStore: AppDataStore) {
         val userId = stringPreferencesKey("user_id")
         val email = stringPreferencesKey("email")
         val name = stringPreferencesKey("name")
+        val defaultView = stringPreferencesKey("user_default_view")
         val lastServer = stringPreferencesKey("last_server")
         val lastEmail = stringPreferencesKey("last_email")
     }
@@ -75,6 +78,7 @@ class SessionStore(private val dataStore: AppDataStore) {
             it.remove(Keys.userId)
             it.remove(Keys.email)
             it.remove(Keys.name)
+            it.remove(Keys.defaultView)
         }
     }
 
@@ -82,6 +86,7 @@ class SessionStore(private val dataStore: AppDataStore) {
         this[Keys.userId] = user.id
         this[Keys.email] = user.email
         this[Keys.name] = user.name
+        this[Keys.defaultView] = user.defaultView
     }
 
     private fun Preferences.toSessionState(): SessionState {
@@ -95,6 +100,7 @@ class SessionStore(private val dataStore: AppDataStore) {
                 userId = this[Keys.userId].orEmpty(),
                 email = this[Keys.email].orEmpty(),
                 name = this[Keys.name].orEmpty(),
+                defaultView = ViewMode.fromApi(this[Keys.defaultView]),
             )
         )
     }

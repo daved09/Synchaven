@@ -1,8 +1,10 @@
 import { defineStore } from 'pinia'
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import {
   addDays, addMonths, fmt, isoWeek, startOfDay, startOfMonth, startOfWeek,
 } from '@/utils/date'
+import { useAuthStore } from './auth'
+import { useNotifyStore } from './notify'
 import { useSettingsStore, type ViewMode } from './settings'
 
 export const LIST_DAYS = 60
@@ -10,7 +12,18 @@ export const LIST_DAYS = 60
 /** Aktuelle Ansicht und angezeigter Zeitraum */
 export const useViewStore = defineStore('view', () => {
   const { settings } = useSettingsStore()
-  const mode = ref<ViewMode>(settings.defaultView)
+  const auth = useAuthStore()
+  const notify = useNotifyStore()
+  const mode = ref<ViewMode>(auth.user?.default_view ?? settings.defaultView)
+  /** Ansicht wurde bereits bewusst gewählt (Benutzer oder URL) – die Standardansicht überschreibt sie nicht mehr */
+  let pinned = false
+
+  // Standardansicht aus dem Benutzerkonto übernehmen, sobald es geladen oder geändert ist
+  watch(() => auth.user?.default_view, (v) => {
+    if (!v) return
+    settings.defaultView = v
+    if (!pinned) mode.value = v
+  }, { immediate: true })
   const date = ref<Date>(startOfDay(new Date()))
   const search = ref('')
 
@@ -67,7 +80,17 @@ export const useViewStore = defineStore('view', () => {
   }
   function goto(d: Date, m?: ViewMode) {
     date.value = startOfDay(d)
-    if (m) mode.value = m
+    if (m) show(m)
   }
-  return { mode, date, search, range, title, step, today, goto }
+  /** Zeigt eine Ansicht, ohne die Standardansicht zu ändern */
+  function show(m: ViewMode) {
+    mode.value = m
+    pinned = true
+  }
+  /** Vom Benutzer gewählte Ansicht – wird zugleich als Standardansicht im Benutzerkonto gespeichert */
+  function select(m: ViewMode) {
+    show(m)
+    if (auth.user && auth.user.default_view !== m) auth.update({ default_view: m }).catch((e) => notify.fail(e))
+  }
+  return { mode, date, search, range, title, step, today, goto, show, select }
 })

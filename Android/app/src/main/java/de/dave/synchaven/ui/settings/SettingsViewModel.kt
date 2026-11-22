@@ -12,6 +12,7 @@ import de.dave.synchaven.data.store.Session
 import de.dave.synchaven.data.store.SessionState
 import de.dave.synchaven.data.store.SessionStore
 import de.dave.synchaven.data.store.SettingsStore
+import de.dave.synchaven.data.store.ViewMode
 import de.dave.synchaven.data.userMessage
 import de.dave.synchaven.ui.common.UiMessages
 import de.dave.synchaven.uiText
@@ -64,6 +65,13 @@ class SettingsViewModel(
 
     fun update(transform: (AppSettings) -> AppSettings) {
         viewModelScope.launch { settingsStore.update(transform) }
+    }
+
+    /** Die Standardansicht gehört zum Benutzerkonto */
+    fun setDefaultView(mode: ViewMode) {
+        viewModelScope.launch {
+            runCatching { auth.setDefaultView(mode) }.onFailure { messages.send(it.userMessage()) }
+        }
     }
 
     fun openProfile() {

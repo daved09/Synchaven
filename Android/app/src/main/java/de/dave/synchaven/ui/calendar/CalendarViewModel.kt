@@ -5,12 +5,15 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import de.dave.synchaven.R
 import de.dave.synchaven.UiText
+import de.dave.synchaven.data.AuthRepository
 import de.dave.synchaven.data.CalendarRepository
 import de.dave.synchaven.data.FileTransfer
 import de.dave.synchaven.data.model.Calendar
 import de.dave.synchaven.data.model.CalendarInput
 import de.dave.synchaven.data.model.Occurrence
 import de.dave.synchaven.data.store.AppSettings
+import de.dave.synchaven.data.store.SessionState
+import de.dave.synchaven.data.store.SessionStore
 import de.dave.synchaven.data.store.SettingsStore
 import de.dave.synchaven.data.store.ViewMode
 import de.dave.synchaven.data.userMessage
@@ -75,13 +78,17 @@ enum class DeleteScope { OCCURRENCE, ALL }
 class CalendarViewModel(
     private val repo: CalendarRepository,
     settingsStore: SettingsStore,
+    private val sessionStore: SessionStore,
+    private val auth: AuthRepository,
     private val files: FileTransfer,
 ) : ViewModel() {
     val messages = UiMessages()
 
     private val position = MutableStateFlow(
-        CalendarPosition(settingsStore.settings.value.defaultView, LocalDate.now())
+        CalendarPosition(sessionStore.current?.defaultView ?: ViewMode.MONTH, LocalDate.now())
     )
+    /** Ansicht wurde bereits bewusst gewählt – die Standardansicht aus dem Konto überschreibt sie nicht mehr */
+    private var pinned = false
     private val raw = MutableStateFlow<List<Occurrence>>(emptyList())
     private val loading = MutableStateFlow(false)
     private val error = MutableStateFlow<UiText?>(null)
@@ -107,6 +114,12 @@ class CalendarViewModel(
     val search = _search.asStateFlow()
 
     init {
+        // Standardansicht könnte in der Weboberfläche geändert worden sein
+        viewModelScope.launch { runCatching { auth.me() } }
+        viewModelScope.launch {
+            sessionStore.state.map { (it as? SessionState.LoggedIn)?.session?.defaultView }.distinctUntilChanged()
+                .collect { mode -> if (mode != null && !pinned) position.update { it.copy(mode = mode) } }
+        }
         viewModelScope.launch {
             runCatching { repo.loadCalendars() }.onFailure { error.value = it.userMessage() }
         }
@@ -140,11 +153,21 @@ class CalendarViewModel(
 
     // ---------- Navigation im Kalender ----------
 
-    fun setMode(mode: ViewMode) = position.update { it.copy(mode = mode) }
+    /** Vom Benutzer gewählte Ansicht – wird zugleich als Standardansicht im Benutzerkonto gespeichert */
+    fun setMode(mode: ViewMode) {
+        pinned = true
+        position.update { it.copy(mode = mode) }
+        if (sessionStore.current?.defaultView == mode) return
+        viewModelScope.launch {
+            runCatching { auth.setDefaultView(mode) }.onFailure { messages.send(it.userMessage()) }
+        }
+    }
     fun step(dir: Int) = position.update { it.copy(date = stepDate(it.mode, it.date, dir)) }
     fun today() = position.update { it.copy(date = LocalDate.now()) }
-    fun goto(date: LocalDate, mode: ViewMode? = null) =
+    fun goto(date: LocalDate, mode: ViewMode? = null) {
+        if (mode != null) pinned = true
         position.update { CalendarPosition(mode ?: it.mode, date) }
+    }
 
     // ---------- Suche ----------
 

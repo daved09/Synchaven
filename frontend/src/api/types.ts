@@ -1,7 +1,11 @@
+export type ViewMode = 'month' | 'week' | 'day' | 'list'
+
 export interface User {
   id: string
   email: string
   name: string
+  /** Standardansicht des Kalenders */
+  default_view: ViewMode
   created_at: string
 }
 

@@ -16,17 +16,26 @@ import kotlinx.coroutines.flow.stateIn
 enum class ThemeMode { SYSTEM, LIGHT, DARK }
 
 enum class ViewMode(@StringRes val labelRes: Int) {
-    MONTH(R.string.view_month), WEEK(R.string.view_week), DAY(R.string.view_day), LIST(R.string.view_list),
+    MONTH(R.string.view_month), WEEK(R.string.view_week), DAY(R.string.view_day), LIST(R.string.view_list);
+
+    /** Wert in der API (`default_view` am Benutzer) */
+    val apiValue: String get() = name.lowercase()
+
+    companion object {
+        fun fromApi(value: String?): ViewMode = entries.firstOrNull { it.apiValue == value } ?: MONTH
+    }
 }
 
-/** Darstellungs- und Kalendereinstellungen, entsprechen den Einstellungen der Weboberfläche. */
+/**
+ * Darstellungs- und Kalendereinstellungen dieses Geräts, entsprechen den Einstellungen der Weboberfläche.
+ * Die Standardansicht gehört zum Benutzerkonto (siehe [Session.defaultView]).
+ */
 data class AppSettings(
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     /** Farben aus dem Hintergrundbild (Android 12+) statt aus [seedColor] */
     val dynamicColor: Boolean = false,
     val seedColor: String = "#6750A4",
     val weekStart: DayOfWeek = DayOfWeek.MONDAY,
-    val defaultView: ViewMode = ViewMode.MONTH,
     val showWeekNumbers: Boolean = true,
     /** Stunde, zu der Wochen- und Tagesansicht beim Öffnen scrollen */
     val dayStartHour: Int = 7,
@@ -38,7 +47,6 @@ class SettingsStore(private val dataStore: AppDataStore) {
         val dynamicColor = booleanPreferencesKey("dynamic_color")
         val seedColor = stringPreferencesKey("seed_color")
         val weekStart = stringPreferencesKey("week_start")
-        val defaultView = stringPreferencesKey("default_view")
         val showWeekNumbers = booleanPreferencesKey("show_week_numbers")
         val dayStartHour = intPreferencesKey("day_start_hour")
     }
@@ -54,7 +62,6 @@ class SettingsStore(private val dataStore: AppDataStore) {
             prefs[Keys.dynamicColor] = s.dynamicColor
             prefs[Keys.seedColor] = s.seedColor
             prefs[Keys.weekStart] = s.weekStart.name
-            prefs[Keys.defaultView] = s.defaultView.name
             prefs[Keys.showWeekNumbers] = s.showWeekNumbers
             prefs[Keys.dayStartHour] = s.dayStartHour
         }
@@ -67,7 +74,6 @@ class SettingsStore(private val dataStore: AppDataStore) {
             dynamicColor = this[Keys.dynamicColor] ?: d.dynamicColor,
             seedColor = this[Keys.seedColor] ?: d.seedColor,
             weekStart = enumOr(this[Keys.weekStart], d.weekStart),
-            defaultView = enumOr(this[Keys.defaultView], d.defaultView),
             showWeekNumbers = this[Keys.showWeekNumbers] ?: d.showWeekNumbers,
             dayStartHour = this[Keys.dayStartHour] ?: d.dayStartHour,
         )

@@ -157,9 +157,9 @@ fun SettingsScreen(onSelectTab: (MainTab) -> Unit) {
             SectionTitle(stringResource(R.string.tab_calendar))
             ChoiceItem(
                 title = stringResource(R.string.settings_default_view),
-                value = stringResource(settings.defaultView.labelRes),
+                value = stringResource((session?.defaultView ?: ViewMode.MONTH).labelRes),
                 options = ViewMode.entries.map { it to stringResource(it.labelRes) },
-                onSelect = { v -> vm.update { it.copy(defaultView = v) } },
+                onSelect = vm::setDefaultView,
             )
             ChoiceItem(
                 title = stringResource(R.string.settings_week_start),

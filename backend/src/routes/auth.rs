@@ -29,6 +29,7 @@ pub struct UpdateMeInput {
     email: Option<String>,
     current_password: Option<String>,
     new_password: Option<String>,
+    default_view: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -48,6 +49,8 @@ fn normalize_email(email: &str) -> AppResult<String> {
     }
     Ok(email)
 }
+
+const VIEW_MODES: [&str; 4] = ["month", "week", "day", "list"];
 
 fn check_password(pw: &str) -> AppResult<()> {
     if pw.chars().count() < 8 {
@@ -156,6 +159,7 @@ pub async fn update_me(
     let mut name = user.name.clone();
     let mut email = user.email.clone();
     let mut hash = user.password_hash.clone();
+    let mut default_view = user.default_view.clone();
 
     if let Some(n) = input.name.as_deref().map(str::trim).filter(|n| !n.is_empty()) {
         name = n.chars().take(100).collect();
@@ -180,16 +184,23 @@ pub async fn update_me(
             return Err(AppError::Conflict("Diese E-Mail-Adresse ist bereits registriert".into()));
         }
     }
+    if let Some(v) = input.default_view.as_deref() {
+        if !VIEW_MODES.contains(&v) {
+            return Err(AppError::BadRequest("Ungültige Standardansicht".into()));
+        }
+        default_view = v.to_string();
+    }
     if wants_password {
         let pw = input.new_password.as_deref().unwrap();
         check_password(pw)?;
         hash = hash_password(pw)?;
     }
 
-    sqlx::query("UPDATE users SET name = ?, email = ?, password_hash = ?, updated_at = ? WHERE id = ?")
+    sqlx::query("UPDATE users SET name = ?, email = ?, password_hash = ?, default_view = ?, updated_at = ? WHERE id = ?")
         .bind(&name)
         .bind(&email)
         .bind(&hash)
+        .bind(&default_view)
         .bind(time::to_db(time::now()))
         .bind(&user.id)
         .execute(&state.db)

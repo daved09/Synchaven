@@ -62,9 +62,11 @@ Antwort (auch bei Login):
   "token": "eyJ…",
   "token_type": "Bearer",
   "expires_at": "2026-12-22T18:56:04Z",
-  "user": { "id": "…", "email": "anna@example.com", "name": "Anna", "created_at": "…" }
+  "user": { "id": "…", "email": "anna@example.com", "name": "Anna", "default_view": "month", "created_at": "…" }
 }
 ```
+`default_view` ist die Standardansicht des Kalenders (`month`, `week`, `day` oder `list`). Weboberfläche und App
+speichern dort die zuletzt gewählte Ansicht.
 Für neue Konten wird automatisch der Kalender „Persönlich“ angelegt.
 
 ### `POST /auth/login`
@@ -77,7 +79,7 @@ Für neue Konten wird automatisch der Kalender „Persönlich“ angelegt.
 ### `PUT /auth/me` → `User`
 Alle Felder optional. Für Änderung von `email` oder `new_password` ist `current_password` Pflicht.
 ```json
-{ "name": "Anna B.", "email": "neu@example.com", "current_password": "…", "new_password": "…" }
+{ "name": "Anna B.", "email": "neu@example.com", "current_password": "…", "new_password": "…", "default_view": "week" }
 ```
 
 ## Kalender

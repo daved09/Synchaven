@@ -98,7 +98,7 @@ fun CalendarScreen(
     onEditEvent: (String) -> Unit,
     onOpenContact: (String) -> Unit,
 ) {
-    val vm = appViewModel { CalendarViewModel(it.calendarRepository, it.settingsStore, it.fileTransfer) }
+    val vm = appViewModel { CalendarViewModel(it.calendarRepository, it.settingsStore, it.sessionStore, it.authRepository, it.fileTransfer) }
     val s by vm.state.collectAsStateWithLifecycle()
     val search by vm.search.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }

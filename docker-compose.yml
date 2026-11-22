@@ -1,0 +1,23 @@
+services:
+  kalender:
+    # Das Image wird mit ./build.sh gebaut; KALENDER_VERSION trägt das Script in .env ein.
+    # Fehlt das Image lokal, wird es aus der Registry geladen.
+    image: ghcr.io/daved09/kalender:${KALENDER_VERSION}
+    container_name: kalender
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      # Neue Konten erlauben (nach dem Anlegen der eigenen Konten auf "false" setzen)
+      ALLOW_REGISTRATION: "true"
+      # Gültigkeit der Anmelde-Tokens in Tagen
+      TOKEN_TTL_DAYS: "30"
+      # Erlaubte Origins für Browser-Zugriffe von fremden Domains (kommagetrennt, "*" = alle)
+      CORS_ORIGINS: "*"
+      # Optional: festes JWT-Secret (≥ 32 Zeichen). Ohne Angabe wird eines in /data erzeugt.
+      # JWT_SECRET: "bitte-durch-einen-langen-zufallswert-ersetzen"
+    volumes:
+      - kalender-data:/data
+
+volumes:
+  kalender-data:

@@ -1,0 +1,124 @@
+# Kalender
+
+Selbst gehostete Kalenderanwendung mit **Rust-Backend** (axum + SQLite), **Vue-3-Weboberfläche im
+Material-3-Design** (Vuetify) und einer **REST API** für eigene Clients wie eine Android-App.
+
+## Funktionen
+
+* Mehrbenutzerfähig mit Registrierung/Anmeldung (Argon2-Passwörter, JWT-Bearer-Tokens)
+* Mehrere farbige Kalender pro Benutzer, ein-/ausblendbar
+* Ganztägige, mehrtägige und zeitgebundene Termine
+* Wiederkehrende Termine (RFC 5545 RRULE: täglich, wöchentlich, monatlich, jährlich, benutzerdefiniert),
+  einzelne Vorkommen löschbar; korrekt über Sommer-/Winterzeitwechsel
+* iCalendar-Import und -Export (.ics) – kompatibel mit Google Kalender, Outlook, Thunderbird, Apple
+* Ansichten: Monat, Woche, Tag, Terminliste mit Suche
+* Material 3 mit dynamischem Farbschema aus frei wählbarer Grundfarbe, Hell/Dunkel/System
+* Tastenkürzel: `M` `W` `T` `L` (Ansicht), `H` (heute), `←`/`→` (blättern), `C` (neuer Termin), `/` (Suche)
+
+## Start mit Docker
+
+Zuerst das Image bauen, dann starten:
+
+```bash
+./build.sh
+docker compose up -d
+```
+
+Danach <http://localhost:8080> öffnen und ein Konto registrieren. Die Daten (SQLite-Datenbank und
+JWT-Secret) liegen im Volume `kalender-data` unter `/data`.
+
+Nach Codeänderungen: `./build.sh && docker compose up -d` – Compose ersetzt den Container dann
+durch einen mit dem neuen Image.
+
+### Build-Script
+
+`build.sh` braucht keine Parameter. Es baut das Image als
+`ghcr.io/daved09/kalender:<version>`, wobei `<version>` aus `backend/Cargo.toml` stammt,
+und schreibt die Version als `KALENDER_VERSION` in `.env`. Diese Datei liest `docker compose`
+automatisch, daher startet Compose immer die zuletzt gebaute Version. Für eine neue Version die
+`version` in `backend/Cargo.toml` erhöhen.
+
+Hochladen in die Registry:
+
+```bash
+docker push ghcr.io/daved09/kalender:0.1.0
+```
+
+Auf einem anderen Rechner genügen `docker-compose.yml` und eine `.env` mit
+`KALENDER_VERSION=0.1.0` – das Image wird dann aus der Registry geladen.
+
+Ohne Compose:
+
+```bash
+./build.sh
+docker run -d --name kalender -p 8080:8080 -v kalender-data:/data ghcr.io/daved09/kalender:0.1.0
+```
+
+### Konfiguration (Umgebungsvariablen)
+
+| Variable             | Standard          | Beschreibung |
+|----------------------|-------------------|--------------|
+| `BIND_ADDR`          | `0.0.0.0:8080`    | Adresse/Port |
+| `DATA_DIR`           | `/data`           | Ablage für `kalender.db` und `jwt_secret` |
+| `ALLOW_REGISTRATION` | `true`            | Neue Konten erlauben |
+| `TOKEN_TTL_DAYS`     | `30`              | Gültigkeit der Anmeldung |
+| `JWT_SECRET`         | *(automatisch)*   | Eigenes Secret (≥ 32 Zeichen) |
+| `CORS_ORIGINS`       | `*`               | Erlaubte Browser-Origins, kommagetrennt |
+| `RUST_LOG`           | `kalender=info`   | Log-Level |
+
+**Hinweis:** Für den Betrieb im Internet einen Reverse-Proxy mit HTTPS (z. B. Caddy, Traefik, nginx)
+vorschalten und nach dem Anlegen der eigenen Konten `ALLOW_REGISTRATION=false` setzen.
+
+### Sicherung
+
+```bash
+docker run --rm -v kalender-data:/data -v "$PWD":/backup debian:bookworm-slim \
+  tar czf /backup/kalender-backup.tgz -C /data .
+```
+
+## REST API
+
+Die vollständige API-Referenz steht in [docs/API.md](docs/API.md). Kurzüberblick:
+
+| Bereich   | Endpunkte |
+|-----------|-----------|
+| Konto     | `POST /api/auth/register`, `POST /api/auth/login`, `GET/PUT /api/auth/me` |
+| Kalender  | `GET/POST /api/calendars`, `GET/PUT/DELETE /api/calendars/{id}`, `GET …/export`, `POST …/import` |
+| Termine   | `GET /api/events?start&end`, `POST /api/events`, `GET/PUT/DELETE /api/events/{id}`, `POST /api/events/{id}/exdates` |
+
+Wiederkehrende Termine werden vom Server in Einzelvorkommen expandiert, sodass eine Android-App
+keine eigene RRULE-Logik benötigt.
+
+## Entwicklung
+
+Voraussetzungen: Rust (stable), Node.js ≥ 20.
+
+```bash
+# Backend (http://localhost:8080)
+cd backend && cargo run
+
+# Frontend mit Hot-Reload (http://localhost:5173, leitet /api an das Backend weiter)
+cd frontend && npm install && npm run dev
+```
+
+Tests und Prüfungen:
+
+```bash
+cd backend && cargo test
+cd frontend && npm run typecheck && npm run build
+```
+
+## Projektstruktur
+
+```
+backend/            Rust (axum, sqlx/SQLite, rrule, jsonwebtoken, argon2)
+  migrations/       SQL-Schema (wird beim Start automatisch angewendet)
+  src/routes/       REST-Endpunkte (auth, calendars, events, ical)
+  src/recurrence.rs Expansion wiederkehrender Termine
+  src/ical.rs       iCalendar-Import/-Export
+frontend/           Vue 3 + Vuetify 3 (Material 3) + Pinia
+  src/components/   Monats-, Wochen-/Tages-, Listenansicht, Dialoge
+  src/plugins/      Vuetify-Setup und M3-Farbschema-Generator
+docs/API.md         API-Referenz
+Dockerfile          Mehrstufiger Build → schlankes Debian-Image
+```

@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import type { ViewEvent } from '@/api/types'
-import { addDays, fmt, fmtTime, isoWeek, isSameDay, weekdayNames } from '@/utils/date'
-import { clampRow, isBarEvent, layoutRow } from '@/utils/layout'
+import { addDays, diffDays, fmt, fmtTime, isoWeek, isSameDay, startOfDay, weekdayNames } from '@/utils/date'
+import { clampRow, isBarEvent, lastDay, layoutRow } from '@/utils/layout'
+import { indexAtY, trackDrag } from '@/utils/drag'
 import { onColor } from '@/plugins/theme'
 
 const props = defineProps<{
@@ -17,6 +18,7 @@ const emit = defineEmits<{
   select: [ev: ViewEvent, el: HTMLElement]
   create: [day: Date]
   openDay: [day: Date]
+  move: [ev: ViewEvent, newStart: Date]
 }>()
 
 const HEAD = 30
@@ -49,6 +51,38 @@ onMounted(() => {
 })
 onBeforeUnmount(() => observer?.disconnect())
 
+// --- Drag & Drop: Termin auf einen anderen Tag ziehen, Uhrzeit bleibt erhalten ---
+const drag = ref<{ ev: ViewEvent; start: Date } | null>(null)
+
+/** Tag (Index ab Rasterbeginn) unter dem Zeiger */
+function dayIndexAt(x: number, y: number) {
+  const rows = Array.from(body.value?.querySelectorAll<HTMLElement>('.week-inner') ?? [])
+  const row = indexAtY(rows, y)
+  const r = rows[row].getBoundingClientRect()
+  const col = Math.max(0, Math.min(6, Math.floor(((x - r.left) / r.width) * 7)))
+  return row * 7 + col
+}
+function onItemDown(e: PointerEvent, ev: ViewEvent) {
+  const idx0 = dayIndexAt(e.clientX, e.clientY)
+  trackDrag(e, {
+    move: (m) => (drag.value = { ev, start: addDays(ev.startDate, dayIndexAt(m.clientX, m.clientY) - idx0) }),
+    drop: () => {
+      const d = drag.value
+      drag.value = null
+      if (d && d.start.getTime() !== ev.startDate.getTime()) emit('move', ev, d.start)
+    },
+    cancel: () => (drag.value = null),
+  })
+}
+/** Tage, die der Termin an der Zielposition belegen würde */
+const dropDays = computed(() => {
+  const d = drag.value
+  if (!d) return new Set<number>()
+  const first = startOfDay(d.start)
+  const n = Math.max(1, diffDays(lastDay(d.ev), d.ev.startDate) + 1)
+  return new Set(Array.from({ length: n }, (_, i) => addDays(first, i).getTime()))
+})
+
 function dayLabel(d: Date) {
   return d.getDate() === 1 ? fmt(d, { day: 'numeric', month: 'short' }) : String(d.getDate())
 }
@@ -72,7 +106,7 @@ function barStyle(ev: ViewEvent) {
               v-for="d in row.days"
               :key="d.getTime()"
               class="cell"
-              :class="{ other: d.getMonth() !== month }"
+              :class="{ other: d.getMonth() !== month, 'drop-target': dropDays.has(d.getTime()) }"
               @click="emit('create', d)"
             >
               <button
@@ -89,7 +123,7 @@ function barStyle(ev: ViewEvent) {
             v-for="it in row.items"
             :key="it.ev.id"
             class="item"
-            :class="{ bar: barStyle(it.ev), 'cont-before': it.contBefore, 'cont-after': it.contAfter }"
+            :class="{ bar: barStyle(it.ev), 'cont-before': it.contBefore, 'cont-after': it.contAfter, dragging: drag?.ev.id === it.ev.id }"
             :style="{
               left: `calc(${(it.start / 7) * 100}% + 3px)`,
               width: `calc(${((it.end - it.start) / 7) * 100}% - 6px)`,
@@ -99,6 +133,7 @@ function barStyle(ev: ViewEvent) {
             role="button"
             tabindex="0"
             :title="it.ev.title"
+            @pointerdown="onItemDown($event, it.ev)"
             @click.stop="emit('select', it.ev, $event.currentTarget as HTMLElement)"
             @keydown.enter="emit('select', it.ev, $event.currentTarget as HTMLElement)"
           >
@@ -167,6 +202,12 @@ function barStyle(ev: ViewEvent) {
 }
 .item:hover { background: rgba(var(--v-theme-on-surface), .08); }
 .item:focus-visible { outline: 2px solid rgb(var(--v-theme-primary)); }
+.item { user-select: none; }
+.item.dragging { opacity: .35; }
+.cell.drop-target, .cell.drop-target:hover {
+  background: rgba(var(--v-theme-primary), .14);
+  box-shadow: inset 0 0 0 2px rgba(var(--v-theme-primary), .5);
+}
 .item.bar { font-weight: 500; display: block; }
 .item.bar:hover { filter: brightness(1.08); }
 .item.cont-before { border-top-left-radius: 0; border-bottom-left-radius: 0; }

@@ -18,7 +18,8 @@ export interface RowItem {
   contAfter: boolean
 }
 
-function lastDay(e: ViewEvent): Date {
+/** Letzter (inklusiver) Tag, an dem der Termin noch zu sehen ist */
+export function lastDay(e: ViewEvent): Date {
   if (e.all_day) return addDays(e.endDate, -1)
   if (e.endDate.getTime() === e.startDate.getTime()) return e.startDate
   return new Date(e.endDate.getTime() - 1)

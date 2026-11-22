@@ -128,6 +128,20 @@ async function deleteEvent(ev: ViewEvent, scope: 'one' | 'all') {
     notify.fail(e)
   }
 }
+async function moveEvent(ev: ViewEvent, newStart: Date) {
+  if (ev.recurring && !(await confirmRef.value!.ask(
+    'Serientermin verschieben?',
+    `Nur der Termin am ${ev.startDate.toLocaleDateString('de-DE')} wird verschoben und dabei aus der Serie gelöst.`,
+    'Verschieben',
+    'primary',
+  ))) return
+  try {
+    await events.move(ev, newStart)
+    notify.info('Termin verschoben')
+  } catch (e) {
+    notify.fail(e)
+  }
+}
 function openDay(d: Date) {
   view.goto(d, 'day')
 }
@@ -352,13 +366,13 @@ function onKey(e: KeyboardEvent) {
         v-if="view.mode === 'month'"
         :events="events.visible" :start="view.range.start" :end="view.range.end" :month="view.date.getMonth()"
         :week-starts-on="settings.weekStartsOn" :show-week-numbers="settings.showWeekNumbers && mdAndUp"
-        @select="openEvent" @create="(d) => newEvent(d)" @open-day="openDay"
+        @select="openEvent" @create="(d) => newEvent(d)" @open-day="openDay" @move="moveEvent"
       />
       <TimeGrid
         v-else-if="view.mode === 'week' || view.mode === 'day'"
         :key="view.mode"
         :events="events.visible" :days="days" :day-start-hour="settings.dayStartHour"
-        @select="openEvent" @create="(s, allDay) => newEvent(s, allDay)" @open-day="openDay"
+        @select="openEvent" @create="(s, allDay) => newEvent(s, allDay)" @open-day="openDay" @move="moveEvent"
       />
       <AgendaView
         v-else

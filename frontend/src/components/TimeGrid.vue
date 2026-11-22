@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type { ViewEvent } from '@/api/types'
-import { addDays, fmt, fmtTime, isSameDay, isoWeek, startOfDay } from '@/utils/date'
-import { isBarEvent, layoutDay, layoutRow } from '@/utils/layout'
+import { addDays, diffDays, fmt, fmtTime, isSameDay, isoWeek, startOfDay } from '@/utils/date'
+import { isBarEvent, lastDay, layoutDay, layoutRow } from '@/utils/layout'
+import { indexAtX, trackDrag } from '@/utils/drag'
 import { onColor } from '@/plugins/theme'
 
 const props = defineProps<{
@@ -14,13 +15,16 @@ const emit = defineEmits<{
   select: [ev: ViewEvent, el: HTMLElement]
   create: [start: Date, allDay: boolean]
   openDay: [day: Date]
+  move: [ev: ViewEvent, newStart: Date]
 }>()
 
 const HOUR = 48
 const LANE = 24
 const PX_PER_MIN = HOUR / 60
 const hours = Array.from({ length: 24 }, (_, h) => h)
+const SNAP = 15
 const scroller = ref<HTMLElement>()
+const allday = ref<HTMLElement>()
 const now = ref(new Date())
 let timer: number | undefined
 
@@ -45,6 +49,84 @@ function onAllDayClick(e: MouseEvent) {
   const idx = Math.floor(((e.clientX - rect.left) / rect.width) * props.days.length)
   emit('create', props.days[Math.max(0, Math.min(idx, props.days.length - 1))], true)
 }
+
+// --- Drag & Drop ---
+interface DragState { ev: ViewEvent; bar: boolean; lane: number; start: Date }
+const drag = ref<DragState | null>(null)
+let lastPointer: PointerEvent | null = null
+let onScrollDuringDrag: (() => void) | null = null
+
+const colEls = () => Array.from(scroller.value?.querySelectorAll<HTMLElement>('.col') ?? [])
+function alldayIndex(x: number) {
+  const r = allday.value!.getBoundingClientRect()
+  return Math.max(0, Math.min(props.days.length - 1, Math.floor(((x - r.left) / r.width) * props.days.length)))
+}
+
+function onTimedDown(e: PointerEvent, ev: ViewEvent, colIdx: number) {
+  const y0 = e.clientY
+  const scroll0 = scroller.value!.scrollTop
+  const startMin = (ev.startDate.getTime() - startOfDay(ev.startDate).getTime()) / 60_000
+  // Bei mehrtägigen Terminen bezieht sich die Spalte auf den angeklickten Abschnitt
+  const grabDay = diffDays(props.days[colIdx], ev.startDate)
+  const update = (m: PointerEvent) => {
+    lastPointer = m
+    const dy = m.clientY - y0 + (scroller.value!.scrollTop - scroll0)
+    const minutes = Math.round((startMin + dy / PX_PER_MIN) / SNAP) * SNAP
+    const day = addDays(startOfDay(ev.startDate), indexAtX(colEls(), m.clientX) - colIdx + grabDay)
+    day.setMinutes(Math.max(0, Math.min(minutes, 24 * 60 - SNAP)))
+    drag.value = { ev, bar: false, lane: 0, start: day }
+  }
+  startDrag(e, ev, update)
+}
+function onBarDown(e: PointerEvent, ev: ViewEvent, lane: number) {
+  const idx0 = alldayIndex(e.clientX)
+  const update = (m: PointerEvent) => {
+    lastPointer = m
+    drag.value = { ev, bar: true, lane, start: addDays(ev.startDate, alldayIndex(m.clientX) - idx0) }
+  }
+  startDrag(e, ev, update)
+}
+function startDrag(e: PointerEvent, ev: ViewEvent, update: (m: PointerEvent) => void) {
+  const end = () => {
+    drag.value = null
+    lastPointer = null
+    onScrollDuringDrag = null
+  }
+  trackDrag(e, {
+    start: () => (onScrollDuringDrag = () => lastPointer && update(lastPointer)),
+    move: update,
+    drop: () => {
+      const d = drag.value
+      end()
+      if (d && d.start.getTime() !== ev.startDate.getTime()) emit('move', ev, d.start)
+    },
+    cancel: end,
+  })
+}
+
+const timedGhost = computed(() => {
+  const d = drag.value
+  if (!d || d.bar) return null
+  const col = props.days.findIndex((day) => isSameDay(day, d.start))
+  const top = (d.start.getTime() - startOfDay(d.start).getTime()) / 60_000
+  const duration = (d.ev.endDate.getTime() - d.ev.startDate.getTime()) / 60_000
+  return {
+    col, top, height: Math.max(20, Math.min(duration, 24 * 60 - top)),
+    ev: d.ev, start: d.start, end: new Date(d.start.getTime() + duration * 60_000),
+  }
+})
+const barGhost = computed(() => {
+  const d = drag.value
+  if (!d || !d.bar) return null
+  const shift = diffDays(d.start, d.ev.startDate)
+  const n = props.days.length
+  const from = diffDays(d.ev.startDate, props.days[0]) + shift
+  const to = diffDays(lastDay(d.ev), props.days[0]) + 1 + shift
+  const start = Math.max(0, from)
+  const end = Math.min(n, to)
+  if (end <= start) return null
+  return { ev: d.ev, lane: d.lane, start, end, contBefore: from < 0, contAfter: to > n }
+})
 
 function scrollToStart() {
   if (scroller.value) scroller.value.scrollTop = Math.max(0, props.dayStartHour * HOUR - 8)
@@ -78,6 +160,7 @@ const today = new Date()
     <div class="tg-allday">
       <div class="gutter text-label-small allday-label">ganztägig</div>
       <div
+        ref="allday"
         class="allday-area"
         :style="{ height: `${Math.max(1, barLanes) * LANE + 6}px`, backgroundSize: `${100 / days.length}% 100%` }"
         @click="onAllDayClick"
@@ -86,7 +169,7 @@ const today = new Date()
           v-for="it in barItems"
           :key="it.ev.id"
           class="bar"
-          :class="{ 'cont-before': it.contBefore, 'cont-after': it.contAfter }"
+          :class="{ 'cont-before': it.contBefore, 'cont-after': it.contAfter, dragging: drag?.ev.id === it.ev.id }"
           :style="{
             left: `calc(${(it.start / days.length) * 100}% + 2px)`,
             width: `calc(${((it.end - it.start) / days.length) * 100}% - 4px)`,
@@ -96,16 +179,31 @@ const today = new Date()
           }"
           role="button"
           tabindex="0"
+          @pointerdown="onBarDown($event, it.ev, it.lane)"
           @click.stop="emit('select', it.ev, $event.currentTarget as HTMLElement)"
           @keydown.enter="emit('select', it.ev, $event.currentTarget as HTMLElement)"
         >
           {{ it.ev.title }}
         </div>
+        <div
+          v-if="barGhost"
+          class="bar ghost"
+          :class="{ 'cont-before': barGhost.contBefore, 'cont-after': barGhost.contAfter }"
+          :style="{
+            left: `calc(${(barGhost.start / days.length) * 100}% + 2px)`,
+            width: `calc(${((barGhost.end - barGhost.start) / days.length) * 100}% - 4px)`,
+            top: `${3 + barGhost.lane * LANE}px`,
+            background: barGhost.ev.color,
+            color: onColor(barGhost.ev.color),
+          }"
+        >
+          {{ barGhost.ev.title }}
+        </div>
       </div>
     </div>
 
     <!-- Zeitraster -->
-    <div ref="scroller" class="tg-scroll">
+    <div ref="scroller" class="tg-scroll" @scroll="onScrollDuringDrag?.()">
       <div class="tg-body" :style="{ height: `${24 * HOUR}px` }">
         <div class="gutter hours">
           <div v-for="h in hours" :key="h" class="hour-label text-label-small" :style="{ top: `${h * HOUR}px` }">
@@ -113,7 +211,7 @@ const today = new Date()
           </div>
         </div>
         <div
-          v-for="col in columns"
+          v-for="(col, ci) in columns"
           :key="col.day.getTime()"
           class="col"
           :style="{ backgroundSize: `100% ${HOUR}px` }"
@@ -123,7 +221,7 @@ const today = new Date()
             v-for="it in col.items"
             :key="it.ev.id"
             class="ev"
-            :class="{ short: it.height < 55, 'cont-before': it.contBefore, 'cont-after': it.contAfter }"
+            :class="{ short: it.height < 55, 'cont-before': it.contBefore, 'cont-after': it.contAfter, dragging: drag?.ev.id === it.ev.id }"
             :style="{
               top: `${it.top * PX_PER_MIN}px`,
               height: `${it.height * PX_PER_MIN - 2}px`,
@@ -134,6 +232,7 @@ const today = new Date()
             }"
             role="button"
             tabindex="0"
+            @pointerdown="onTimedDown($event, it.ev, ci)"
             @click.stop="emit('select', it.ev, $event.currentTarget as HTMLElement)"
             @keydown.enter="emit('select', it.ev, $event.currentTarget as HTMLElement)"
           >
@@ -142,6 +241,22 @@ const today = new Date()
               {{ fmtTime(it.ev.startDate) }} – {{ fmtTime(it.ev.endDate) }}
             </div>
             <div v-if="it.height >= 75 && it.ev.location" class="ev-time ev-loc">{{ it.ev.location }}</div>
+          </div>
+          <div
+            v-if="timedGhost && timedGhost.col === ci"
+            class="ev ghost"
+            :class="{ short: timedGhost.height < 55 }"
+            :style="{
+              top: `${timedGhost.top * PX_PER_MIN}px`,
+              height: `${timedGhost.height * PX_PER_MIN - 2}px`,
+              left: '1px',
+              width: 'calc(100% - 4px)',
+              background: timedGhost.ev.color,
+              color: onColor(timedGhost.ev.color),
+            }"
+          >
+            <div class="ev-title">{{ timedGhost.ev.title }}</div>
+            <div class="ev-time">{{ fmtTime(timedGhost.start) }} – {{ fmtTime(timedGhost.end) }}</div>
           </div>
           <div v-if="isSameDay(col.day, now)" class="now" :style="{ top: `${nowTop}px` }" />
         </div>
@@ -201,6 +316,9 @@ const today = new Date()
   transition: filter .15s;
 }
 .ev:hover { filter: brightness(1.08); z-index: 2; }
+.ev, .bar { user-select: none; }
+.ev.dragging, .bar.dragging { opacity: .35; }
+.ghost { z-index: 4; pointer-events: none; box-shadow: 0 4px 12px rgba(0, 0, 0, .3); cursor: grabbing; }
 .ev:focus-visible { outline: 2px solid rgb(var(--v-theme-primary)); z-index: 2; }
 .ev.short { padding-top: 1px; }
 .ev.cont-before { border-top-left-radius: 0; border-top-right-radius: 0; }

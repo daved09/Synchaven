@@ -16,3 +16,6 @@ html, body { font-family: 'Roboto', system-ui, sans-serif; overflow: hidden; }
 
 button { font: inherit; color: inherit; background: none; border: none; cursor: pointer; }
 button:focus-visible { outline: 2px solid rgb(var(--v-theme-primary)); outline-offset: 1px; }
+
+/* Während ein Termin gezogen wird */
+body.event-dragging, body.event-dragging * { cursor: grabbing !important; user-select: none; }

@@ -42,6 +42,8 @@ pub struct CalendarRow {
     pub color: String,
     pub description: String,
     pub visible: bool,
+    /// `default` oder `birthdays` (siehe `birthdays.rs`)
+    pub kind: String,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -53,6 +55,7 @@ pub struct Calendar {
     pub color: String,
     pub description: String,
     pub visible: bool,
+    pub kind: String,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -65,6 +68,7 @@ impl From<CalendarRow> for Calendar {
             color: r.color,
             description: r.description,
             visible: r.visible,
+            kind: r.kind,
             created_at: from_db(&r.created_at),
             updated_at: from_db(&r.updated_at),
         }
@@ -96,6 +100,9 @@ pub struct EventRow {
     pub timezone: String,
     pub rrule: Option<String>,
     pub exdates: String,
+    /// Gesetzt bei automatisch erzeugten Geburtstagsterminen
+    pub contact_id: Option<String>,
+    pub birth_year: Option<i64>,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -114,6 +121,10 @@ pub struct Event {
     pub timezone: String,
     pub rrule: Option<String>,
     pub exdates: Vec<DateTime<Utc>>,
+    /// Kontakt, aus dessen Geburtstag der Termin erzeugt wurde
+    pub contact_id: Option<String>,
+    /// Automatisch erzeugte Termine können nicht bearbeitet werden.
+    pub read_only: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -134,6 +145,8 @@ impl From<EventRow> for Event {
             timezone: r.timezone,
             rrule: r.rrule,
             exdates: exdates.iter().map(|s| from_db(s)).collect(),
+            read_only: r.contact_id.is_some(),
+            contact_id: r.contact_id,
             created_at: from_db(&r.created_at),
             updated_at: from_db(&r.updated_at),
         }
@@ -174,4 +187,6 @@ pub struct Occurrence {
     pub timezone: String,
     pub recurring: bool,
     pub rrule: Option<String>,
+    pub contact_id: Option<String>,
+    pub read_only: bool,
 }

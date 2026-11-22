@@ -275,9 +275,11 @@ function onKey(e: KeyboardEvent) {
             <v-list density="compact" rounded="lg">
               <v-list-item prepend-icon="mdi-pencil-outline" title="Bearbeiten" @click="editCal(cal)" />
               <v-list-item prepend-icon="mdi-download-outline" title="Exportieren (.ics)" @click="exportCalendar(cal)" />
-              <v-list-item prepend-icon="mdi-upload-outline" title="Importieren (.ics)" @click="startImport(cal)" />
-              <v-divider />
-              <v-list-item prepend-icon="mdi-delete-outline" title="Löschen" base-color="error" @click="deleteCalendar(cal)" />
+              <template v-if="cal.kind !== 'birthdays'">
+                <v-list-item prepend-icon="mdi-upload-outline" title="Importieren (.ics)" @click="startImport(cal)" />
+                <v-divider />
+                <v-list-item prepend-icon="mdi-delete-outline" title="Löschen" base-color="error" @click="deleteCalendar(cal)" />
+              </template>
             </v-list>
           </v-menu>
         </template>

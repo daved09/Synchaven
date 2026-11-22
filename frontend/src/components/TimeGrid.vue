@@ -63,6 +63,7 @@ function alldayIndex(x: number) {
 }
 
 function onTimedDown(e: PointerEvent, ev: ViewEvent, colIdx: number) {
+  if (ev.read_only) return
   const y0 = e.clientY
   const scroll0 = scroller.value!.scrollTop
   const startMin = (ev.startDate.getTime() - startOfDay(ev.startDate).getTime()) / 60_000
@@ -79,6 +80,7 @@ function onTimedDown(e: PointerEvent, ev: ViewEvent, colIdx: number) {
   startDrag(e, ev, update)
 }
 function onBarDown(e: PointerEvent, ev: ViewEvent, lane: number) {
+  if (ev.read_only) return
   const idx0 = alldayIndex(e.clientX)
   const update = (m: PointerEvent) => {
     lastPointer = m

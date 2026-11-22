@@ -63,6 +63,7 @@ function dayIndexAt(x: number, y: number) {
   return row * 7 + col
 }
 function onItemDown(e: PointerEvent, ev: ViewEvent) {
+  if (ev.read_only) return
   const idx0 = dayIndexAt(e.clientX, e.clientY)
   trackDrag(e, {
     move: (m) => (drag.value = { ev, start: addDays(ev.startDate, dayIndexAt(m.clientX, m.clientY) - idx0) }),

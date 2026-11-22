@@ -8,7 +8,7 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 
 use super::{
-    calendars::owned_calendar,
+    calendars::{ensure_writable, owned_calendar},
     events::{new_uid, upsert, EventData},
 };
 use crate::{
@@ -60,7 +60,7 @@ pub async fn import(
     Query(q): Query<ImportQuery>,
     body: String,
 ) -> AppResult<Json<Value>> {
-    owned_calendar(&state, &auth.id, &id).await?;
+    ensure_writable(&owned_calendar(&state, &auth.id, &id).await?)?;
     let default_tz = q.timezone.as_deref().and_then(time::parse_tz).unwrap_or(chrono_tz::UTC);
     let parsed = ical::parse(&body, default_tz).map_err(AppError::BadRequest)?;
 

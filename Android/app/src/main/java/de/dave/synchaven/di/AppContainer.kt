@@ -31,7 +31,7 @@ class AppContainer(context: Context) {
 
     val authRepository = AuthRepository(api, sessionStore)
     val calendarRepository = CalendarRepository(api)
-    val contactRepository = ContactRepository(api)
+    val contactRepository = ContactRepository(api, onContactsChanged = calendarRepository::eventsChanged)
     val fileTransfer = FileTransfer(context)
 
     init {

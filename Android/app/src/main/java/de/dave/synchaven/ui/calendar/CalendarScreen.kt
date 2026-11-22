@@ -96,6 +96,7 @@ fun CalendarScreen(
     /** Neuer Termin ab Zeitpunkt (Epochensekunden), ganztägig oder nicht */
     onNewEvent: (Long, Boolean) -> Unit,
     onEditEvent: (String) -> Unit,
+    onOpenContact: (String) -> Unit,
 ) {
     val vm = appViewModel { CalendarViewModel(it.calendarRepository, it.settingsStore, it.fileTransfer) }
     val s by vm.state.collectAsStateWithLifecycle()
@@ -221,6 +222,7 @@ fun CalendarScreen(
             calendar = s.calendars.firstOrNull { it.id == ev.occ.calendarId },
             onEdit = { selectedId = null; onEditEvent(ev.occ.eventId) },
             onDelete = { scope -> selectedId = null; vm.deleteEvent(ev, scope) },
+            onOpenContact = { id -> selectedId = null; onOpenContact(id) },
             onDismiss = { selectedId = null },
         )
     }

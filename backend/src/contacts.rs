@@ -164,6 +164,7 @@ pub async fn insert(
         .execute(&mut *conn)
         .await?;
     bump(conn, book_id).await?;
+    crate::birthdays::sync_contact(conn, &id).await?;
     Ok(id)
 }
 
@@ -179,9 +180,11 @@ pub async fn update(conn: &mut SqliteConnection, row: &ContactRow, text: &str, i
         .bind(&row.id)
         .execute(&mut *conn)
         .await?;
-    bump(conn, &row.addressbook_id).await
+    bump(conn, &row.addressbook_id).await?;
+    crate::birthdays::sync_contact(conn, &row.id).await
 }
 
+/// Ein zugehöriger Geburtstagstermin wird per `ON DELETE CASCADE` mitgelöscht.
 pub async fn delete(conn: &mut SqliteConnection, row: &ContactRow) -> AppResult<()> {
     sqlx::query("DELETE FROM contacts WHERE id = ?").bind(&row.id).execute(&mut *conn).await?;
     bump(conn, &row.addressbook_id).await

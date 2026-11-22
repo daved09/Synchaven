@@ -20,6 +20,7 @@ import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.LocationOn
+import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Repeat
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material3.AlertDialog
@@ -53,7 +54,10 @@ import de.dave.synchaven.util.ViewEvent
 import de.dave.synchaven.util.describeRRule
 import de.dave.synchaven.util.describeSpan
 
-/** Details eines Termins mit Bearbeiten und Löschen (bei Serien: dieses Vorkommen oder die ganze Serie). */
+/**
+ * Details eines Termins mit Bearbeiten und Löschen (bei Serien: dieses Vorkommen oder die ganze Serie).
+ * Geburtstage sind schreibgeschützt und verweisen stattdessen auf den Kontakt.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EventDetailsSheet(
@@ -61,6 +65,7 @@ fun EventDetailsSheet(
     calendar: Calendar?,
     onEdit: () -> Unit,
     onDelete: (DeleteScope) -> Unit,
+    onOpenContact: (String) -> Unit,
     onDismiss: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -92,7 +97,17 @@ fun EventDetailsSheet(
             if (ev.occ.description.isNotBlank()) DetailRow(Icons.AutoMirrored.Outlined.Notes, ev.occ.description)
             calendar?.let { DetailRow(Icons.Outlined.CalendarMonth, it.name) }
 
-            Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            val contactId = ev.occ.contactId
+            if (ev.occ.readOnly) {
+                // Geburtstage werden über den Kontakt bearbeitet.
+                if (contactId != null) {
+                    FilledTonalButton(onClick = { onOpenContact(contactId) }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
+                        Icon(Icons.Outlined.Person, null, Modifier.size(18.dp))
+                        Spacer(Modifier.size(8.dp))
+                        Text(stringResource(R.string.event_open_contact))
+                    }
+                }
+            } else Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 FilledTonalButton(onClick = onEdit, modifier = Modifier.weight(1f)) {
                     Icon(Icons.Outlined.Edit, null, Modifier.size(18.dp))
                     Spacer(Modifier.size(8.dp))

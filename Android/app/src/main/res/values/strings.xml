@@ -110,6 +110,7 @@
     <string name="calendar_new">Neuer Kalender</string>
     <string name="calendar_edit">Kalender bearbeiten</string>
     <string name="calendar_menu">Kalender-Menü</string>
+    <string name="event_open_contact">Kontakt öffnen</string>
     <string name="calendar_export">Exportieren (.ics)</string>
     <string name="calendar_import">Importieren (.ics)</string>
     <string name="calendar_open_drawer">Seitenleiste</string>

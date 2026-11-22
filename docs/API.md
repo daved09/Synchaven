@@ -86,9 +86,15 @@ Alle Felder optional. Für Änderung von `email` oder `new_password` ist `curren
 ```json
 {
   "id": "uuid", "name": "Arbeit", "color": "#0B57D0", "description": "",
-  "visible": true, "created_at": "…", "updated_at": "…"
+  "visible": true, "kind": "default", "created_at": "…", "updated_at": "…"
 }
 ```
+
+`kind` ist `default` oder `birthdays`. Jeder Benutzer hat genau einen **Geburtstagskalender** („Geburtstage“), den
+der Server automatisch anlegt und aus den Kontakten befüllt: Für jeden Kontakt mit Geburtstag gibt es einen
+ganztägigen, jährlichen Termin (`🎂 Name`, am 29.02. Geborene in Nicht-Schaltjahren am 28.02.). Änderungen an
+Kontakten – über die API oder CardDAV – werden sofort übernommen. Name, Farbe und Sichtbarkeit lassen sich ändern;
+Löschen, Import sowie Anlegen, Bearbeiten und Löschen einzelner Termine werden mit `400` abgelehnt.
 
 | Methode | Pfad                         | Body              | Antwort        |
 |---------|------------------------------|-------------------|----------------|
@@ -127,11 +133,16 @@ Termine werden **serverseitig in einzelne Vorkommen expandiert** – die App mus
   "all_day": false,
   "timezone": "Europe/Berlin",
   "recurring": true,
-  "rrule": "FREQ=WEEKLY;BYDAY=MO;UNTIL=20261214T225959Z"
+  "rrule": "FREQ=WEEKLY;BYDAY=MO;UNTIL=20261214T225959Z",
+  "contact_id": null,
+  "read_only": false
 }
 ```
 `id` ist pro Vorkommen eindeutig; zum Bearbeiten/Löschen wird `event_id` verwendet.
 Die Ausblendung über `Calendar.visible` erfolgt clientseitig.
+
+Geburtstage haben `read_only: true` und in `contact_id` die ID des Kontakts. Ist das Geburtsjahr bekannt, enthält
+der Titel des Vorkommens das Alter, z. B. `🎂 Erika Mustermann (62)`. `Event` enthält dieselben beiden Felder.
 
 ### `POST /events` → `201 Event`
 ```json

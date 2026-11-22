@@ -47,6 +47,7 @@ fun SyncHavenNavGraph(navController: NavHostController, startLoggedIn: Boolean) 
                     navController.navigate(EventEditRoute(startEpochSecond = start, allDay = allDay))
                 },
                 onEditEvent = { id -> navController.navigate(EventEditRoute(eventId = id)) },
+                onOpenContact = { id -> navController.navigate(ContactDetailRoute(id)) },
             )
         }
         composable<ContactsRoute>(enterTransition = { EnterTransition.None }, exitTransition = { ExitTransition.None }) {

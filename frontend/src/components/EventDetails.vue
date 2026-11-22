@@ -21,17 +21,23 @@ const recurrence = computed(() => {
   <v-dialog v-model="open" max-width="480">
     <v-card v-if="event" color="surface-container-high" class="pb-2">
       <div class="d-flex justify-end pa-2 ga-1">
-        <v-btn icon="mdi-pencil-outline" variant="text" title="Bearbeiten" @click="emit('edit', event)" />
-        <v-menu v-if="event.recurring" location="bottom end">
-          <template #activator="{ props: p }">
-            <v-btn v-bind="p" icon="mdi-delete-outline" variant="text" title="Löschen" />
-          </template>
-          <v-list density="compact" rounded="lg">
-            <v-list-item prepend-icon="mdi-calendar-remove-outline" title="Nur diesen Termin" @click="emit('delete', event, 'one')" />
-            <v-list-item prepend-icon="mdi-delete-sweep-outline" title="Alle Termine der Serie" @click="emit('delete', event, 'all')" />
-          </v-list>
-        </v-menu>
-        <v-btn v-else icon="mdi-delete-outline" variant="text" title="Löschen" @click="emit('delete', event, 'all')" />
+        <v-btn
+          v-if="event.contact_id" icon="mdi-account-outline" variant="text" title="Kontakt öffnen"
+          :to="{ name: 'contacts', query: { id: event.contact_id } }"
+        />
+        <template v-if="!event.read_only">
+          <v-btn icon="mdi-pencil-outline" variant="text" title="Bearbeiten" @click="emit('edit', event)" />
+          <v-menu v-if="event.recurring" location="bottom end">
+            <template #activator="{ props: p }">
+              <v-btn v-bind="p" icon="mdi-delete-outline" variant="text" title="Löschen" />
+            </template>
+            <v-list density="compact" rounded="lg">
+              <v-list-item prepend-icon="mdi-calendar-remove-outline" title="Nur diesen Termin" @click="emit('delete', event, 'one')" />
+              <v-list-item prepend-icon="mdi-delete-sweep-outline" title="Alle Termine der Serie" @click="emit('delete', event, 'all')" />
+            </v-list>
+          </v-menu>
+          <v-btn v-else icon="mdi-delete-outline" variant="text" title="Löschen" @click="emit('delete', event, 'all')" />
+        </template>
         <v-btn icon="mdi-close" variant="text" title="Schließen" @click="open = false" />
       </div>
       <div class="px-6">

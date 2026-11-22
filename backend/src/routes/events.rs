@@ -3,14 +3,15 @@ use axum::{
     http::StatusCode,
     Json,
 };
-use chrono::{DateTime, Duration, Utc};
+use chrono::{DateTime, Datelike, Duration, Utc};
 use serde::Deserialize;
 use sqlx::{QueryBuilder, Sqlite};
 
-use super::calendars::owned_calendar;
+use super::calendars::{ensure_writable, owned_calendar};
 use crate::{
     auth::AuthUser,
     error::{AppError, AppResult},
+    birthdays,
     models::{Event, EventInput, EventRow, Occurrence},
     recurrence, time, AppState,
 };
@@ -125,6 +126,15 @@ async fn owned_event(state: &AppState, user_id: &str, id: &str) -> AppResult<Eve
     .ok_or(AppError::NotFound)
 }
 
+/// Wie `owned_event`, aber nur für Termine, die von Hand bearbeitet werden dürfen.
+async fn editable_event(state: &AppState, user_id: &str, id: &str) -> AppResult<EventRow> {
+    let row = owned_event(state, user_id, id).await?;
+    if row.contact_id.is_some() {
+        return Err(AppError::BadRequest("Geburtstage werden über den Kontakt bearbeitet".into()));
+    }
+    Ok(row)
+}
+
 #[derive(Deserialize)]
 pub struct ListQuery {
     start: DateTime<Utc>,
@@ -185,6 +195,7 @@ pub async fn list(
 
     let mut out = Vec::new();
     for row in rows {
+        let birth_year = row.birth_year;
         let ev: Event = row.into();
         let duration = ev.end - ev.start;
         let recurring = ev.rrule.is_some();
@@ -193,7 +204,11 @@ pub async fn list(
                 id: if recurring { format!("{}_{}", ev.id, start.timestamp()) } else { ev.id.clone() },
                 event_id: ev.id.clone(),
                 calendar_id: ev.calendar_id.clone(),
-                title: ev.title.clone(),
+                title: if ev.contact_id.is_some() {
+                    birthdays::occurrence_title(&ev.title, birth_year, start.year())
+                } else {
+                    ev.title.clone()
+                },
                 description: ev.description.clone(),
                 location: ev.location.clone(),
                 start,
@@ -202,6 +217,8 @@ pub async fn list(
                 timezone: ev.timezone.clone(),
                 recurring,
                 rrule: ev.rrule.clone(),
+                contact_id: ev.contact_id.clone(),
+                read_only: ev.read_only,
             });
         }
     }
@@ -219,7 +236,7 @@ pub async fn create(
     Json(input): Json<EventInput>,
 ) -> AppResult<(StatusCode, Json<Event>)> {
     let data = EventData::validate(input)?;
-    owned_calendar(&state, &auth.id, &data.calendar_id).await?;
+    ensure_writable(&owned_calendar(&state, &auth.id, &data.calendar_id).await?)?;
     let id = upsert(&state, &new_uid(), &data).await?;
     Ok((StatusCode::CREATED, Json(owned_event(&state, &auth.id, &id).await?.into())))
 }
@@ -230,9 +247,9 @@ pub async fn update(
     Path(id): Path<String>,
     Json(input): Json<EventInput>,
 ) -> AppResult<Json<Event>> {
-    owned_event(&state, &auth.id, &id).await?;
+    editable_event(&state, &auth.id, &id).await?;
     let data = EventData::validate(input)?;
-    owned_calendar(&state, &auth.id, &data.calendar_id).await?;
+    ensure_writable(&owned_calendar(&state, &auth.id, &data.calendar_id).await?)?;
     sqlx::query(
         "UPDATE events SET calendar_id = ?, title = ?, description = ?, location = ?, start_at = ?, end_at = ?,
          all_day = ?, timezone = ?, rrule = ?, exdates = ?, updated_at = ? WHERE id = ?",
@@ -261,7 +278,7 @@ pub async fn update(
 }
 
 pub async fn delete(State(state): State<AppState>, auth: AuthUser, Path(id): Path<String>) -> AppResult<StatusCode> {
-    owned_event(&state, &auth.id, &id).await?;
+    editable_event(&state, &auth.id, &id).await?;
     sqlx::query("DELETE FROM events WHERE id = ?").bind(&id).execute(&state.db).await?;
     Ok(StatusCode::NO_CONTENT)
 }
@@ -279,7 +296,7 @@ pub async fn add_exdate(
     Path(id): Path<String>,
     Json(input): Json<ExdateInput>,
 ) -> AppResult<Json<Event>> {
-    let mut ev: Event = owned_event(&state, &auth.id, &id).await?.into();
+    let mut ev: Event = editable_event(&state, &auth.id, &id).await?.into();
     if ev.rrule.is_none() {
         return Err(AppError::BadRequest("Der Termin ist keine Serie".into()));
     }

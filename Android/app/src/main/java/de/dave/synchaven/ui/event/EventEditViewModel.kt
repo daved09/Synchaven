@@ -93,7 +93,8 @@ class EventEditViewModel(
 
     private suspend fun load() {
         runCatching {
-            val calendars = repo.ensureCalendars()
+            // In den Geburtstagskalender können keine Termine eingetragen werden.
+            val calendars = repo.ensureCalendars().filterNot { it.isBirthdays }
             val defaultCal = calendars.firstOrNull { it.visible } ?: calendars.firstOrNull()
             val eventId = route.eventId
             if (eventId == null) {

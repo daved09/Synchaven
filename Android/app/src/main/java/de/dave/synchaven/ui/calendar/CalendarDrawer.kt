@@ -115,8 +115,10 @@ private fun CalendarItem(cal: Calendar, onToggle: (Calendar) -> Unit, onAction: 
                 DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                     MenuItem(stringResource(R.string.action_edit), Icons.Outlined.Edit) { menu = false; onAction(cal, CalendarAction.EDIT) }
                     MenuItem(stringResource(R.string.calendar_export), Icons.Outlined.Download) { menu = false; onAction(cal, CalendarAction.EXPORT) }
-                    MenuItem(stringResource(R.string.calendar_import), Icons.Outlined.Upload) { menu = false; onAction(cal, CalendarAction.IMPORT) }
-                    MenuItem(stringResource(R.string.action_delete), Icons.Outlined.Delete) { menu = false; onAction(cal, CalendarAction.DELETE) }
+                    if (!cal.isBirthdays) {
+                        MenuItem(stringResource(R.string.calendar_import), Icons.Outlined.Upload) { menu = false; onAction(cal, CalendarAction.IMPORT) }
+                        MenuItem(stringResource(R.string.action_delete), Icons.Outlined.Delete) { menu = false; onAction(cal, CalendarAction.DELETE) }
+                    }
                 }
             }
         },

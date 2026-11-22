@@ -421,6 +421,8 @@ mod tests {
             timezone: "Europe/Berlin".into(),
             rrule: Some("FREQ=DAILY;COUNT=2".into()),
             exdates: vec![],
+            contact_id: None,
+            read_only: false,
             created_at: start,
             updated_at: start,
         };

@@ -84,7 +84,7 @@ watch(open, async (v) => {
   } else {
     const p = props.preset ?? { start: new Date(), end: addMinutes(new Date(), 60), allDay: false }
     title.value = ''
-    calendarId.value = p.calendarId ?? calendars.list.find((c) => c.visible)?.id ?? calendars.list[0]?.id ?? ''
+    calendarId.value = p.calendarId ?? calendars.writable.find((c) => c.visible)?.id ?? calendars.writable[0]?.id ?? ''
     location.value = ''
     description.value = ''
     timezone.value = browserTimeZone()
@@ -110,7 +110,7 @@ function changeStart(date: string | null, time: string | null) {
 
 const endError = computed(() => (startDate.value && endDate.value && end.value < start.value ? 'Ende liegt vor dem Beginn' : ''))
 
-const calendarItems = computed(() => calendars.list.map((c) => ({ title: c.name, value: c.id, color: c.color })))
+const calendarItems = computed(() => calendars.writable.map((c) => ({ title: c.name, value: c.id, color: c.color })))
 
 async function save() {
   const { valid } = await formRef.value.validate()

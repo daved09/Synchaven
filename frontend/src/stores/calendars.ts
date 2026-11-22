@@ -8,6 +8,8 @@ export const useCalendarsStore = defineStore('calendars', () => {
   const list = ref<Calendar[]>([])
   const byId = computed(() => new Map(list.value.map((c) => [c.id, c])))
   const visibleIds = computed(() => new Set(list.value.filter((c) => c.visible).map((c) => c.id)))
+  /** Kalender, in die Termine eingetragen werden können (ohne Geburtstagskalender) */
+  const writable = computed(() => list.value.filter((c) => c.kind !== 'birthdays'))
 
   async function load() {
     list.value = await api.calendars()
@@ -50,5 +52,5 @@ export const useCalendarsStore = defineStore('calendars', () => {
   function reset() {
     list.value = []
   }
-  return { list, byId, visibleIds, load, create, update, remove, toggleVisible, exportIcs, importIcs, reset }
+  return { list, byId, visibleIds, writable, load, create, update, remove, toggleVisible, exportIcs, importIcs, reset }
 })

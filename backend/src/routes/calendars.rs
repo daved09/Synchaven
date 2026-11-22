@@ -7,9 +7,20 @@ use axum::{
 use crate::{
     auth::AuthUser,
     error::{AppError, AppResult},
+    birthdays,
     models::{Calendar, CalendarInput, CalendarRow},
     time, AppState,
 };
+
+/// Termine in diesem Kalender werden automatisch erzeugt und dürfen nicht von Hand geändert werden.
+pub fn ensure_writable(cal: &CalendarRow) -> AppResult<()> {
+    if cal.kind == birthdays::KIND {
+        return Err(AppError::BadRequest(
+            "Der Geburtstagskalender wird automatisch aus den Kontakten erstellt".into(),
+        ));
+    }
+    Ok(())
+}
 
 /// Lädt einen Kalender, sofern er dem Benutzer gehört.
 pub async fn owned_calendar(state: &AppState, user_id: &str, id: &str) -> AppResult<CalendarRow> {
@@ -37,6 +48,7 @@ fn validate(input: &CalendarInput) -> AppResult<(String, Option<String>)> {
 }
 
 pub async fn list(State(state): State<AppState>, auth: AuthUser) -> AppResult<Json<Vec<Calendar>>> {
+    birthdays::ensure_calendar(&mut *state.db.acquire().await?, &auth.id).await?;
     let rows = sqlx::query_as::<_, CalendarRow>("SELECT * FROM calendars WHERE user_id = ? ORDER BY created_at, name")
         .bind(&auth.id)
         .fetch_all(&state.db)
@@ -91,7 +103,12 @@ pub async fn update(
 }
 
 pub async fn delete(State(state): State<AppState>, auth: AuthUser, Path(id): Path<String>) -> AppResult<StatusCode> {
-    owned_calendar(&state, &auth.id, &id).await?;
+    let cal = owned_calendar(&state, &auth.id, &id).await?;
+    if cal.kind == birthdays::KIND {
+        return Err(AppError::BadRequest(
+            "Der Geburtstagskalender kann nicht gelöscht, aber ausgeblendet werden".into(),
+        ));
+    }
     // Termine werden per ON DELETE CASCADE mitgelöscht.
     sqlx::query("DELETE FROM calendars WHERE id = ?").bind(&id).execute(&state.db).await?;
     Ok(StatusCode::NO_CONTENT)

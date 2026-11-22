@@ -17,8 +17,13 @@ import okhttp3.RequestBody.Companion.toRequestBody
 /**
  * Adressbücher und Kontakte. Die Kontaktliste (ohne Fotos) wird zwischengespeichert, damit Liste,
  * Detail- und Bearbeitungsansicht nach Änderungen sofort übereinstimmen.
+ * [onContactsChanged] wird nach jeder Kontaktänderung aufgerufen, weil der Server daraus den
+ * Geburtstagskalender ableitet.
  */
-class ContactRepository(private val api: SyncHavenApi) {
+class ContactRepository(
+    private val api: SyncHavenApi,
+    private val onContactsChanged: () -> Unit = {},
+) {
     private val _addressBooks = MutableStateFlow<List<AddressBook>?>(null)
     val addressBooks: StateFlow<List<AddressBook>?> = _addressBooks.asStateFlow()
 
@@ -42,6 +47,7 @@ class ContactRepository(private val api: SyncHavenApi) {
     suspend fun createContact(input: ContactInput): Contact {
         val c = apiCall { api.createContact(input) }
         _contacts.update { (it ?: emptyList()) + c.copy(photo = null) }
+        onContactsChanged()
         reloadAddressBooks()
         return c
     }
@@ -49,6 +55,7 @@ class ContactRepository(private val api: SyncHavenApi) {
     suspend fun updateContact(id: String, input: ContactInput): Contact {
         val c = apiCall { api.updateContact(id, input) }
         _contacts.update { list -> list?.map { if (it.id == id) c.copy(photo = null) else it } }
+        onContactsChanged()
         reloadAddressBooks()
         return c
     }
@@ -56,6 +63,7 @@ class ContactRepository(private val api: SyncHavenApi) {
     suspend fun deleteContact(id: String) {
         apiCall { api.deleteContact(id) }
         _contacts.update { list -> list?.filterNot { it.id == id } }
+        onContactsChanged()
         reloadAddressBooks()
     }
 
@@ -67,6 +75,7 @@ class ContactRepository(private val api: SyncHavenApi) {
 
     suspend fun deleteAddressBook(id: String) {
         apiCall { api.deleteAddressBook(id) }
+        onContactsChanged()
         loadAll()
     }
 
@@ -74,7 +83,7 @@ class ContactRepository(private val api: SyncHavenApi) {
 
     suspend fun importAddressBook(id: String, vcf: String): ContactImportResult =
         apiCall { api.importAddressBook(id, vcf.toRequestBody("text/vcard; charset=utf-8".toMediaType())) }
-            .also { loadAll() }
+            .also { onContactsChanged(); loadAll() }
 
     fun reset() {
         _addressBooks.value = null

@@ -18,6 +18,8 @@ export interface Calendar {
   color: string
   description: string
   visible: boolean
+  /** `birthdays`: automatisch aus den Kontakten erzeugt, Termine schreibgeschützt */
+  kind: 'default' | 'birthdays'
   created_at: string
   updated_at: string
 }
@@ -43,6 +45,9 @@ export interface CalEvent {
   timezone: string
   rrule: string | null
   exdates: string[]
+  /** Kontakt, aus dessen Geburtstag der Termin erzeugt wurde */
+  contact_id: string | null
+  read_only: boolean
   created_at: string
   updated_at: string
 }
@@ -74,6 +79,9 @@ export interface Occurrence {
   timezone: string
   recurring: boolean
   rrule: string | null
+  contact_id: string | null
+  /** Automatisch erzeugte Termine (Geburtstage) können nicht bearbeitet werden */
+  read_only: boolean
 }
 
 /** Vorkommen mit lokal berechneten Datumswerten für die Darstellung */

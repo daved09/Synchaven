@@ -15,6 +15,8 @@ Material-3-Design** (Vuetify), einer **REST API** für eigene Clients wie eine A
 * Ansichten: Monat, Woche, Tag, Terminliste mit Suche
 * **Kontakte:** mehrere Adressbücher, Suche, Telefon/E-Mail/Adressen/Websites mit Typen und eigenen Bezeichnungen,
   Geburtstag (auch ohne Jahr), Notizen, Fotos aus importierten oder synchronisierten Kontakten
+* **Geburtstagskalender:** Geburtstage aller Kontakte erscheinen automatisch als jährliche Termine im eigenen
+  Kalender „Geburtstage“ (mit Alter, sofern das Geburtsjahr bekannt ist) – auch für per DAVx⁵ synchronisierte Kontakte
 * vCard-Import und -Export (.vcf, auch per Drag & Drop) – vCard 2.1, 3.0 und 4.0, z. B. aus Android, iPhone,
   Google Kontakte, Outlook, Thunderbird; erneuter Import erzeugt keine Duplikate
 * **Synchronisierung per CardDAV** mit DAVx⁵ (Android), Thunderbird und iOS – in beide Richtungen
@@ -166,6 +168,7 @@ backend/            Rust (axum, sqlx/SQLite, rrule, jsonwebtoken, argon2, quick-
   src/ical.rs       iCalendar-Import/-Export
   src/vcard.rs      vCard lesen/schreiben (inkl. 2.1-Import), verlustfreies Bearbeiten
   src/contacts.rs   Speicherung von Adressbüchern und Kontakten
+  src/birthdays.rs  Geburtstagskalender aus den Kontakten
   src/dav.rs        CardDAV-Server für DAVx⁵ & Co.
 frontend/           Vue 3 + Vuetify 3 (Material 3) + Pinia
   src/components/   Monats-, Wochen-/Tages-, Listenansicht, Kontaktdetails, Dialoge

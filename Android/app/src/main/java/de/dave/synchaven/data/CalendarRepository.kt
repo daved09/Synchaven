@@ -29,7 +29,8 @@ class CalendarRepository(private val api: SyncHavenApi) {
     private val _eventsVersion = MutableStateFlow(0L)
     val eventsVersion: StateFlow<Long> = _eventsVersion.asStateFlow()
 
-    private fun eventsChanged() = _eventsVersion.update { it + 1 }
+    /** Termine wurden geändert (auch indirekt, z. B. Geburtstage durch Kontaktänderungen). */
+    fun eventsChanged() = _eventsVersion.update { it + 1 }
 
     suspend fun loadCalendars(): List<Calendar> =
         apiCall { api.calendars() }.also { _calendars.value = it }

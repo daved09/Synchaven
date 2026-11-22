@@ -55,10 +55,15 @@ data class Calendar(
     val color: String = "#6750A4",
     val description: String = "",
     val visible: Boolean = true,
+    /** `default` oder `birthdays` (automatisch aus den Kontakten erzeugt) */
+    val kind: String = "default",
     @SerialName("created_at") val createdAt: String = "",
     @SerialName("updated_at") val updatedAt: String = "",
 ) {
     fun toInput() = CalendarInput(name, color, description, visible)
+
+    /** Geburtstagskalender: nicht löschbar, Termine schreibgeschützt */
+    val isBirthdays get() = kind == "birthdays"
 }
 
 @Serializable
@@ -87,6 +92,8 @@ data class CalEvent(
     val timezone: String = "UTC",
     val rrule: String? = null,
     val exdates: List<String> = emptyList(),
+    @SerialName("contact_id") val contactId: String? = null,
+    @SerialName("read_only") val readOnly: Boolean = false,
 )
 
 @Serializable
@@ -118,6 +125,10 @@ data class Occurrence(
     val timezone: String = "UTC",
     val recurring: Boolean = false,
     val rrule: String? = null,
+    /** Kontakt, aus dessen Geburtstag der Termin erzeugt wurde */
+    @SerialName("contact_id") val contactId: String? = null,
+    /** Automatisch erzeugte Termine (Geburtstage) können nicht bearbeitet werden */
+    @SerialName("read_only") val readOnly: Boolean = false,
 )
 
 @Serializable

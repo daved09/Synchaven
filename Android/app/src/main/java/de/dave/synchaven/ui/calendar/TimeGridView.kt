@@ -292,6 +292,7 @@ private fun TimedEvent(
             .background(color)
             .then(if (drag != null) Modifier.border(2.dp, textColor, RoundedCornerShape(6.dp)) else Modifier)
             .pointerInput(ev.id) {
+                if (ev.occ.readOnly) return@pointerInput
                 detectDragGesturesAfterLongPress(
                     onDragStart = { drag = Offset.Zero },
                     onDrag = { change, amount ->

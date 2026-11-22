@@ -1,4 +1,5 @@
 mod auth;
+mod birthdays;
 mod config;
 mod contacts;
 mod dav;
@@ -61,6 +62,7 @@ async fn main() -> anyhow::Result<()> {
         .await
         .context("Datenbank kann nicht geöffnet werden")?;
     sqlx::migrate!("./migrations").run(&db).await.context("Migration fehlgeschlagen")?;
+    birthdays::sync_all(&db).await.map_err(|e| anyhow::anyhow!("{e:?}")).context("Geburtstagskalender konnte nicht abgeglichen werden")?;
 
     let state = AppState {
         db,

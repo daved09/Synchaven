@@ -1,6 +1,6 @@
-# Kalender
+# Synchaven
 
-Selbst gehostete Kalender- und Kontaktverwaltung mit **Rust-Backend** (axum + SQLite), **Vue-3-Weboberfläche im
+Synchaven ist eine selbst gehostete Kalender- und Kontaktverwaltung mit **Rust-Backend** (axum + SQLite), **Vue-3-Weboberfläche im
 Material-3-Design** (Vuetify), einer **REST API** für eigene Clients wie eine Android-App und einem
 **CardDAV-Server** für die Kontakt-Synchronisierung mit DAVx⁵.
 
@@ -31,7 +31,7 @@ docker compose up -d
 ```
 
 Danach <http://localhost:8080> öffnen und ein Konto registrieren. Die Daten (SQLite-Datenbank und
-JWT-Secret) liegen im Volume `kalender-data` unter `/data`.
+JWT-Secret) liegen im Volume `synchaven-data` unter `/data`.
 
 Nach Codeänderungen: `./build.sh && docker compose up -d` – Compose ersetzt den Container dann
 durch einen mit dem neuen Image.
@@ -39,25 +39,29 @@ durch einen mit dem neuen Image.
 ### Build-Script
 
 `build.sh` braucht keine Parameter. Es baut das Image als
-`ghcr.io/daved09/kalender:<version>`, wobei `<version>` aus `backend/Cargo.toml` stammt,
-und schreibt die Version als `KALENDER_VERSION` in `.env`. Diese Datei liest `docker compose`
-automatisch, daher startet Compose immer die zuletzt gebaute Version. Für eine neue Version die
-`version` in `backend/Cargo.toml` erhöhen.
+`ghcr.io/daved09/synchaven:<version>`, wobei `<version>` aus `version.properties`
+(Eintrag `version=…`) stammt, und schreibt die Version als `SYNCHAVEN_VERSION` in `.env`. Diese Datei
+liest `docker compose` automatisch, daher startet Compose immer die zuletzt gebaute Version. Für eine
+neue Version nur `version` in `version.properties` erhöhen.
+
+Das Backend liest dieselbe Datei beim Kompilieren über `backend/build.rs` und meldet die Version unter
+`GET /api/info` – auch bei `cargo run` ohne `build.sh`. Die Version in `backend/Cargo.toml` ist nur ein
+Platzhalter (`0.0.0`).
 
 Hochladen in die Registry:
 
 ```bash
-docker push ghcr.io/daved09/kalender:0.1.0
+docker push ghcr.io/daved09/synchaven:1.0.0
 ```
 
 Auf einem anderen Rechner genügen `docker-compose.yml` und eine `.env` mit
-`KALENDER_VERSION=0.1.0` – das Image wird dann aus der Registry geladen.
+`SYNCHAVEN_VERSION=1.0.0` – das Image wird dann aus der Registry geladen.
 
 Ohne Compose:
 
 ```bash
 ./build.sh
-docker run -d --name kalender -p 8080:8080 -v kalender-data:/data ghcr.io/daved09/kalender:0.1.0
+docker run -d --name synchaven -p 8080:8080 -v synchaven-data:/data ghcr.io/daved09/synchaven:1.0.0
 ```
 
 ### Konfiguration (Umgebungsvariablen)
@@ -65,12 +69,12 @@ docker run -d --name kalender -p 8080:8080 -v kalender-data:/data ghcr.io/daved0
 | Variable             | Standard          | Beschreibung |
 |----------------------|-------------------|--------------|
 | `BIND_ADDR`          | `0.0.0.0:8080`    | Adresse/Port |
-| `DATA_DIR`           | `/data`           | Ablage für `kalender.db` und `jwt_secret` |
+| `DATA_DIR`           | `/data`           | Ablage für `synchaven.db` und `jwt_secret` |
 | `ALLOW_REGISTRATION` | `true`            | Neue Konten erlauben |
 | `TOKEN_TTL_DAYS`     | `30`              | Gültigkeit der Anmeldung |
 | `JWT_SECRET`         | *(automatisch)*   | Eigenes Secret (≥ 32 Zeichen) |
 | `CORS_ORIGINS`       | `*`               | Erlaubte Browser-Origins, kommagetrennt |
-| `RUST_LOG`           | `kalender=info`   | Log-Level |
+| `RUST_LOG`           | `synchaven=info`  | Log-Level |
 
 **Hinweis:** Für den Betrieb im Internet einen Reverse-Proxy mit HTTPS (z. B. Caddy, Traefik, nginx)
 vorschalten und nach dem Anlegen der eigenen Konten `ALLOW_REGISTRATION=false` setzen.
@@ -88,8 +92,8 @@ jeder Anfrage mitgesendet wird, gehört der Server für den Zugriff über das In
 ### Sicherung
 
 ```bash
-docker run --rm -v kalender-data:/data -v "$PWD":/backup debian:bookworm-slim \
-  tar czf /backup/kalender-backup.tgz -C /data .
+docker run --rm -v synchaven-data:/data -v "$PWD":/backup debian:bookworm-slim \
+  tar czf /backup/synchaven-backup.tgz -C /data .
 ```
 
 ## REST API

@@ -12,7 +12,7 @@ export interface Settings {
   dayStartHour: number
 }
 
-const KEY = 'kalender.settings'
+const KEY = 'synchaven.settings'
 const DEFAULTS: Settings = {
   themeMode: 'system',
   seedColor: '#6750A4',

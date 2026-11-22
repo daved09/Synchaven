@@ -111,7 +111,7 @@ pub async fn upsert(state: &AppState, uid: &str, data: &EventData) -> AppResult<
 }
 
 pub fn new_uid() -> String {
-    format!("{}@kalender", uuid::Uuid::new_v4())
+    format!("{}@synchaven", uuid::Uuid::new_v4())
 }
 
 async fn owned_event(state: &AppState, user_id: &str, id: &str) -> AppResult<EventRow> {

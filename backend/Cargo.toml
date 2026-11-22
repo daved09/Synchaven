@@ -1,8 +1,8 @@
 [package]
-name = "kalender"
-version = "0.1.0"
+name = "synchaven"
+version = "0.0.0" # Platzhalter – die Version steht in version.properties (siehe build.rs)
 edition = "2021"
-description = "Kalender-Backend mit REST API"
+description = "Synchaven – Kalender- und Kontakt-Backend mit REST API und CardDAV"
 
 [dependencies]
 anyhow = "1"

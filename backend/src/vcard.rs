@@ -740,7 +740,7 @@ pub fn create(uid: &str, data: &ContactData, now: DateTime<Utc>) -> Card {
     let mut card = Card {
         lines: vec![
             Line::new("VERSION", "3.0"),
-            Line::new("PRODID", "-//Kalender//Kalender//DE"),
+            Line::new("PRODID", "-//Synchaven//Synchaven//DE"),
             Line::new("UID", uid),
         ],
     };

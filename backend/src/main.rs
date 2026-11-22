@@ -44,7 +44,7 @@ async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "kalender=info,tower_http=warn".into()),
+                .unwrap_or_else(|_| "synchaven=info,tower_http=warn".into()),
         )
         .init();
 
@@ -96,7 +96,7 @@ async fn main() -> anyhow::Result<()> {
         .with_state(state);
 
     let listener = tokio::net::TcpListener::bind(config.bind).await?;
-    tracing::info!("Kalender läuft auf http://{}", config.bind);
+    tracing::info!("Synchaven läuft auf http://{}", config.bind);
     axum::serve(listener, app).with_graceful_shutdown(shutdown_signal()).await?;
     Ok(())
 }
@@ -133,7 +133,7 @@ async fn shutdown_signal() {
     tokio::select! { _ = ctrl_c => {}, _ = terminate => {} }
 }
 
-/// `kalender healthcheck` – für den Docker-HEALTHCHECK (ohne curl im Image).
+/// `synchaven healthcheck` – für den Docker-HEALTHCHECK (ohne curl im Image).
 async fn healthcheck() -> anyhow::Result<()> {
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     let bind: std::net::SocketAddr = std::env::var("BIND_ADDR")

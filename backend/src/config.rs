@@ -44,7 +44,7 @@ impl Config {
     }
 
     pub fn db_path(&self) -> PathBuf {
-        self.data_dir.join("kalender.db")
+        self.data_dir.join("synchaven.db")
     }
 }
 

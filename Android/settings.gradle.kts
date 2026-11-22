@@ -22,6 +22,6 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "SyncHaven"
+rootProject.name = "Synchaven"
 include(":app")
  

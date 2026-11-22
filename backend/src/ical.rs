@@ -66,7 +66,7 @@ pub fn export(calendar_name: &str, events: &[Event]) -> String {
     for line in [
         "BEGIN:VCALENDAR",
         "VERSION:2.0",
-        "PRODID:-//Kalender//Kalender 0.1//DE",
+        "PRODID:-//Synchaven//Synchaven//DE",
         "CALSCALE:GREGORIAN",
         "METHOD:PUBLISH",
     ] {

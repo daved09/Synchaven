@@ -15,25 +15,27 @@ WORKDIR /app
 COPY backend/Cargo.toml backend/Cargo.lock ./
 RUN mkdir src && echo 'fn main() {}' > src/main.rs \
     && cargo build --release --locked \
-    && rm -rf src target/release/deps/kalender* target/release/kalender* target/release/.fingerprint/kalender-*
+    && rm -rf src target/release/deps/synchaven* target/release/synchaven* target/release/.fingerprint/synchaven-*
 COPY backend/ ./
+# build.rs liest die Version aus version.properties
+COPY version.properties ./
 # touch: COPY übernimmt alte Zeitstempel, Cargo soll das echte Programm neu bauen
 RUN touch src/main.rs && cargo build --release --locked
 
 # ---------- 3. Laufzeit-Image ----------
 FROM debian:bookworm-slim
-RUN useradd --system --uid 10001 --home-dir /data kalender \
-    && mkdir -p /data /app/static && chown kalender:kalender /data
-COPY --from=api /app/target/release/kalender /usr/local/bin/kalender
+RUN useradd --system --uid 10001 --home-dir /data synchaven \
+    && mkdir -p /data /app/static && chown synchaven:synchaven /data
+COPY --from=api /app/target/release/synchaven /usr/local/bin/synchaven
 COPY --from=web /web/dist /app/static
 
 ENV BIND_ADDR=0.0.0.0:8080 \
     DATA_DIR=/data \
     STATIC_DIR=/app/static \
-    RUST_LOG=kalender=info,tower_http=warn
+    RUST_LOG=synchaven=info,tower_http=warn
 
-USER kalender
+USER synchaven
 VOLUME ["/data"]
 EXPOSE 8080
-HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 CMD ["kalender", "healthcheck"]
-ENTRYPOINT ["kalender"]
+HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 CMD ["synchaven", "healthcheck"]
+ENTRYPOINT ["synchaven"]

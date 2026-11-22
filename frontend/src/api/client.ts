@@ -4,7 +4,7 @@ import type {
 } from './types'
 
 const BASE = '/api'
-const TOKEN_KEY = 'kalender.token'
+const TOKEN_KEY = 'synchaven.token'
 
 export class ApiError extends Error {
   constructor(public status: number, public code: string, message: string) {

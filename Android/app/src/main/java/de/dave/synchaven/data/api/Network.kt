@@ -37,7 +37,7 @@ class InvalidServerUrlException(url: String) : IOException("invalid server url: 
 class ApiException(val status: Int, val code: String, val serverMessage: String) :
     Exception("HTTP $status $code: $serverMessage")
 
-/** Normalisiert Eingaben wie „kalender.local:8080“ zu „http://kalender.local:8080“. */
+/** Normalisiert Eingaben wie „synchaven.local:8080“ zu „http://synchaven.local:8080“. */
 fun normalizeServerUrl(input: String): String {
     var url = input.trim().trimEnd('/')
     if (!url.startsWith("http://", true) && !url.startsWith("https://", true)) url = "http://$url"

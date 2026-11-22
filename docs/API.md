@@ -1,4 +1,4 @@
-# Kalender REST API (v1)
+# Synchaven REST API (v1)
 
 Basis-URL: `http://<host>:8080/api` · Format: JSON (UTF-8) · Zeitangaben: RFC 3339 / ISO 8601.
 
@@ -47,7 +47,7 @@ ungültigem Token antwortet der Server mit `401` – die App sollte dann zur Anm
 
 ### `GET /info`
 ```json
-{ "name": "Kalender", "version": "0.1.0", "api_version": 1, "allow_registration": true }
+{ "name": "Synchaven", "version": "1.0.0", "api_version": 1, "allow_registration": true }
 ```
 
 ## Konto

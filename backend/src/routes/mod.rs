@@ -39,8 +39,8 @@ pub fn api_router() -> Router<AppState> {
 
 async fn info(axum::extract::State(state): axum::extract::State<AppState>) -> Json<Value> {
     Json(json!({
-        "name": "Kalender",
-        "version": env!("CARGO_PKG_VERSION"),
+        "name": "Synchaven",
+        "version": env!("SYNCHAVEN_VERSION"),
         "api_version": 1,
         "allow_registration": state.config.allow_registration,
     }))

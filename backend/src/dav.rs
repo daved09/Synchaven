@@ -113,7 +113,7 @@ async fn authenticate(state: &AppState, headers: &HeaderMap) -> AppResult<Option
 fn unauthorized() -> Response {
     (
         StatusCode::UNAUTHORIZED,
-        [(header::WWW_AUTHENTICATE, "Basic realm=\"Kalender\", charset=\"UTF-8\"")],
+        [(header::WWW_AUTHENTICATE, "Basic realm=\"Synchaven\", charset=\"UTF-8\"")],
         "Anmeldung erforderlich",
     )
         .into_response()
@@ -307,7 +307,7 @@ impl Ctx<'_> {
             (NS_DAV, "current-user-principal") => Some(href(self.principal())),
             (NS_DAV, "principal-URL") if matches!(res, Res::Principal) => Some(href(self.principal())),
             (NS_DAV, "displayname") => match res {
-                Res::Root => Some("Kalender".into()),
+                Res::Root => Some("Synchaven".into()),
                 Res::Principal => Some(esc(&self.user.name)),
                 Res::Home => Some("Adressbücher".into()),
                 Res::Book(b) => Some(esc(&b.name)),
@@ -575,7 +575,7 @@ async fn handle_inner(state: AppState, req: Request) -> AppResult<Response> {
         ("GET" | "HEAD", Target::Book(_, b)) => get_book(&state, &ctx, b).await,
         ("GET" | "HEAD", _) => Ok((
             [(header::CONTENT_TYPE, "text/plain; charset=utf-8")],
-            "CardDAV-Server von Kalender. In DAVx⁵ diese Adresse mit E-Mail-Adresse und Passwort verwenden.",
+            "CardDAV-Server von Synchaven. In DAVx⁵ diese Adresse mit E-Mail-Adresse und Passwort verwenden.",
         )
             .into_response()),
         ("PUT", Target::Object(_, b, o)) => put_object(&state, &ctx, b, o, headers, &body).await,

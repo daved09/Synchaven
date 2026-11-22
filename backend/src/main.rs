@@ -1,16 +1,24 @@
 mod auth;
 mod config;
+mod contacts;
+mod dav;
 mod error;
 mod ical;
 mod models;
 mod recurrence;
 mod routes;
 mod time;
+mod vcard;
 
 use std::{str::FromStr, sync::Arc, time::Duration};
 
 use anyhow::Context;
-use axum::{extract::DefaultBodyLimit, http::HeaderValue, Router};
+use axum::{
+    extract::DefaultBodyLimit,
+    http::HeaderValue,
+    routing::{any, get_service},
+    Router,
+};
 use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePool, SqlitePoolOptions};
 use tower_http::{
     cors::{Any, CorsLayer},
@@ -25,6 +33,7 @@ pub struct AppState {
     pub db: SqlitePool,
     pub config: Arc<Config>,
     pub jwt: Arc<auth::JwtKeys>,
+    pub dav_auth: Arc<dav::AuthCache>,
 }
 
 #[tokio::main]
@@ -57,6 +66,7 @@ async fn main() -> anyhow::Result<()> {
         db,
         jwt: Arc::new(auth::JwtKeys::new(&config.jwt_secret, config.token_ttl_days)),
         config: Arc::new(config.clone()),
+        dav_auth: Arc::default(),
     };
 
     let cors = if config.cors_origins.iter().any(|o| o == "*") {
@@ -72,6 +82,13 @@ async fn main() -> anyhow::Result<()> {
 
     let app = Router::new()
         .nest("/api", routes::api_router().layer(cors))
+        // CardDAV (DAVx⁵ u. a.)
+        .route("/.well-known/carddav", any(dav::well_known))
+        .route("/dav", any(dav::handle))
+        .route("/dav/", any(dav::handle))
+        .route("/dav/{*path}", any(dav::handle))
+        // Manche Clients fragen zuerst die Startseite per PROPFIND an
+        .route("/", get_service(spa.clone()).fallback(dav::handle))
         .fallback_service(spa)
         .layer(axum::middleware::from_fn(cache_headers))
         .layer(DefaultBodyLimit::max(10 * 1024 * 1024))

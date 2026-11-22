@@ -1,5 +1,6 @@
 import type {
-  AuthResponse, CalEvent, Calendar, CalendarInput, EventInput, ImportResult, Occurrence, ServerInfo, User,
+  AddressBook, AddressBookInput, AuthResponse, CalEvent, Calendar, CalendarInput, Contact, ContactImportResult,
+  ContactInput, EventInput, ImportResult, Occurrence, ServerInfo, User,
 } from './types'
 
 const BASE = '/api'
@@ -101,4 +102,20 @@ export const api = {
   deleteEvent: (id: string) => request<void>('DELETE', `/events/${id}`),
   addExdate: (id: string, occurrenceStart: string) =>
     request<CalEvent>('POST', `/events/${id}/exdates`, { body: { occurrence_start: occurrenceStart } }),
+
+  addressBooks: () => request<AddressBook[]>('GET', '/addressbooks'),
+  createAddressBook: (data: AddressBookInput) => request<AddressBook>('POST', '/addressbooks', { body: data }),
+  updateAddressBook: (id: string, data: AddressBookInput) =>
+    request<AddressBook>('PUT', `/addressbooks/${id}`, { body: data }),
+  deleteAddressBook: (id: string) => request<void>('DELETE', `/addressbooks/${id}`),
+  exportAddressBook: (id: string) => request<string>('GET', `/addressbooks/${id}/export`, { asText: true }),
+  importAddressBook: (id: string, vcf: string) =>
+    request<ContactImportResult>('POST', `/addressbooks/${id}/import`, { rawBody: vcf, contentType: 'text/vcard' }),
+
+  contacts: (addressbookId?: string) =>
+    request<Contact[]>('GET', '/contacts', { query: { addressbook_id: addressbookId } }),
+  contact: (id: string) => request<Contact>('GET', `/contacts/${id}`),
+  createContact: (data: ContactInput) => request<Contact>('POST', '/contacts', { body: data }),
+  updateContact: (id: string, data: ContactInput) => request<Contact>('PUT', `/contacts/${id}`, { body: data }),
+  deleteContact: (id: string) => request<void>('DELETE', `/contacts/${id}`),
 }

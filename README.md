@@ -1,7 +1,8 @@
 # Kalender
 
-Selbst gehostete Kalenderanwendung mit **Rust-Backend** (axum + SQLite), **Vue-3-Weboberfläche im
-Material-3-Design** (Vuetify) und einer **REST API** für eigene Clients wie eine Android-App.
+Selbst gehostete Kalender- und Kontaktverwaltung mit **Rust-Backend** (axum + SQLite), **Vue-3-Weboberfläche im
+Material-3-Design** (Vuetify), einer **REST API** für eigene Clients wie eine Android-App und einem
+**CardDAV-Server** für die Kontakt-Synchronisierung mit DAVx⁵.
 
 ## Funktionen
 
@@ -12,6 +13,11 @@ Material-3-Design** (Vuetify) und einer **REST API** für eigene Clients wie ein
   einzelne Vorkommen löschbar; korrekt über Sommer-/Winterzeitwechsel
 * iCalendar-Import und -Export (.ics) – kompatibel mit Google Kalender, Outlook, Thunderbird, Apple
 * Ansichten: Monat, Woche, Tag, Terminliste mit Suche
+* **Kontakte:** mehrere Adressbücher, Suche, Telefon/E-Mail/Adressen/Websites mit Typen und eigenen Bezeichnungen,
+  Geburtstag (auch ohne Jahr), Notizen, Fotos aus importierten oder synchronisierten Kontakten
+* vCard-Import und -Export (.vcf, auch per Drag & Drop) – vCard 2.1, 3.0 und 4.0, z. B. aus Android, iPhone,
+  Google Kontakte, Outlook, Thunderbird; erneuter Import erzeugt keine Duplikate
+* **Synchronisierung per CardDAV** mit DAVx⁵ (Android), Thunderbird und iOS – in beide Richtungen
 * Material 3 mit dynamischem Farbschema aus frei wählbarer Grundfarbe, Hell/Dunkel/System
 * Tastenkürzel: `M` `W` `T` `L` (Ansicht), `H` (heute), `←`/`→` (blättern), `C` (neuer Termin), `/` (Suche)
 
@@ -69,6 +75,16 @@ docker run -d --name kalender -p 8080:8080 -v kalender-data:/data ghcr.io/daved0
 **Hinweis:** Für den Betrieb im Internet einen Reverse-Proxy mit HTTPS (z. B. Caddy, Traefik, nginx)
 vorschalten und nach dem Anlegen der eigenen Konten `ALLOW_REGISTRATION=false` setzen.
 
+### Kontakte mit DAVx⁵ synchronisieren
+
+1. In DAVx⁵ auf **+** tippen und **Mit URL und Benutzername anmelden** wählen.
+2. Basis-URL `https://<server>/dav/` (die Startadresse funktioniert ebenfalls), Benutzername = E-Mail-Adresse,
+   Passwort = Anmeldepasswort.
+3. Konto anlegen und im Reiter **CardDAV** die Adressbücher aktivieren.
+
+Dieselben Angaben zeigt die Weboberfläche unter *Kontakte → Mit DAVx⁵ synchronisieren*. Da das Passwort bei
+jeder Anfrage mitgesendet wird, gehört der Server für den Zugriff über das Internet hinter HTTPS.
+
 ### Sicherung
 
 ```bash
@@ -85,6 +101,9 @@ Die vollständige API-Referenz steht in [docs/API.md](docs/API.md). Kurzüberbli
 | Konto     | `POST /api/auth/register`, `POST /api/auth/login`, `GET/PUT /api/auth/me` |
 | Kalender  | `GET/POST /api/calendars`, `GET/PUT/DELETE /api/calendars/{id}`, `GET …/export`, `POST …/import` |
 | Termine   | `GET /api/events?start&end`, `POST /api/events`, `GET/PUT/DELETE /api/events/{id}`, `POST /api/events/{id}/exdates` |
+| Adressbücher | `GET/POST /api/addressbooks`, `PUT/DELETE /api/addressbooks/{id}`, `GET …/export`, `POST …/import` |
+| Kontakte  | `GET /api/contacts[?addressbook_id&q]`, `POST /api/contacts`, `GET/PUT/DELETE /api/contacts/{id}` |
+| CardDAV   | `/dav/` (Basic-Auth, siehe [docs/API.md](docs/API.md#carddav-davx-thunderbird-ios)) |
 
 Wiederkehrende Termine werden vom Server in Einzelvorkommen expandiert, sodass eine Android-App
 keine eigene RRULE-Logik benötigt.
@@ -111,13 +130,17 @@ cd frontend && npm run typecheck && npm run build
 ## Projektstruktur
 
 ```
-backend/            Rust (axum, sqlx/SQLite, rrule, jsonwebtoken, argon2)
+backend/            Rust (axum, sqlx/SQLite, rrule, jsonwebtoken, argon2, quick-xml)
   migrations/       SQL-Schema (wird beim Start automatisch angewendet)
-  src/routes/       REST-Endpunkte (auth, calendars, events, ical)
+  src/routes/       REST-Endpunkte (auth, calendars, events, ical, contacts)
   src/recurrence.rs Expansion wiederkehrender Termine
   src/ical.rs       iCalendar-Import/-Export
+  src/vcard.rs      vCard lesen/schreiben (inkl. 2.1-Import), verlustfreies Bearbeiten
+  src/contacts.rs   Speicherung von Adressbüchern und Kontakten
+  src/dav.rs        CardDAV-Server für DAVx⁵ & Co.
 frontend/           Vue 3 + Vuetify 3 (Material 3) + Pinia
-  src/components/   Monats-, Wochen-/Tages-, Listenansicht, Dialoge
+  src/components/   Monats-, Wochen-/Tages-, Listenansicht, Kontaktdetails, Dialoge
+  src/views/        Anmeldung, Kalender, Kontakte
   src/plugins/      Vuetify-Setup und M3-Farbschema-Generator
 docs/API.md         API-Referenz
 Dockerfile          Mehrstufiger Build → schlankes Debian-Image

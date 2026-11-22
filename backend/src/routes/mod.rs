@@ -1,5 +1,5 @@
 use axum::{
-    routing::{get, post},
+    routing::{get, post, put},
     Json, Router,
 };
 use serde_json::{json, Value};
@@ -8,6 +8,7 @@ use crate::{error::AppError, AppState};
 
 mod auth;
 mod calendars;
+mod contacts;
 mod events;
 mod ical;
 
@@ -27,6 +28,12 @@ pub fn api_router() -> Router<AppState> {
         .route("/events", get(events::list).post(events::create))
         .route("/events/{id}", get(events::get).put(events::update).delete(events::delete))
         .route("/events/{id}/exdates", post(events::add_exdate))
+        .route("/addressbooks", get(contacts::list_books).post(contacts::create_book))
+        .route("/addressbooks/{id}", put(contacts::update_book).delete(contacts::delete_book))
+        .route("/addressbooks/{id}/export", get(contacts::export_book))
+        .route("/addressbooks/{id}/import", post(contacts::import_book))
+        .route("/contacts", get(contacts::list).post(contacts::create))
+        .route("/contacts/{id}", get(contacts::get).put(contacts::update).delete(contacts::delete))
         .fallback(|| async { AppError::NotFound })
 }
 

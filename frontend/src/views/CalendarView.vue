@@ -3,14 +3,13 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useDisplay } from 'vuetify'
 import type { Calendar, ViewEvent } from '@/api/types'
+import AccountMenu from '@/components/AccountMenu.vue'
 import CalendarDialog from '@/components/CalendarDialog.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import EventDetails from '@/components/EventDetails.vue'
 import EventDialog, { type EventPreset } from '@/components/EventDialog.vue'
 import MonthView from '@/components/MonthView.vue'
 import AgendaView from '@/components/AgendaView.vue'
-import ProfileDialog from '@/components/ProfileDialog.vue'
-import SettingsDialog from '@/components/SettingsDialog.vue'
 import TimeGrid from '@/components/TimeGrid.vue'
 import { useAuthStore } from '@/stores/auth'
 import { useCalendarsStore } from '@/stores/calendars'
@@ -43,8 +42,7 @@ const editId = ref<string | null>(null)
 const preset = ref<EventPreset | null>(null)
 const calendarDialog = ref(false)
 const editCalendar = ref<Calendar | null>(null)
-const settingsOpen = ref(false)
-const profileOpen = ref(false)
+const accountMenu = ref<InstanceType<typeof AccountMenu>>()
 
 const modes: { value: ViewMode; title: string; icon: string; key: string }[] = [
   { value: 'month', title: 'Monat', icon: 'mdi-calendar-month-outline', key: 'M' },
@@ -58,9 +56,6 @@ const days = computed(() => {
   const n = Math.round((end.getTime() - start.getTime()) / 86_400_000)
   return Array.from({ length: n }, (_, i) => addDays(start, i))
 })
-const initials = computed(() =>
-  (auth.user?.name || auth.user?.email || '?').split(/[\s@.]+/).filter(Boolean).slice(0, 2).map((s) => s[0].toUpperCase()).join(''),
-)
 
 // --- URL-Synchronisierung (?view=week&date=2026-11-22) ---
 function readRoute() {
@@ -196,13 +191,6 @@ async function onImportFile(e: Event) {
 }
 watch(calendarDialog, (v) => !v && events.reload())
 
-function logout() {
-  auth.logout()
-  calendars.reset()
-  events.reset()
-  router.replace({ name: 'login' })
-}
-
 // --- Wischgesten (Handy): links/rechts blättern ---
 let touchX = 0
 let touchY = 0
@@ -217,7 +205,7 @@ function onTouchEnd(e: TouchEvent) {
 }
 
 // --- Tastenkürzel ---
-const anyDialog = () => detailsOpen.value || editorOpen.value || calendarDialog.value || settingsOpen.value || profileOpen.value
+const anyDialog = () => detailsOpen.value || editorOpen.value || calendarDialog.value || !!accountMenu.value?.dialogOpen
 function onKey(e: KeyboardEvent) {
   const t = e.target as HTMLElement
   if (e.ctrlKey || e.metaKey || e.altKey || anyDialog()) return
@@ -342,22 +330,8 @@ function onKey(e: KeyboardEvent) {
       </v-list>
     </v-menu>
 
-    <v-menu location="bottom end">
-      <template #activator="{ props: p }">
-        <v-btn v-bind="p" icon class="mr-2" title="Konto">
-          <v-avatar color="primary" size="34"><span class="text-label-large">{{ initials }}</span></v-avatar>
-        </v-btn>
-      </template>
-      <v-card min-width="260" color="surface-container-high">
-        <v-card-item :title="auth.user?.name" :subtitle="auth.user?.email" />
-        <v-divider />
-        <v-list density="compact" bg-color="transparent">
-          <v-list-item prepend-icon="mdi-account-outline" title="Profil" @click="profileOpen = true" />
-          <v-list-item prepend-icon="mdi-cog-outline" title="Einstellungen" @click="settingsOpen = true" />
-          <v-list-item prepend-icon="mdi-logout" title="Abmelden" @click="logout" />
-        </v-list>
-      </v-card>
-    </v-menu>
+    <v-btn icon="mdi-account-box-multiple-outline" title="Kontakte" :to="{ name: 'contacts' }" />
+    <AccountMenu ref="accountMenu" />
   </v-app-bar>
 
   <v-main class="main">
@@ -389,8 +363,6 @@ function onKey(e: KeyboardEvent) {
   <EventDetails v-model="detailsOpen" :event="selected" @edit="editEvent" @delete="deleteEvent" />
   <EventDialog v-model="editorOpen" :event-id="editId" :preset="preset" />
   <CalendarDialog v-model="calendarDialog" :calendar="editCalendar" />
-  <SettingsDialog v-model="settingsOpen" />
-  <ProfileDialog v-model="profileOpen" />
   <ConfirmDialog ref="confirmRef" />
 </template>
 

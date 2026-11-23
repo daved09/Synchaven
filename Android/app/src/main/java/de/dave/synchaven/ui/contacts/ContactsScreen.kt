@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Close
@@ -42,9 +43,11 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -60,6 +63,7 @@ import de.dave.synchaven.data.model.AddressBook
 import de.dave.synchaven.data.model.Contact
 import de.dave.synchaven.ui.common.CollectMessages
 import de.dave.synchaven.ui.common.ErrorBox
+import de.dave.synchaven.ui.common.LetterFastScroller
 import de.dave.synchaven.ui.common.LoadingBox
 import de.dave.synchaven.ui.common.MainBottomBar
 import de.dave.synchaven.ui.common.MainTab
@@ -71,6 +75,7 @@ import de.dave.synchaven.util.displayName
 import de.dave.synchaven.util.displayNameText
 import de.dave.synchaven.util.initials
 import de.dave.synchaven.util.subtitle
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -164,23 +169,51 @@ fun ContactsScreen(
                             )
                         }
                     } else {
-                        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 88.dp)) {
-                            for (group in s.groups) {
-                                stickyHeader(key = "h" + group.letter) {
-                                    Text(
-                                        group.letter,
-                                        Modifier
-                                            .fillMaxWidth()
-                                            .background(MaterialTheme.colorScheme.surface)
-                                            .padding(horizontal = 24.dp, vertical = 6.dp),
-                                        style = MaterialTheme.typography.titleSmall,
-                                        color = MaterialTheme.colorScheme.primary,
-                                        fontWeight = FontWeight.Bold,
-                                    )
+                        val listState = rememberLazyListState()
+                        val scope = rememberCoroutineScope()
+                        // Index der Kopfzeile jeder Gruppe in der LazyColumn
+                        val headerIndices = remember(s.groups) {
+                            s.groups.runningFold(0) { acc, g -> acc + 1 + g.contacts.size }.dropLast(1)
+                        }
+                        val currentGroup by remember(headerIndices) {
+                            derivedStateOf {
+                                val first = listState.firstVisibleItemIndex
+                                headerIndices.indexOfLast { it <= first }.coerceAtLeast(0)
+                            }
+                        }
+                        val showScroller = s.groups.size > 1
+                        Box(Modifier.fillMaxSize()) {
+                            LazyColumn(
+                                Modifier.fillMaxSize(),
+                                state = listState,
+                                contentPadding = PaddingValues(bottom = 88.dp, end = if (showScroller) 12.dp else 0.dp),
+                            ) {
+                                for (group in s.groups) {
+                                    stickyHeader(key = "h" + group.letter) {
+                                        Text(
+                                            group.letter,
+                                            Modifier
+                                                .fillMaxWidth()
+                                                .background(MaterialTheme.colorScheme.surface)
+                                                .padding(horizontal = 24.dp, vertical = 6.dp),
+                                            style = MaterialTheme.typography.titleSmall,
+                                            color = MaterialTheme.colorScheme.primary,
+                                            fontWeight = FontWeight.Bold,
+                                        )
+                                    }
+                                    items(group.contacts, key = { it.id }) { c ->
+                                        ContactRow(c) { onOpenContact(c.id) }
+                                    }
                                 }
-                                items(group.contacts, key = { it.id }) { c ->
-                                    ContactRow(c) { onOpenContact(c.id) }
-                                }
+                            }
+                            if (showScroller) {
+                                LetterFastScroller(
+                                    letters = s.groups.map { it.letter },
+                                    current = currentGroup,
+                                    onSelect = { i -> scope.launch { listState.scrollToItem(headerIndices[i]) } },
+                                    // Platz für den FAB unten rechts lassen
+                                    modifier = Modifier.align(Alignment.CenterEnd).padding(top = 8.dp, bottom = 88.dp, end = 2.dp),
+                                )
                             }
                         }
                     }

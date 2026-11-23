@@ -8,6 +8,7 @@ import de.dave.synchaven.data.TaskRepository
 import de.dave.synchaven.data.model.Task
 import de.dave.synchaven.data.model.TaskInput
 import de.dave.synchaven.data.model.TaskList
+import de.dave.synchaven.data.model.TaskListInput
 import de.dave.synchaven.data.userMessage
 import de.dave.synchaven.pluralText
 import de.dave.synchaven.ui.common.UiMessages
@@ -86,6 +87,13 @@ class TasksViewModel(private val repo: TaskRepository) : ViewModel() {
         val listId = state.value.list?.id ?: return
         val t = title.trim().takeIf { it.isNotEmpty() } ?: return
         launchAction { repo.createTask(TaskInput(listId, t)) }
+    }
+
+    /** Neue Aufgabenliste anlegen und gleich auswählen */
+    fun createList(input: TaskListInput) = launchAction {
+        val list = repo.createList(input)
+        selectedId.value = list.id
+        messages.send(uiText(R.string.msg_task_list_created))
     }
 
     fun save(id: String?, input: TaskInput) = launchAction {

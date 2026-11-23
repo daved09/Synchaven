@@ -53,8 +53,6 @@ import de.dave.synchaven.data.store.ViewMode
 import de.dave.synchaven.ui.common.CollectMessages
 import de.dave.synchaven.ui.common.ColorSwatches
 import de.dave.synchaven.ui.common.ConfirmDialog
-import de.dave.synchaven.ui.common.MainBottomBar
-import de.dave.synchaven.ui.common.MainTab
 import de.dave.synchaven.ui.common.appViewModel
 import de.dave.synchaven.ui.theme.SEED_COLORS
 import de.dave.synchaven.ui.theme.supportsDynamicColor
@@ -68,10 +66,12 @@ import de.dave.synchaven.ui.settings.SyncSetupDialog
 import de.dave.synchaven.ui.viewmodels.SettingsViewModel
 import java.time.DayOfWeek
 import java.time.format.TextStyle
+import androidx.compose.material3.IconButton
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(onSelectTab: (MainTab) -> Unit) {
+fun SettingsScreen(onBack: () -> Unit) {
     val vm = appViewModel { SettingsViewModel(it.settingsStore, it.sessionStore, it.authRepository, it.syncController, it.offlineSync) }
     val settings by vm.settings.collectAsStateWithLifecycle()
     val session by vm.session.collectAsStateWithLifecycle()
@@ -90,8 +90,14 @@ fun SettingsScreen(onSelectTab: (MainTab) -> Unit) {
     var askLogout by remember { mutableStateOf(false) }
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text(stringResource(R.string.tab_settings)) }) },
-        bottomBar = { MainBottomBar(MainTab.SETTINGS, onSelectTab) },
+        topBar = {
+            TopAppBar(
+                navigationIcon = {
+                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, stringResource(R.string.action_back)) }
+                },
+                title = { Text(stringResource(R.string.tab_settings)) },
+            )
+        },
         snackbarHost = { SnackbarHost(snackbar) },
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState())) {

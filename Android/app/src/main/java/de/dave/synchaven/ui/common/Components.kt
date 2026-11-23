@@ -20,7 +20,6 @@ import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.CloudOff
 import androidx.compose.material.icons.outlined.Contacts
-import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -52,6 +51,7 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneOffset
+import androidx.compose.material.icons.outlined.Checklist
 
 @Composable
 fun LoadingBox(modifier: Modifier = Modifier) {
@@ -166,8 +166,8 @@ fun TimePickerModal(initial: LocalTime, onPick: (LocalTime) -> Unit, onDismiss: 
 /** Hauptbereiche der App in der unteren Navigationsleiste */
 enum class MainTab(@StringRes val labelRes: Int, val icon: ImageVector) {
     CALENDAR(R.string.tab_calendar, Icons.Outlined.CalendarMonth),
+    TASKS(R.string.tab_tasks, Icons.Outlined.Checklist),
     CONTACTS(R.string.tab_contacts, Icons.Outlined.Contacts),
-    SETTINGS(R.string.tab_settings, Icons.Outlined.Settings),
 }
 
 @Composable

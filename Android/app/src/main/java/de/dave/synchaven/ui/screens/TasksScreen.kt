@@ -18,7 +18,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.DeleteSweep
 import androidx.compose.material.icons.outlined.DoneAll
@@ -66,6 +65,8 @@ import de.dave.synchaven.ui.calendar.ListDot
 import de.dave.synchaven.ui.calendar.TaskCheckIcon
 import de.dave.synchaven.ui.calendar.TaskDetailsSheet
 import de.dave.synchaven.ui.calendar.TaskEditDialog
+import de.dave.synchaven.ui.calendar.TaskListDialog
+import androidx.compose.material.icons.automirrored.outlined.PlaylistAdd
 import de.dave.synchaven.ui.calendar.taskDecoration
 import de.dave.synchaven.ui.common.CollectMessages
 import de.dave.synchaven.ui.common.ConfirmDialog
@@ -77,11 +78,14 @@ import de.dave.synchaven.ui.viewmodels.TasksUiState
 import de.dave.synchaven.ui.viewmodels.TasksViewModel
 import de.dave.synchaven.util.dueText
 import de.dave.synchaven.util.isOverdue
+import de.dave.synchaven.ui.common.MainTab
+import de.dave.synchaven.ui.common.MainBottomBar
+import androidx.compose.material.icons.outlined.Settings
 
 /** Aufgaben einer Liste: Schnelleingabe, offene Aufgaben nach Fälligkeit, darunter die erledigten. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TasksScreen(onBack: () -> Unit) {
+fun TasksScreen(onSelectTab: (MainTab) -> Unit, onOpenSettings: () -> Unit) {
     val vm = appViewModel { TasksViewModel(it.taskRepository) }
     val s by vm.state.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
@@ -91,20 +95,23 @@ fun TasksScreen(onBack: () -> Unit) {
     val selected = selectedTaskId?.let { id -> s.all.firstOrNull { it.id == id } }
     var editing by remember { mutableStateOf<Task?>(null) }
     var creating by remember { mutableStateOf(false) }
+    var creatingList by remember { mutableStateOf(false) }
     var askClear by remember { mutableStateOf(false) }
     var menu by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, stringResource(R.string.action_back)) }
-                },
                 title = { Text(stringResource(R.string.tasks_title)) },
                 actions = {
                     Box {
                         IconButton(onClick = { menu = true }) { Icon(Icons.Outlined.MoreVert, stringResource(R.string.action_more)) }
                         DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.task_list_new)) },
+                                leadingIcon = { Icon(Icons.AutoMirrored.Outlined.PlaylistAdd, null) },
+                                onClick = { menu = false; creatingList = true },
+                            )
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.tasks_clear_completed)) },
                                 leadingIcon = { Icon(Icons.Outlined.DeleteSweep, null) },
@@ -116,11 +123,17 @@ fun TasksScreen(onBack: () -> Unit) {
                                 leadingIcon = { Icon(Icons.Outlined.Refresh, null) },
                                 onClick = { menu = false; vm.refresh() },
                             )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.tab_settings)) },
+                                leadingIcon = { Icon(Icons.Outlined.Settings, null) },
+                                onClick = { menu = false; onOpenSettings() },
+                            )
                         }
                     }
                 },
             )
         },
+        bottomBar = { MainBottomBar(MainTab.TASKS, onSelectTab) },
         floatingActionButton = {
             if (s.list != null) {
                 FloatingActionButton(onClick = { creating = true }) { Icon(Icons.Outlined.Add, stringResource(R.string.task_new)) }
@@ -154,6 +167,9 @@ fun TasksScreen(onBack: () -> Unit) {
             onDelete = { selectedTaskId = null; vm.delete(task) },
             onDismiss = { selectedTaskId = null },
         )
+    }
+    if (creatingList) {
+        TaskListDialog(null, onSave = vm::createList, onDismiss = { creatingList = false })
     }
     if (creating) {
         TaskEditDialog(

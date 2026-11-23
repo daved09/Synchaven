@@ -29,6 +29,7 @@
 
     <!-- Hauptnavigation -->
     <string name="tab_calendar">Kalender</string>
+    <string name="tab_tasks">Aufgaben</string>
     <string name="tab_contacts">Kontakte</string>
     <string name="tab_settings">Einstellungen</string>
 
@@ -492,10 +493,9 @@
 
     <!-- Aufgaben -->
     <string name="tasks_title">Aufgaben</string>
-    <string name="tasks_show_all">Alle Aufgaben</string>
     <string name="tasks_add_hint">Aufgabe hinzufügen</string>
     <string name="tasks_empty">Keine offenen Aufgaben</string>
-    <string name="tasks_no_lists">Noch keine Aufgabenlisten geladen</string>
+    <string name="tasks_no_lists">Noch keine Aufgabenlisten vorhanden</string>
     <string name="tasks_completed_section">Erledigt (%1$d)</string>
     <string name="tasks_clear_completed">Erledigte Aufgaben löschen</string>
     <string name="tasks_select_list">Liste wählen</string>

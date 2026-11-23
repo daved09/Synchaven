@@ -77,11 +77,13 @@ import de.dave.synchaven.ui.contacts.Avatar
 import de.dave.synchaven.ui.viewmodels.CategoryCount
 import de.dave.synchaven.ui.viewmodels.ContactsViewModel
 import kotlinx.coroutines.launch
+import androidx.compose.material.icons.outlined.Settings
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun ContactsScreen(
     onSelectTab: (MainTab) -> Unit,
+    onOpenSettings: () -> Unit,
     onOpenContact: (String) -> Unit,
     /** Neuer Kontakt, vorbelegt mit dem gewählten Adressbuch und der gewählten Kategorie */
     onNewContact: (bookId: String?, category: String?) -> Unit,
@@ -125,12 +127,17 @@ fun ContactsScreen(
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.contacts_sync)) },
                                 leadingIcon = { Icon(Icons.Outlined.Sync, null) },
-                                onClick = { menu = false; onSelectTab(MainTab.SETTINGS) },
+                                onClick = { menu = false; onOpenSettings() },
                             )
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.action_refresh)) },
                                 leadingIcon = { Icon(Icons.Outlined.Refresh, null) },
                                 onClick = { menu = false; vm.refresh() },
+                            )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.tab_settings)) },
+                                leadingIcon = { Icon(Icons.Outlined.Settings, null) },
+                                onClick = { menu = false; onOpenSettings() },
                             )
                         }
                     }

@@ -110,6 +110,7 @@ import java.time.LocalDateTime
 import java.time.temporal.ChronoUnit
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
+import androidx.compose.material.icons.outlined.Settings
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -119,8 +120,7 @@ fun CalendarScreen(
     onNewEvent: (Long, Boolean) -> Unit,
     onEditEvent: (String) -> Unit,
     onOpenContact: (String) -> Unit,
-    /** Aufgaben-Bildschirm öffnen */
-    onOpenTasks: () -> Unit,
+    onOpenSettings: () -> Unit,
 ) {
     val vm = appViewModel {
         CalendarViewModel(it.calendarRepository, it.taskRepository, it.settingsStore, it.sessionStore, it.authRepository, it.fileTransfer)
@@ -145,7 +145,6 @@ fun CalendarScreen(
     val selectedTask = selectedTaskId?.let { id -> s.tasks.firstOrNull { it.id == id } }
     var taskEdit by remember { mutableStateOf<TaskEdit?>(null) }
     var taskListDialog by remember { mutableStateOf<TaskList?>(null) }
-    var newTaskListDialog by remember { mutableStateOf(false) }
     var deleteTaskList by remember { mutableStateOf<TaskList?>(null) }
     val tasksAvailable = s.taskLists.isNotEmpty()
     fun openEvent(ev: ViewEvent) {
@@ -207,7 +206,6 @@ fun CalendarScreen(
                 },
                 onNewCalendar = { newCalendarDialog = true },
                 taskLists = s.taskLists,
-                onOpenTasks = { scope.launch { drawerState.close() }; onOpenTasks() },
                 onToggleTaskList = vm::toggleTaskList,
                 onTaskListAction = { list, action ->
                     when (action) {
@@ -215,7 +213,6 @@ fun CalendarScreen(
                         TaskListAction.DELETE -> deleteTaskList = list
                     }
                 },
-                onNewTaskList = { newTaskListDialog = true },
             )
         },
     ) {
@@ -226,13 +223,12 @@ fun CalendarScreen(
                 } else {
                     CalendarTopBar(
                         title = s.title,
-                        mode = s.mode,
                         onMenu = { scope.launch { drawerState.open() } },
                         onTitleClick = { pickDate = true },
                         onToday = vm::today,
                         onSearch = vm::openSearch,
-                        onMode = vm::setMode,
                         onRefresh = vm::refresh,
+                        onSettings = onOpenSettings,
                     )
                 }
             },
@@ -304,9 +300,6 @@ fun CalendarScreen(
             onSave = { vm.saveTask(edit.task?.id, it) },
             onDismiss = { taskEdit = null },
         )
-    }
-    if (newTaskListDialog) {
-        TaskListDialog(null, onSave = { vm.saveTaskList(null, it) }, onDismiss = { newTaskListDialog = false })
     }
     taskListDialog?.let { list ->
         TaskListDialog(list, onSave = { vm.saveTaskList(list.id, it) }, onDismiss = { taskListDialog = null })
@@ -450,13 +443,12 @@ private fun CreateButton(withTask: Boolean, onNewEvent: () -> Unit, onNewTask: (
 @Composable
 private fun CalendarTopBar(
     title: UiText,
-    mode: ViewMode,
     onMenu: () -> Unit,
     onTitleClick: () -> Unit,
     onToday: () -> Unit,
     onSearch: () -> Unit,
-    onMode: (ViewMode) -> Unit,
     onRefresh: () -> Unit,
+    onSettings: () -> Unit,
 ) {
     var menu by remember { mutableStateOf(false) }
     TopAppBar(
@@ -478,18 +470,15 @@ private fun CalendarTopBar(
             Box {
                 IconButton(onClick = { menu = true }) { Icon(Icons.Outlined.MoreVert, stringResource(R.string.action_more)) }
                 DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                    for (m in ViewMode.entries) {
-                        DropdownMenuItem(
-                            text = { Text(stringResource(m.labelRes)) },
-                            leadingIcon = { Icon(m.icon, null) },
-                            onClick = { menu = false; onMode(m) },
-                            enabled = m != mode,
-                        )
-                    }
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.action_refresh)) },
                         leadingIcon = { Icon(Icons.Outlined.Refresh, null) },
                         onClick = { menu = false; onRefresh() },
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.tab_settings)) },
+                        leadingIcon = { Icon(Icons.Outlined.Settings, null) },
+                        onClick = { menu = false; onSettings() },
                     )
                 }
             }

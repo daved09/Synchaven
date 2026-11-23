@@ -13,7 +13,6 @@ import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.CalendarViewDay
 import androidx.compose.material.icons.outlined.CalendarViewMonth
 import androidx.compose.material.icons.outlined.CalendarViewWeek
-import androidx.compose.material.icons.outlined.Checklist
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.Edit
@@ -71,10 +70,8 @@ fun CalendarDrawer(
     onAction: (Calendar, CalendarAction) -> Unit,
     onNewCalendar: () -> Unit,
     taskLists: List<TaskList>,
-    onOpenTasks: () -> Unit,
     onToggleTaskList: (TaskList) -> Unit,
     onTaskListAction: (TaskList, TaskListAction) -> Unit,
-    onNewTaskList: () -> Unit,
 ) {
     ModalDrawerSheet {
         Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 12.dp)) {
@@ -102,26 +99,17 @@ fun CalendarDrawer(
                 selected = false,
                 onClick = onNewCalendar,
             )
-            HorizontalDivider(Modifier.padding(vertical = 12.dp))
-            Text(
-                stringResource(R.string.task_lists_header), style = MaterialTheme.typography.titleSmall,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-            )
-            NavigationDrawerItem(
-                label = { Text(stringResource(R.string.tasks_show_all)) },
-                icon = { Icon(Icons.Outlined.Checklist, null) },
-                selected = false,
-                onClick = onOpenTasks,
-            )
-            for (list in taskLists) {
-                TaskListItem(list, canDelete = taskLists.size > 1, onToggleTaskList, onTaskListAction)
+            // Aufgabenlisten nur ein-/ausblenden und bearbeiten – neue Listen entstehen im Aufgabenbereich
+            if (taskLists.isNotEmpty()) {
+                HorizontalDivider(Modifier.padding(vertical = 12.dp))
+                Text(
+                    stringResource(R.string.task_lists_header), style = MaterialTheme.typography.titleSmall,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                )
+                for (list in taskLists) {
+                    TaskListItem(list, canDelete = taskLists.size > 1, onToggleTaskList, onTaskListAction)
+                }
             }
-            NavigationDrawerItem(
-                label = { Text(stringResource(R.string.task_list_new)) },
-                icon = { Icon(Icons.Outlined.Add, null) },
-                selected = false,
-                onClick = onNewTaskList,
-            )
             Spacer(Modifier.height(16.dp))
         }
     }

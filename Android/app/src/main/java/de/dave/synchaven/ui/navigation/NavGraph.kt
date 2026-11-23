@@ -24,8 +24,8 @@ fun SyncHavenNavGraph(navController: NavHostController, startLoggedIn: Boolean) 
     val selectTab: (MainTab) -> Unit = { tab ->
         val route: Any = when (tab) {
             MainTab.CALENDAR -> CalendarRoute
+            MainTab.TASKS -> TasksRoute
             MainTab.CONTACTS -> ContactsRoute
-            MainTab.SETTINGS -> SettingsRoute
         }
         navController.navigate(route) {
             popUpTo(CalendarRoute) { saveState = true }
@@ -33,6 +33,8 @@ fun SyncHavenNavGraph(navController: NavHostController, startLoggedIn: Boolean) 
             restoreState = true
         }
     }
+    // Einstellungen liegen über dem aktuellen Bereich (aus dem ⋮-Menü), „Zurück“ kehrt dorthin zurück
+    val openSettings: () -> Unit = { navController.navigate(SettingsRoute) { launchSingleTop = true } }
     NavHost(
         navController = navController,
         startDestination = if (startLoggedIn) CalendarRoute else LoginRoute,
@@ -49,23 +51,24 @@ fun SyncHavenNavGraph(navController: NavHostController, startLoggedIn: Boolean) 
                 },
                 onEditEvent = { id -> navController.navigate(EventEditRoute(eventId = id)) },
                 onOpenContact = { id -> navController.navigate(ContactDetailRoute(id)) },
-                onOpenTasks = { navController.navigate(TasksRoute) { launchSingleTop = true } },
+                onOpenSettings = openSettings,
             )
         }
-        composable<TasksRoute> {
-            TasksScreen(onBack = { navController.popBackStack() })
+        composable<TasksRoute>(enterTransition = { EnterTransition.None }, exitTransition = { ExitTransition.None }) {
+            TasksScreen(onSelectTab = selectTab, onOpenSettings = openSettings)
         }
         composable<ContactsRoute>(enterTransition = { EnterTransition.None }, exitTransition = { ExitTransition.None }) {
             ContactsScreen(
                 onSelectTab = selectTab,
+                onOpenSettings = openSettings,
                 onOpenContact = { navController.navigate(ContactDetailRoute(it)) },
                 onNewContact = { bookId, category ->
                     navController.navigate(ContactEditRoute(addressBookId = bookId, category = category))
                 },
             )
         }
-        composable<SettingsRoute>(enterTransition = { EnterTransition.None }, exitTransition = { ExitTransition.None }) {
-            SettingsScreen(onSelectTab = selectTab)
+        composable<SettingsRoute> {
+            SettingsScreen(onBack = { navController.popBackStack() })
         }
 
         composable<EventEditRoute> {

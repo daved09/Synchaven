@@ -1,4 +1,4 @@
-package de.dave.synchaven.ui.calendar
+package de.dave.synchaven.ui.screens
 
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -86,6 +86,17 @@ import de.dave.synchaven.util.ViewEvent
 import de.dave.synchaven.util.stepDate
 import de.dave.synchaven.util.viewRange
 import de.dave.synchaven.util.toInstant
+import de.dave.synchaven.ui.calendar.AgendaView
+import de.dave.synchaven.ui.calendar.CalendarAction
+import de.dave.synchaven.ui.calendar.CalendarDialog
+import de.dave.synchaven.ui.calendar.CalendarDrawer
+import de.dave.synchaven.ui.calendar.EventDetailsSheet
+import de.dave.synchaven.ui.calendar.MonthView
+import de.dave.synchaven.ui.calendar.TimeGridView
+import de.dave.synchaven.ui.calendar.icon
+import de.dave.synchaven.ui.calendar.rememberTimeGridScroll
+import de.dave.synchaven.ui.viewmodels.CalendarUiState
+import de.dave.synchaven.ui.viewmodels.CalendarViewModel
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.temporal.ChronoUnit

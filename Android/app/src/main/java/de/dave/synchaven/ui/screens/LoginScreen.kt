@@ -1,4 +1,4 @@
-package de.dave.synchaven.ui.login
+package de.dave.synchaven.ui.screens
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -54,6 +54,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import de.dave.synchaven.R
 import de.dave.synchaven.ui.common.appViewModel
+import de.dave.synchaven.ui.viewmodels.LoginViewModel
 
 @Composable
 fun LoginScreen() {

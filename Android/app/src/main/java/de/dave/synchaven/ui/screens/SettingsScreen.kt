@@ -1,4 +1,4 @@
-package de.dave.synchaven.ui.settings
+package de.dave.synchaven.ui.screens
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -16,8 +16,6 @@ import androidx.compose.material.icons.outlined.Dns
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.PhoneAndroid
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -61,6 +59,12 @@ import de.dave.synchaven.ui.common.appViewModel
 import de.dave.synchaven.ui.theme.SEED_COLORS
 import de.dave.synchaven.ui.theme.supportsDynamicColor
 import de.dave.synchaven.util.LOCALE
+import de.dave.synchaven.ui.settings.ChoiceItem
+import de.dave.synchaven.ui.settings.OfflineSection
+import de.dave.synchaven.ui.settings.SectionTitle
+import de.dave.synchaven.ui.settings.SyncSection
+import de.dave.synchaven.ui.settings.SyncSetupDialog
+import de.dave.synchaven.ui.viewmodels.SettingsViewModel
 import java.time.DayOfWeek
 import java.time.format.TextStyle
 
@@ -290,36 +294,4 @@ fun SettingsScreen(onSelectTab: (MainTab) -> Unit) {
             onDismiss = vm::closeSyncSetup,
         )
     }
-}
-
-@Composable
-internal fun SectionTitle(text: String) {
-    Text(
-        text, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary,
-        modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 4.dp),
-    )
-}
-
-@Composable
-internal fun <T> ChoiceItem(
-    title: String,
-    value: String,
-    options: List<Pair<T, String>>,
-    onSelect: (T) -> Unit,
-    leadingIcon: (@Composable () -> Unit)? = null,
-) {
-    var open by remember { mutableStateOf(false) }
-    ListItem(
-        leadingContent = leadingIcon,
-        headlineContent = { Text(title) },
-        supportingContent = { Text(value) },
-        trailingContent = {
-            DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-                for ((v, label) in options) {
-                    DropdownMenuItem(text = { Text(label) }, onClick = { open = false; onSelect(v) })
-                }
-            }
-        },
-        modifier = Modifier.clickable { open = true },
-    )
 }

@@ -1,4 +1,4 @@
-package de.dave.synchaven.ui.event
+package de.dave.synchaven.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -59,6 +59,9 @@ import de.dave.synchaven.ui.common.appViewModel
 import de.dave.synchaven.ui.theme.parseHexColor
 import de.dave.synchaven.util.FMT_TIME
 import de.dave.synchaven.util.deviceZone
+import de.dave.synchaven.ui.event.RecurrenceEditor
+import de.dave.synchaven.ui.viewmodels.EventEditUiState
+import de.dave.synchaven.ui.viewmodels.EventEditViewModel
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter

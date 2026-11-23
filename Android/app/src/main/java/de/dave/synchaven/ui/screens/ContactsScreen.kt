@@ -1,4 +1,4 @@
-package de.dave.synchaven.ui.contacts
+package de.dave.synchaven.ui.screens
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -17,7 +17,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.ImportContacts
@@ -68,13 +67,12 @@ import de.dave.synchaven.ui.common.LoadingBox
 import de.dave.synchaven.ui.common.MainBottomBar
 import de.dave.synchaven.ui.common.MainTab
 import de.dave.synchaven.ui.common.appViewModel
-import de.dave.synchaven.ui.theme.onColor
-import de.dave.synchaven.ui.theme.parseHexColor
-import de.dave.synchaven.util.avatarColor
 import de.dave.synchaven.util.displayName
 import de.dave.synchaven.util.displayNameText
-import de.dave.synchaven.util.initials
 import de.dave.synchaven.util.subtitle
+import de.dave.synchaven.ui.contacts.AddressBooksDialog
+import de.dave.synchaven.ui.contacts.Avatar
+import de.dave.synchaven.ui.viewmodels.ContactsViewModel
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
@@ -269,17 +267,4 @@ private fun ContactRow(c: Contact, onClick: () -> Unit) {
         leadingContent = { Avatar(c, 40) },
         modifier = Modifier.clickable(onClick = onClick),
     )
-}
-
-/** Runder Avatar mit Initialen in einer aus der UID abgeleiteten Farbe */
-@Composable
-fun Avatar(c: Contact, sizeDp: Int) {
-    val color = parseHexColor(c.avatarColor())
-    Box(Modifier.size(sizeDp.dp).background(color, CircleShape), contentAlignment = Alignment.Center) {
-        Text(
-            c.initials(),
-            color = onColor(color),
-            style = if (sizeDp >= 72) MaterialTheme.typography.headlineMedium else MaterialTheme.typography.titleMedium,
-        )
-    }
 }

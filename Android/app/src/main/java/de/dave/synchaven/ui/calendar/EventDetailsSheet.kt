@@ -53,6 +53,7 @@ import de.dave.synchaven.util.FMT_DATE_SHORT
 import de.dave.synchaven.util.ViewEvent
 import de.dave.synchaven.util.describeRRule
 import de.dave.synchaven.util.describeSpan
+import de.dave.synchaven.ui.viewmodels.DeleteScope
 
 /**
  * Details eines Termins mit Bearbeiten und Löschen (bei Serien: dieses Vorkommen oder die ganze Serie).

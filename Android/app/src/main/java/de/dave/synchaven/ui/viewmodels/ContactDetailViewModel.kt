@@ -1,4 +1,4 @@
-package de.dave.synchaven.ui.contacts
+package de.dave.synchaven.ui.viewmodels
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory

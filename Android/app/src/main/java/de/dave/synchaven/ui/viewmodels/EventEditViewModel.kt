@@ -1,4 +1,4 @@
-package de.dave.synchaven.ui.event
+package de.dave.synchaven.ui.viewmodels
 
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel

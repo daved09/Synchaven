@@ -1,4 +1,4 @@
-package de.dave.synchaven.ui.contacts
+package de.dave.synchaven.ui.screens
 
 import android.content.Intent
 import android.net.Uri
@@ -75,6 +75,8 @@ import de.dave.synchaven.util.lines
 import de.dave.synchaven.util.mapQuery
 import de.dave.synchaven.util.typeLabel
 import de.dave.synchaven.util.websiteUrl
+import de.dave.synchaven.ui.contacts.Avatar
+import de.dave.synchaven.ui.viewmodels.ContactDetailViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

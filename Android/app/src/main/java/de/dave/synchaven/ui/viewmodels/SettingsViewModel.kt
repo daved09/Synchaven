@@ -1,4 +1,4 @@
-package de.dave.synchaven.ui.settings
+package de.dave.synchaven.ui.viewmodels
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope

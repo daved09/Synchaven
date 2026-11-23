@@ -8,14 +8,14 @@ import androidx.compose.runtime.Composable
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
-import de.dave.synchaven.ui.calendar.CalendarScreen
+import de.dave.synchaven.ui.screens.CalendarScreen
 import de.dave.synchaven.ui.common.MainTab
-import de.dave.synchaven.ui.contacts.ContactDetailScreen
-import de.dave.synchaven.ui.contacts.ContactEditScreen
-import de.dave.synchaven.ui.contacts.ContactsScreen
-import de.dave.synchaven.ui.event.EventEditScreen
-import de.dave.synchaven.ui.login.LoginScreen
-import de.dave.synchaven.ui.settings.SettingsScreen
+import de.dave.synchaven.ui.screens.ContactDetailScreen
+import de.dave.synchaven.ui.screens.ContactEditScreen
+import de.dave.synchaven.ui.screens.ContactsScreen
+import de.dave.synchaven.ui.screens.EventEditScreen
+import de.dave.synchaven.ui.screens.LoginScreen
+import de.dave.synchaven.ui.screens.SettingsScreen
 
 @Composable
 fun SyncHavenNavGraph(navController: NavHostController, startLoggedIn: Boolean) {

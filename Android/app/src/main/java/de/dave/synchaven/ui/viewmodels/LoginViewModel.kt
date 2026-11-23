@@ -1,4 +1,4 @@
-package de.dave.synchaven.ui.login
+package de.dave.synchaven.ui.viewmodels
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope

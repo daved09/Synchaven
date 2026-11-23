@@ -1,4 +1,4 @@
-package de.dave.synchaven.ui.contacts
+package de.dave.synchaven.ui.screens
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -59,6 +59,8 @@ import de.dave.synchaven.util.OTHER_TYPES
 import de.dave.synchaven.util.PHONE_TYPES
 import de.dave.synchaven.util.TypeOption
 import de.dave.synchaven.util.typeLabel
+import de.dave.synchaven.ui.viewmodels.ContactEditViewModel
+import de.dave.synchaven.ui.viewmodels.TypedField
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

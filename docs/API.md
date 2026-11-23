@@ -153,10 +153,12 @@ Termine werden **serverseitig in einzelne Vorkommen expandiert** – die App mus
   "recurring": true,
   "rrule": "FREQ=WEEKLY;BYDAY=MO;UNTIL=20261214T225959Z",
   "contact_id": null,
-  "read_only": false
+  "read_only": false,
+  "reminders": null
 }
 ```
 `id` ist pro Vorkommen eindeutig; zum Bearbeiten/Löschen wird `event_id` verwendet.
+`reminders` sind die Erinnerungen des Termins wie bei `Event` (`null` = Standard des Kalenders).
 Die Ausblendung über `Calendar.visible` erfolgt clientseitig.
 
 Geburtstage haben `read_only: true` und in `contact_id` die ID des Kontakts. Ist das Geburtsjahr bekannt, enthält

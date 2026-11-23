@@ -37,6 +37,7 @@ export function draftEvent(d: EventDraft, color: string): ViewEvent {
     contact_id: null,
     // Nicht ziehbar: Zeiten werden im Dialog geändert
     read_only: true,
+    reminders: null,
     startDate,
     endDate,
     color,

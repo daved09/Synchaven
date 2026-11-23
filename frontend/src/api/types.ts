@@ -106,7 +106,8 @@ export interface Occurrence {
   rrule: string | null
   contact_id: string | null
   /** Automatisch erzeugte Termine (Geburtstage) können nicht bearbeitet werden */
-  read_only: boolean
+  read_only: boolean  /** Erinnerungen des Termins; `null` = Standard des Kalenders */
+  reminders: number[] | null
 }
 
 /** Vorkommen mit lokal berechneten Datumswerten für die Darstellung */

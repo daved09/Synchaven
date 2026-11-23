@@ -240,6 +240,7 @@ pub async fn list(
                 rrule: ev.rrule.clone(),
                 contact_id: ev.contact_id.clone(),
                 read_only: ev.read_only,
+                reminders: ev.reminders.clone(),
             });
         }
     }

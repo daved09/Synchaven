@@ -230,4 +230,6 @@ pub struct Occurrence {
     pub rrule: Option<String>,
     pub contact_id: Option<String>,
     pub read_only: bool,
+    /// Erinnerungen des Termins in Minuten vor Beginn; `None` = Standard des Kalenders
+    pub reminders: Option<Vec<i32>>,
 }

@@ -4,6 +4,7 @@ import type { ViewEvent } from '@/api/types'
 import { useCalendarsStore } from '@/stores/calendars'
 import { describeSpan } from '@/utils/date'
 import { describeRRule } from '@/utils/rrule'
+import { describeReminder, sortReminders } from '@/utils/reminders'
 
 const open = defineModel<boolean>({ required: true })
 const props = defineProps<{ event: ViewEvent | null }>()
@@ -14,6 +15,13 @@ const calendar = computed(() => (props.event ? calendars.byId.get(props.event.ca
 const recurrence = computed(() => {
   const e = props.event
   return e?.rrule ? describeRRule(e.rrule, e.startDate) : ''
+})
+/** Wann benachrichtigt wird: eigene Erinnerungen des Termins oder der Standard des Kalenders */
+const reminders = computed(() => {
+  const e = props.event
+  if (!e) return []
+  const list = e.reminders ?? (e.all_day ? calendar.value?.default_all_day_reminders : calendar.value?.default_reminders) ?? []
+  return sortReminders(list).map((m) => describeReminder(m, e.all_day))
 })
 </script>
 
@@ -62,6 +70,12 @@ const recurrence = computed(() => {
         <div v-if="event.description" class="d-flex ga-4 mt-4 align-start">
           <v-icon icon="mdi-text" class="text-medium-emphasis" />
           <div class="text-body-large description">{{ event.description }}</div>
+        </div>
+        <div v-if="reminders.length" class="d-flex ga-4 mt-4 align-start" title="Benachrichtigung">
+          <v-icon icon="mdi-bell-outline" class="text-medium-emphasis" />
+          <div class="text-body-large">
+            <div v-for="r in reminders" :key="r">{{ r }}</div>
+          </div>
         </div>
         <div v-if="calendar" class="d-flex ga-4 mt-4 align-center">
           <v-icon icon="mdi-calendar-outline" class="text-medium-emphasis" />

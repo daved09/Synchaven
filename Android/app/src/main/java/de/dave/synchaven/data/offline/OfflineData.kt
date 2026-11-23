@@ -142,6 +142,7 @@ private fun CalEvent.expand(from: Instant, to: Instant, birthYear: Int?): List<O
             rrule = rrule,
             contactId = contactId,
             readOnly = readOnly,
+            reminders = reminders,
         )
     }
 }

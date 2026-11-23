@@ -20,6 +20,7 @@ import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.LocationOn
+import androidx.compose.material.icons.outlined.NotificationsNone
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Repeat
 import androidx.compose.material.icons.outlined.Schedule
@@ -50,6 +51,7 @@ import de.dave.synchaven.data.model.Calendar
 import de.dave.synchaven.ui.common.ConfirmDialog
 import de.dave.synchaven.ui.theme.parseHexColor
 import de.dave.synchaven.util.FMT_DATE_SHORT
+import de.dave.synchaven.util.Reminders
 import de.dave.synchaven.util.ViewEvent
 import de.dave.synchaven.util.describeRRule
 import de.dave.synchaven.util.describeSpan
@@ -96,6 +98,11 @@ fun EventDetailsSheet(
                 }
             }
             if (ev.occ.description.isNotBlank()) DetailRow(Icons.AutoMirrored.Outlined.Notes, ev.occ.description)
+            // Wann benachrichtigt wird: eigene Erinnerungen des Termins oder der Standard des Kalenders
+            val reminders = Reminders.sorted(ev.occ.reminders ?: calendar?.defaultReminders(ev.allDay).orEmpty())
+            if (reminders.isNotEmpty()) {
+                DetailRow(Icons.Outlined.NotificationsNone, reminders.joinToString("\n") { Reminders.describe(context.resources, it, ev.allDay) })
+            }
             calendar?.let { DetailRow(Icons.Outlined.CalendarMonth, it.name) }
 
             val contactId = ev.occ.contactId

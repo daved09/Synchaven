@@ -157,6 +157,8 @@ data class Occurrence(
     @SerialName("contact_id") val contactId: String? = null,
     /** Automatisch erzeugte Termine (Geburtstage) können nicht bearbeitet werden */
     @SerialName("read_only") val readOnly: Boolean = false,
+    /** Erinnerungen des Termins; `null` = Standard des Kalenders */
+    val reminders: List<Int>? = null,
 )
 
 @Serializable

@@ -12,6 +12,7 @@ import {
 import type { EventDraft } from '@/utils/draft'
 import { buildRRule, describeRRule, emptyForm, jsDayToCode, parseRRule, type RecurrenceForm } from '@/utils/rrule'
 import RecurrenceEditor from './RecurrenceEditor.vue'
+import ReminderEditor from './ReminderEditor.vue'
 
 export interface EventPreset {
   start: Date
@@ -52,6 +53,8 @@ const timezone = ref(browserTimeZone())
 const exdates = ref<string[]>([])
 const rec = ref<RecurrenceForm>(emptyForm(new Date()))
 const isSeries = ref(false)
+/** Eigene Erinnerungen; `null` = Standard des Kalenders */
+const ownReminders = ref<number[] | null>(null)
 
 const start = computed(() => (allDay.value ? parseDayKey(startDate.value) ?? new Date() : combine(startDate.value, startTime.value)))
 const end = computed(() => (allDay.value ? parseDayKey(endDate.value) ?? new Date() : combine(endDate.value, endTime.value)))
@@ -87,6 +90,7 @@ watch(open, async (v) => {
       fill(s, e, ev.all_day)
       rec.value = parseRRule(ev.rrule, s)
       isSeries.value = !!ev.rrule
+      ownReminders.value = ev.reminders
     } catch (e) {
       notify.fail(e)
       open.value = false
@@ -104,6 +108,7 @@ watch(open, async (v) => {
     fill(p.start, p.end, p.allDay)
     rec.value = emptyForm(p.start)
     isSeries.value = false
+    ownReminders.value = null
   }
   // Erst nach dem Befüllen: sonst meldet das geleerte Titelfeld sofort einen Fehler
   await nextTick()
@@ -165,6 +170,21 @@ const anchoredProps = {
   scrim: 'transparent',
 } as const
 
+const calendarDefaults = computed(() => {
+  const cal = calendars.byId.get(calendarId.value)
+  return (allDay.value ? cal?.default_all_day_reminders : cal?.default_reminders) ?? []
+})
+/** Angezeigte Erinnerungen; eine Änderung macht aus dem Kalender-Standard eigene Erinnerungen */
+const reminders = computed({
+  get: () => ownReminders.value ?? calendarDefaults.value,
+  set: (v: number[]) => (ownReminders.value = v),
+})
+// Erinnerungen an ganztägige Termine haben eine andere Bedeutung – beim Umschalten auf den Standard zurück
+// (synchron, damit das Befüllen beim Laden nicht als Umschalten zählt)
+watch(allDay, () => {
+  if (!loading.value) ownReminders.value = null
+}, { flush: 'sync' })
+
 const calendarItems = computed(() => calendars.writable.map((c) => ({ title: c.name, value: c.id, color: c.color })))
 
 async function save() {
@@ -182,6 +202,7 @@ async function save() {
     timezone: timezone.value,
     rrule: buildRRule(rec.value, s),
     exdates: exdates.value,
+    reminders: ownReminders.value,
   }
   saving.value = true
   try {
@@ -278,6 +299,22 @@ async function save() {
           </div>
 
           <div class="row">
+            <v-icon icon="mdi-bell-outline" class="row-icon" />
+            <div>
+              <ReminderEditor v-model="reminders" :all-day="allDay" />
+              <div v-if="ownReminders === null" class="text-body-small text-medium-emphasis">
+                {{ reminders.length ? 'Standard des Kalenders' : 'Keine Erinnerung' }}
+              </div>
+              <v-btn
+                v-else variant="text" size="small" class="text-none reset-btn" density="compact"
+                @click="ownReminders = null"
+              >
+                Standard des Kalenders verwenden
+              </v-btn>
+            </div>
+          </div>
+
+          <div class="row">
             <v-icon icon="mdi-map-marker-outline" class="row-icon" />
             <v-text-field v-model="location" placeholder="Ort hinzufügen" aria-label="Ort" density="compact" hide-details />
           </div>
@@ -312,4 +349,5 @@ async function save() {
 .row-icon { margin-top: 8px; opacity: .7; }
 .time { flex: 0 0 120px; }
 .recurrence-btn { max-width: 100%; }
+.reset-btn { margin-left: -8px; }
 </style>

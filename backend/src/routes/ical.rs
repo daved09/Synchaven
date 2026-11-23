@@ -16,7 +16,7 @@ use crate::{
     error::{AppError, AppResult},
     ical,
     models::{Event, EventInput, EventRow},
-    time, AppState,
+    reminders, time, AppState,
 };
 
 pub async fn export(
@@ -30,7 +30,7 @@ pub async fn export(
         .fetch_all(&state.db)
         .await?;
     let events: Vec<Event> = rows.into_iter().map(Into::into).collect();
-    let body = ical::export(&cal.name, &events);
+    let body = ical::export(&cal.name, &events, |ev| reminders::effective(ev, &cal));
     let filename: String = cal
         .name
         .chars()
@@ -79,6 +79,15 @@ pub async fn import(
         timezone: Some(e.timezone.clone()),
         rrule,
         exdates: Some(e.exdates.clone()),
+        // Ohne VALARM bleiben vorhandene Erinnerungen erhalten (neue Termine: Kalender-Standard).
+        reminders: e.reminders.as_ref().map(|list| {
+            let min = if e.all_day { -1439 } else { 0 };
+            let mut l: Vec<i32> = list.iter().copied().filter(|m| (min..=reminders::MAX_BEFORE).contains(m)).collect();
+            l.sort_unstable();
+            l.dedup();
+            l.truncate(reminders::MAX_COUNT);
+            Some(l)
+        }),
     };
 
     for e in &masters {

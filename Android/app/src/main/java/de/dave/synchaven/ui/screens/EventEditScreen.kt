@@ -19,6 +19,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.NotificationsNone
 import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -36,6 +37,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -60,6 +62,7 @@ import de.dave.synchaven.ui.theme.parseHexColor
 import de.dave.synchaven.util.FMT_TIME
 import de.dave.synchaven.util.deviceZone
 import de.dave.synchaven.ui.event.RecurrenceEditor
+import de.dave.synchaven.ui.event.ReminderEditor
 import de.dave.synchaven.ui.viewmodels.EventEditUiState
 import de.dave.synchaven.ui.viewmodels.EventEditViewModel
 import java.time.LocalDate
@@ -150,6 +153,23 @@ fun EventEditScreen(onClose: () -> Unit) {
 
                 HorizontalDivider()
                 RecurrenceEditor(s.recurrence, s.startDate, settings.weekStart, vm::onRecurrenceChange)
+                HorizontalDivider()
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Outlined.NotificationsNone, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.size(12.dp))
+                    Text(stringResource(R.string.reminders_title), style = MaterialTheme.typography.titleSmall)
+                }
+                ReminderEditor(s.reminders, s.allDay, vm::onRemindersChange)
+                if (s.ownReminders == null) {
+                    Text(
+                        stringResource(if (s.reminders.isEmpty()) R.string.reminders_none else R.string.reminders_calendar_default),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                } else {
+                    TextButton(onClick = vm::onUseDefaultReminders) { Text(stringResource(R.string.reminders_use_default)) }
+                }
                 HorizontalDivider()
 
                 OutlinedTextField(

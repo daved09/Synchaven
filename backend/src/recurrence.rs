@@ -125,6 +125,7 @@ mod tests {
             timezone: tz.into(),
             rrule: Some(rrule.into()),
             exdates: vec![],
+            reminders: None,
             contact_id: None,
             read_only: false,
             created_at: start,

@@ -1,6 +1,9 @@
 package de.dave.synchaven.data.local
 
 import de.dave.synchaven.data.api.ApiException
+import de.dave.synchaven.util.Reminders
+import de.dave.synchaven.util.applyReminders
+import de.dave.synchaven.util.effectiveReminders
 import de.dave.synchaven.data.api.NoServerConfiguredException
 import de.dave.synchaven.data.api.SyncHavenApi
 import de.dave.synchaven.data.model.AddressBook
@@ -80,7 +83,7 @@ class LocalApi(
                 events = d.events ?: emptyList(),
                 addressBooks = d.addressBooks?.takeIf { it.isNotEmpty() } ?: listOf(AddressBook(newId(), DEFAULT_BOOK)),
                 contacts = d.contacts ?: emptyList(),
-            ).let { Birthdays.sync(it, ::newId, ts) }.recount()
+            ).migrateLocal().let { Birthdays.sync(it, ::newId, ts) }.recount()
         }
     }
 
@@ -108,7 +111,12 @@ class LocalApi(
     override suspend fun createCalendar(body: CalendarInput): Calendar {
         val (name, color) = validateCalendar(body)
         val ts = now()
-        val cal = Calendar(newId(), name, color ?: "#6750A4", body.description.trim(), body.visible, createdAt = ts, updatedAt = ts)
+        val cal = Calendar(
+            newId(), name, color ?: "#6750A4", body.description.trim(), body.visible,
+            defaultReminders = validReminders(body.defaultReminders ?: Reminders.DEFAULT_TIMED, false),
+            defaultAllDayReminders = validReminders(body.defaultAllDayReminders ?: Reminders.DEFAULT_ALL_DAY, true),
+            createdAt = ts, updatedAt = ts,
+        )
         edit { d -> d.copy(calendars = d.calendars.orEmpty() + cal) }
         return cal
     }
@@ -120,6 +128,8 @@ class LocalApi(
             val old = d.calendars.orEmpty().firstOrNull { it.id == id } ?: notFound()
             val cal = old.copy(
                 name = name, color = color ?: old.color, description = body.description.trim(), visible = body.visible,
+                defaultReminders = body.defaultReminders?.let { validReminders(it, false) } ?: old.defaultReminders,
+                defaultAllDayReminders = body.defaultAllDayReminders?.let { validReminders(it, true) } ?: old.defaultAllDayReminders,
                 updatedAt = now(),
             )
             result = cal
@@ -146,7 +156,7 @@ class LocalApi(
         val d = data()
         val cal = calendar(d, id)
         val events = d.events.orEmpty().filter { it.calendarId == id }.sortedBy { it.start }
-        return ICal.export(cal.name, events).toResponseBody("text/calendar; charset=utf-8".toMediaType())
+        return ICal.export(cal.name, events, reminders = { it.effectiveReminders(cal) }).toResponseBody("text/calendar; charset=utf-8".toMediaType())
     }
 
     /** Wie `POST /calendars/{id}/import`: Termine mit gleicher UID werden aktualisiert, geänderte Einzelvorkommen
@@ -228,7 +238,7 @@ class LocalApi(
     override suspend fun event(id: String): CalEvent = data().events.orEmpty().firstOrNull { it.id == id } ?: notFound()
 
     override suspend fun createEvent(body: EventInput): CalEvent {
-        val ev = validateEvent(body, newId()).copy(uid = newUid())
+        val ev = validateEvent(body, newId()).let { it.copy(uid = newUid(), reminders = body.applyReminders(null)) }
         edit { d ->
             ensureWritable(calendar(d, body.calendarId))
             d.copy(events = d.events.orEmpty() + ev)
@@ -242,7 +252,7 @@ class LocalApi(
             val old = d.events.orEmpty().firstOrNull { it.id == id } ?: notFound()
             if (old.readOnly) bad(BIRTHDAY_READ_ONLY)
             ensureWritable(calendar(d, body.calendarId))
-            val ev = validateEvent(body, id).copy(uid = old.uid)
+            val ev = validateEvent(body, id).copy(uid = old.uid, reminders = body.applyReminders(old.reminders))
             result = ev
             d.copy(events = d.events.orEmpty().map { if (it.id == id) ev else it })
         }
@@ -272,8 +282,12 @@ class LocalApi(
         return result!!
     }
 
-    /** Wie `EventData::validate` des Servers: liefert den gespeicherten Termin (ohne UID). */
+    private fun validReminders(list: List<Int>, allDay: Boolean): List<Int> =
+        try { Reminders.validate(list, allDay) } catch (e: IllegalArgumentException) { bad(e.message.orEmpty()) }
+
+    /** Wie `EventData::validate` des Servers: liefert den gespeicherten Termin (ohne UID, Erinnerungen geprüft). */
     private fun validateEvent(input: EventInput, id: String): CalEvent {
+        input.applyReminders(null)?.let { validReminders(it, input.allDay) }
         val title = input.title.trim()
         if (title.isEmpty() || title.length > 500) bad("Der Titel muss 1–500 Zeichen lang sein")
         val tzName = input.timezone.trim().ifEmpty { "UTC" }

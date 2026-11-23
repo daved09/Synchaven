@@ -4,7 +4,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 
-use crate::time::from_db;
+use crate::{reminders, time::from_db};
 
 // ---------- Benutzer ----------
 
@@ -53,6 +53,8 @@ pub struct CalendarRow {
     pub visible: bool,
     /// `default` oder `birthdays` (siehe `birthdays.rs`)
     pub kind: String,
+    pub default_reminders: String,
+    pub default_all_day_reminders: String,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -65,6 +67,10 @@ pub struct Calendar {
     pub description: String,
     pub visible: bool,
     pub kind: String,
+    /// Standard-Erinnerungen (Minuten vor Beginn) für Termine mit Uhrzeit
+    pub default_reminders: Vec<i32>,
+    /// Standard-Erinnerungen für ganztägige Termine (negativ = Uhrzeit am Tag selbst)
+    pub default_all_day_reminders: Vec<i32>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -78,6 +84,8 @@ impl From<CalendarRow> for Calendar {
             description: r.description,
             visible: r.visible,
             kind: r.kind,
+            default_reminders: reminders::from_json(&r.default_reminders),
+            default_all_day_reminders: reminders::from_json(&r.default_all_day_reminders),
             created_at: from_db(&r.created_at),
             updated_at: from_db(&r.updated_at),
         }
@@ -91,6 +99,9 @@ pub struct CalendarInput {
     #[serde(default)]
     pub description: String,
     pub visible: Option<bool>,
+    /// Fehlt das Feld, bleiben die bisherigen Standard-Erinnerungen erhalten.
+    pub default_reminders: Option<Vec<i32>>,
+    pub default_all_day_reminders: Option<Vec<i32>>,
 }
 
 // ---------- Termine ----------
@@ -112,6 +123,8 @@ pub struct EventRow {
     /// Gesetzt bei automatisch erzeugten Geburtstagsterminen
     pub contact_id: Option<String>,
     pub birth_year: Option<i64>,
+    /// JSON-Liste (Minuten vor Beginn) oder NULL für die Standard-Erinnerungen des Kalenders
+    pub reminders: Option<String>,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -130,6 +143,8 @@ pub struct Event {
     pub timezone: String,
     pub rrule: Option<String>,
     pub exdates: Vec<DateTime<Utc>>,
+    /// Erinnerungen in Minuten vor Beginn; `null` = Standard-Erinnerungen des Kalenders
+    pub reminders: Option<Vec<i32>>,
     /// Kontakt, aus dessen Geburtstag der Termin erzeugt wurde
     pub contact_id: Option<String>,
     /// Automatisch erzeugte Termine können nicht bearbeitet werden.
@@ -154,6 +169,7 @@ impl From<EventRow> for Event {
             timezone: r.timezone,
             rrule: r.rrule,
             exdates: exdates.iter().map(|s| from_db(s)).collect(),
+            reminders: r.reminders.as_deref().map(reminders::from_json),
             read_only: r.contact_id.is_some(),
             contact_id: r.contact_id,
             created_at: from_db(&r.created_at),
@@ -177,6 +193,19 @@ pub struct EventInput {
     pub timezone: Option<String>,
     pub rrule: Option<String>,
     pub exdates: Option<Vec<DateTime<Utc>>>,
+    /// Feld fehlt: bisherige Erinnerungen bleiben erhalten; `null`: Kalender-Standard;
+    /// Liste: eigene Erinnerungen (leer = keine).
+    #[serde(default, deserialize_with = "present")]
+    pub reminders: Option<Option<Vec<i32>>>,
+}
+
+/// Unterscheidet bei optionalen Feldern zwischen „fehlt“ (`None`) und `null` (`Some(None)`).
+fn present<'de, D, T>(d: D) -> Result<Option<Option<T>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    Option::<T>::deserialize(d).map(Some)
 }
 
 /// Ein konkretes Vorkommen eines Termins im angefragten Zeitraum.

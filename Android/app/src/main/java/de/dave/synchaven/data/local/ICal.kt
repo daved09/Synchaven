@@ -20,7 +20,13 @@ object ICal {
 
     // ---------- Export ----------
 
-    fun export(calendarName: String, events: List<CalEvent>, now: Instant = Instant.now()): String {
+    /** [reminders] liefert die Erinnerungen eines Termins (eigene oder Kalender-Standard) für VALARM-Einträge. */
+    fun export(
+        calendarName: String,
+        events: List<CalEvent>,
+        now: Instant = Instant.now(),
+        reminders: (CalEvent) -> List<Int> = { it.reminders.orEmpty() },
+    ): String {
         val out = StringBuilder()
         listOf("BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Synchaven//Synchaven Android//DE", "CALSCALE:GREGORIAN", "METHOD:PUBLISH")
             .forEach { fold(it, out) }
@@ -42,10 +48,25 @@ object ICal {
                 fold("RRULE:${exportRrule(rule, ev.allDay)}", out)
                 ev.exdates.mapNotNull(::parseInstant).forEach { fold(dtProp("EXDATE", it, ev), out) }
             }
+            for (m in reminders(ev)) {
+                fold("BEGIN:VALARM", out)
+                fold("ACTION:DISPLAY", out)
+                fold("DESCRIPTION:${escape(ev.title)}", out)
+                fold("TRIGGER:${trigger(m)}", out)
+                fold("END:VALARM", out)
+            }
             fold("END:VEVENT", out)
         }
         fold("END:VCALENDAR", out)
         return out.toString()
+    }
+
+    /** TRIGGER einer Erinnerung (Minuten vor Beginn; negativ = nach Beginn) */
+    private fun trigger(minutes: Int): String = when {
+        minutes == 0 -> "PT0S"
+        minutes > 0 && minutes % 1440 == 0 -> "-P${minutes / 1440}D"
+        minutes > 0 -> "-PT${minutes}M"
+        else -> "PT${-minutes}M"
     }
 
     private fun dtProp(name: String, t: Instant, ev: CalEvent): String {

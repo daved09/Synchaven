@@ -1,6 +1,6 @@
 import type {
   AddressBook, AddressBookInput, AuthResponse, CalEvent, Calendar, CalendarInput, Contact, ContactImportResult,
-  ContactInput, EventInput, ImportResult, Occurrence, ServerInfo, User, ViewMode,
+  ContactInput, EventInput, ImportResult, Occurrence, PushSubscriptionInput, ServerInfo, User, ViewMode,
 } from './types'
 
 const BASE = '/api'
@@ -104,6 +104,11 @@ export const api = {
   deleteEvent: (id: string) => request<void>('DELETE', `/events/${id}`),
   addExdate: (id: string, occurrenceStart: string) =>
     request<CalEvent>('POST', `/events/${id}/exdates`, { body: { occurrence_start: occurrenceStart } }),
+
+  pushPublicKey: () => request<{ public_key: string }>('GET', '/push/public-key'),
+  pushSubscribe: (data: PushSubscriptionInput) => request<void>('POST', '/push/subscriptions', { body: data }),
+  pushUnsubscribe: (endpoint: string) => request<void>('DELETE', '/push/subscriptions', { body: { endpoint } }),
+  pushTest: (endpoint?: string) => request<{ sent: number }>('POST', '/push/test', { body: { endpoint } }),
 
   addressBooks: () => request<AddressBook[]>('GET', '/addressbooks'),
   createAddressBook: (data: AddressBookInput) => request<AddressBook>('POST', '/addressbooks', { body: data }),

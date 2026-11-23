@@ -25,6 +25,7 @@ import de.dave.synchaven.util.parseInstant
 import de.dave.synchaven.util.parseRRule
 import de.dave.synchaven.util.toLocal
 import de.dave.synchaven.util.toOffsetString
+import de.dave.synchaven.util.remindersField
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
@@ -55,12 +56,18 @@ data class EventEditUiState(
     val timezone: String = deviceZone().id,
     val recurrence: RecurrenceForm = RecurrenceForm(),
     val exdates: List<String> = emptyList(),
+    /** Eigene Erinnerungen; `null` = Standard des Kalenders */
+    val ownReminders: List<Int>? = null,
     val saving: Boolean = false,
     val error: UiText? = null,
     /** Termin wurde gespeichert → Bildschirm schließen */
     val done: Boolean = false,
 ) {
     val start: LocalDateTime get() = startDate.atTime(startTime)
+
+    /** Angezeigte Erinnerungen: eigene oder die des gewählten Kalenders */
+    val reminders: List<Int>
+        get() = ownReminders ?: calendars.firstOrNull { it.id == calendarId }?.defaultReminders(allDay).orEmpty()
     val end: LocalDateTime get() = endDate.atTime(endTime)
 
     val validationError: UiText?
@@ -132,6 +139,7 @@ class EventEditViewModel(
                         timezone = ev.timezone.ifBlank { deviceZone().id },
                         recurrence = parseRRule(ev.rrule, start.toLocalDate()),
                         exdates = ev.exdates,
+                        ownReminders = ev.reminders,
                     )
                 }
             }
@@ -142,7 +150,10 @@ class EventEditViewModel(
     fun onLocationChange(v: String) = _state.update { it.copy(location = v) }
     fun onDescriptionChange(v: String) = _state.update { it.copy(description = v) }
     fun onCalendarChange(id: String) = _state.update { it.copy(calendarId = id) }
-    fun onAllDayChange(v: Boolean) = _state.update { it.copy(allDay = v, error = null) }
+    // Erinnerungen an ganztägige Termine bedeuten etwas anderes – beim Umschalten zurück zum Kalender-Standard
+    fun onAllDayChange(v: Boolean) = _state.update { it.copy(allDay = v, ownReminders = null, error = null) }
+    fun onRemindersChange(list: List<Int>) = _state.update { it.copy(ownReminders = list) }
+    fun onUseDefaultReminders() = _state.update { it.copy(ownReminders = null) }
     fun onRecurrenceChange(form: RecurrenceForm) = _state.update { it.copy(recurrence = form, error = null) }
 
     /** Beginn ändern und das Ende so mitverschieben, dass die Dauer gleich bleibt. */
@@ -175,6 +186,7 @@ class EventEditViewModel(
             timezone = if (s.allDay) deviceZone().id else s.timezone,
             rrule = buildRRule(s.recurrence, s.startDate),
             exdates = s.exdates,
+            reminders = remindersField(s.ownReminders),
         )
         _state.update { it.copy(saving = true, error = null) }
         viewModelScope.launch {

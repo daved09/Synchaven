@@ -12,6 +12,8 @@ pub struct Config {
     pub token_ttl_days: i64,
     pub allow_registration: bool,
     pub cors_origins: Vec<String>,
+    /// Kontaktadresse für Push-Dienste (VAPID `sub`), `mailto:` oder `https:`
+    pub vapid_subject: String,
 }
 
 fn env_or(key: &str, default: &str) -> String {
@@ -35,12 +37,14 @@ impl Config {
             .filter(|s| !s.is_empty())
             .collect();
 
+        let vapid_subject = env_or("VAPID_SUBJECT", "mailto:synchaven@example.org");
+
         let jwt_secret = match std::env::var("JWT_SECRET").ok().filter(|s| s.len() >= 32) {
             Some(s) => s,
             None => load_or_create_secret(&data_dir)?,
         };
 
-        Ok(Self { bind, data_dir, static_dir, jwt_secret, token_ttl_days, allow_registration, cors_origins })
+        Ok(Self { bind, data_dir, static_dir, jwt_secret, token_ttl_days, allow_registration, cors_origins, vapid_subject })
     }
 
     pub fn db_path(&self) -> PathBuf {

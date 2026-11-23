@@ -1,7 +1,12 @@
 package de.dave.synchaven.data.model
 
+import kotlinx.serialization.EncodeDefault
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonElement
+import de.dave.synchaven.util.ReminderFieldSerializer
+import de.dave.synchaven.util.Reminders
 
 // Datenmodelle der REST API (siehe docs/API.md). Zeitangaben bleiben Strings im RFC-3339-Format;
 // die Umrechnung in java.time übernimmt die UI-Schicht (util/Dates.kt).
@@ -60,10 +65,17 @@ data class Calendar(
     val visible: Boolean = true,
     /** `default` oder `birthdays` (automatisch aus den Kontakten erzeugt) */
     val kind: String = "default",
+    /** Standard-Erinnerungen (Minuten vor Beginn) für Termine mit Uhrzeit */
+    @SerialName("default_reminders") val defaultReminders: List<Int> = Reminders.DEFAULT_TIMED,
+    /** Standard-Erinnerungen für ganztägige Termine (negativ = Uhrzeit am Tag selbst) */
+    @SerialName("default_all_day_reminders") val defaultAllDayReminders: List<Int> = Reminders.DEFAULT_ALL_DAY,
     @SerialName("created_at") val createdAt: String = "",
     @SerialName("updated_at") val updatedAt: String = "",
 ) {
+    /** Ohne Standard-Erinnerungen – der Server lässt sie dann unverändert */
     fun toInput() = CalendarInput(name, color, description, visible)
+
+    fun defaultReminders(allDay: Boolean) = if (allDay) defaultAllDayReminders else defaultReminders
 
     /** Geburtstagskalender: nicht löschbar, Termine schreibgeschützt */
     val isBirthdays get() = kind == "birthdays"
@@ -75,6 +87,9 @@ data class CalendarInput(
     val color: String,
     val description: String = "",
     val visible: Boolean = true,
+    /** `null`: bisherige Standard-Erinnerungen bleiben erhalten */
+    @SerialName("default_reminders") val defaultReminders: List<Int>? = null,
+    @SerialName("default_all_day_reminders") val defaultAllDayReminders: List<Int>? = null,
 )
 
 @Serializable
@@ -95,10 +110,13 @@ data class CalEvent(
     val timezone: String = "UTC",
     val rrule: String? = null,
     val exdates: List<String> = emptyList(),
+    /** Erinnerungen in Minuten vor Beginn; `null` = Standard des Kalenders */
+    val reminders: List<Int>? = null,
     @SerialName("contact_id") val contactId: String? = null,
     @SerialName("read_only") val readOnly: Boolean = false,
 )
 
+@OptIn(ExperimentalSerializationApi::class)
 @Serializable
 data class EventInput(
     @SerialName("calendar_id") val calendarId: String,
@@ -111,6 +129,13 @@ data class EventInput(
     val timezone: String,
     val rrule: String?,
     val exdates: List<String> = emptyList(),
+    /**
+     * Erinnerungen, siehe [remindersField]: `null` (Feld fehlt) lässt sie unverändert, `JsonNull` setzt den
+     * Kalender-Standard, eine Liste eigene Erinnerungen.
+     */
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    @Serializable(with = ReminderFieldSerializer::class)
+    val reminders: JsonElement? = null,
 )
 
 /** Einzelnes Vorkommen eines Termins (Serien werden vom Server expandiert) */

@@ -1,6 +1,8 @@
 package de.dave.synchaven.data
 
 import de.dave.synchaven.data.api.SyncHavenApi
+import de.dave.synchaven.util.Reminders
+import de.dave.synchaven.util.remindersField
 import de.dave.synchaven.data.api.apiCall
 import de.dave.synchaven.data.model.CalEvent
 import de.dave.synchaven.data.model.Calendar
@@ -104,7 +106,9 @@ class CalendarRepository(
         },
         offline = { d ->
             d.calendars?.firstOrNull { it.id == id }
-                ?: Calendar(id, input.name, input.color, input.description, input.visible)
+                ?: Calendar(id, input.name, input.color, input.description, input.visible,
+                    defaultReminders = input.defaultReminders ?: Reminders.DEFAULT_TIMED,
+                    defaultAllDayReminders = input.defaultAllDayReminders ?: Reminders.DEFAULT_ALL_DAY)
         },
     )
 
@@ -231,6 +235,8 @@ class CalendarRepository(
                 calendarId = full.calendarId, title = full.title, description = full.description,
                 location = full.location, start = start, end = end, allDay = full.allDay,
                 timezone = full.timezone, rrule = full.rrule, exdates = full.exdates,
+                // Das herausgelöste Vorkommen behält die Erinnerungen der Serie
+                reminders = remindersField(full.reminders),
             )
             if (occ.recurring) {
                 createEvent(input.copy(rrule = null, exdates = emptyList()))

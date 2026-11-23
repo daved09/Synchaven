@@ -4,6 +4,8 @@ import type { Calendar } from '@/api/types'
 import { CALENDAR_COLORS } from '@/plugins/theme'
 import { useCalendarsStore } from '@/stores/calendars'
 import { useNotifyStore } from '@/stores/notify'
+import { DEFAULT_ALL_DAY, DEFAULT_TIMED } from '@/utils/reminders'
+import ReminderEditor from './ReminderEditor.vue'
 
 const open = defineModel<boolean>({ required: true })
 const props = defineProps<{ calendar: Calendar | null }>()
@@ -13,6 +15,8 @@ const notify = useNotifyStore()
 const name = ref('')
 const color = ref(CALENDAR_COLORS[0])
 const description = ref('')
+const defaults = ref<number[]>([])
+const allDayDefaults = ref<number[]>([])
 const saving = ref(false)
 const formRef = ref()
 
@@ -21,6 +25,8 @@ watch(open, (v) => {
   name.value = props.calendar?.name ?? ''
   color.value = props.calendar?.color ?? CALENDAR_COLORS[calendars.list.length % CALENDAR_COLORS.length]
   description.value = props.calendar?.description ?? ''
+  defaults.value = props.calendar?.default_reminders ?? [...DEFAULT_TIMED]
+  allDayDefaults.value = props.calendar?.default_all_day_reminders ?? [...DEFAULT_ALL_DAY]
 })
 
 async function save() {
@@ -28,7 +34,13 @@ async function save() {
   if (!valid) return
   saving.value = true
   try {
-    const data = { name: name.value, color: color.value, description: description.value }
+    const data = {
+      name: name.value,
+      color: color.value,
+      description: description.value,
+      default_reminders: defaults.value,
+      default_all_day_reminders: allDayDefaults.value,
+    }
     if (props.calendar) await calendars.update(props.calendar.id, { ...data, visible: props.calendar.visible })
     else await calendars.create(data)
     notify.info(props.calendar ? 'Kalender gespeichert' : 'Kalender erstellt')
@@ -68,6 +80,18 @@ async function save() {
             </v-menu>
           </div>
           <v-textarea v-model="description" label="Beschreibung (optional)" rows="2" auto-grow />
+          <div class="text-label-large mt-2 d-flex align-center ga-2">
+            <v-icon icon="mdi-bell-outline" size="18" /> Standard-Erinnerungen
+          </div>
+          <div class="text-body-small text-medium-emphasis mb-2">
+            Gelten für alle Termine dieses Kalenders, die keine eigenen Erinnerungen haben.
+          </div>
+          <template v-if="calendar?.kind !== 'birthdays'">
+            <div class="text-body-medium mt-1">Termine mit Uhrzeit</div>
+            <ReminderEditor v-model="defaults" :all-day="false" class="mb-2" />
+            <div class="text-body-medium mt-1">Ganztägige Termine</div>
+          </template>
+          <ReminderEditor v-model="allDayDefaults" :all-day="true" />
         </v-form>
       </v-card-text>
       <template #actions>

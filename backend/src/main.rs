@@ -6,7 +6,9 @@ mod dav;
 mod error;
 mod ical;
 mod models;
+mod push;
 mod recurrence;
+mod reminders;
 mod routes;
 mod time;
 mod vcard;
@@ -35,6 +37,7 @@ pub struct AppState {
     pub config: Arc<Config>,
     pub jwt: Arc<auth::JwtKeys>,
     pub dav_auth: Arc<dav::AuthCache>,
+    pub push: Arc<push::WebPush>,
 }
 
 #[tokio::main]
@@ -64,12 +67,16 @@ async fn main() -> anyhow::Result<()> {
     sqlx::migrate!("./migrations").run(&db).await.context("Migration fehlgeschlagen")?;
     birthdays::sync_all(&db).await.map_err(|e| anyhow::anyhow!("{e:?}")).context("Geburtstagskalender konnte nicht abgeglichen werden")?;
 
+    let push = push::WebPush::load_or_create(&config.data_dir, config.vapid_subject.clone())?;
     let state = AppState {
         db,
+        push: Arc::new(push),
         jwt: Arc::new(auth::JwtKeys::new(&config.jwt_secret, config.token_ttl_days)),
         config: Arc::new(config.clone()),
         dav_auth: Arc::default(),
     };
+
+    reminders::spawn(state.clone());
 
     let cors = if config.cors_origins.iter().any(|o| o == "*") {
         CorsLayer::new().allow_origin(Any).allow_methods(Any).allow_headers(Any)

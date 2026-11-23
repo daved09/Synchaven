@@ -8,6 +8,8 @@ import de.dave.synchaven.data.model.ContactInput
 import de.dave.synchaven.data.model.EventInput
 import de.dave.synchaven.data.model.Occurrence
 import de.dave.synchaven.util.RRuleExpander
+import de.dave.synchaven.util.Reminders
+import de.dave.synchaven.util.applyReminders
 import java.time.Instant
 import java.time.OffsetDateTime
 import java.time.ZoneId
@@ -31,7 +33,26 @@ data class OfflineData(
     val idMap: Map<String, String> = emptyMap(),
     /** Letzter vollständiger Abgleich mit dem Server (RFC 3339) */
     val lastSync: String? = null,
+    /** Stand der Daten im lokalen Modus, siehe [migrateLocal] */
+    val version: Int = 0,
 ) {
+    /**
+     * Bringt Daten des lokalen Modus auf den aktuellen Stand (beim Server übernehmen das die Migrationen).
+     * 1: Kalender ohne Standard-Erinnerungen erhalten die Voreinstellung (15 Minuten vorher, ganztägig 09:00) –
+     *    eine frühe Testversion hatte leere Listen gespeichert.
+     */
+    fun migrateLocal(): OfflineData {
+        if (version >= LOCAL_VERSION) return this
+        return copy(
+            calendars = calendars?.map { c ->
+                if (c.defaultReminders.isEmpty() && c.defaultAllDayReminders.isEmpty()) {
+                    c.copy(defaultReminders = Reminders.DEFAULT_TIMED, defaultAllDayReminders = Reminders.DEFAULT_ALL_DAY)
+                } else c
+            },
+            version = LOCAL_VERSION,
+        )
+    }
+
     fun resolve(id: String): String = idMap[id] ?: id
 
     /** Wendet eine Änderung lokal an. Idempotent, damit sie nach jedem Laden vom Server erneut angewendet werden kann. */
@@ -60,7 +81,9 @@ data class OfflineData(
         is PendingOp.DeleteContact -> withContacts { list -> list.filterNot { it.id == op.id } }
         is PendingOp.UpdateCalendar -> copy(calendars = calendars?.map { c ->
             if (c.id == op.id) c.copy(name = op.input.name, color = op.input.color, description = op.input.description,
-                visible = op.input.visible) else c
+                visible = op.input.visible,
+                defaultReminders = op.input.defaultReminders ?: c.defaultReminders,
+                defaultAllDayReminders = op.input.defaultAllDayReminders ?: c.defaultAllDayReminders) else c
         })
         is PendingOp.SetDefaultView -> this
     }
@@ -123,6 +146,9 @@ private fun CalEvent.expand(from: Instant, to: Instant, birthYear: Int?): List<O
     }
 }
 
+/** Aktueller Stand der Daten im lokalen Modus ([OfflineData.migrateLocal]) */
+const val LOCAL_VERSION = 1
+
 /** Geburtsjahr aus `YYYY-MM-DD`; bei `--MM-DD` unbekannt */
 private fun birthYear(birthday: String): Int? =
     Regex("""^(\d{4})-\d{2}-\d{2}$""").matchEntire(birthday)?.groupValues?.get(1)?.toIntOrNull()
@@ -145,6 +171,7 @@ fun EventInput.toLocalEvent(id: String, base: CalEvent? = null) = CalEvent(
     timezone = timezone,
     rrule = rrule?.takeIf { it.isNotBlank() },
     exdates = exdates,
+    reminders = applyReminders(base?.reminders),
     contactId = base?.contactId,
     readOnly = base?.readOnly ?: false,
 )

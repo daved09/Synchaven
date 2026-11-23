@@ -11,6 +11,9 @@ Material-3-Design** (Vuetify), einer **REST API** für eigene Clients wie eine A
 * Ganztägige, mehrtägige und zeitgebundene Termine
 * Wiederkehrende Termine (RFC 5545 RRULE: täglich, wöchentlich, monatlich, jährlich, benutzerdefiniert),
   einzelne Vorkommen löschbar; korrekt über Sommer-/Winterzeitwechsel
+* **Erinnerungen** pro Termin und als Standard pro Kalender (voreingestellt 15 Minuten vorher, ganztägig am Tag um
+  09:00; auch für Geburtstage): als Push-Benachrichtigung im
+  Browser – auch bei geschlossenem Tab – und als Android-Benachrichtigung in der App
 * iCalendar-Import und -Export (.ics) – kompatibel mit Google Kalender, Outlook, Thunderbird, Apple
 * Ansichten: Monat, Woche, Tag, Terminliste mit Suche
 * **Kontakte:** mehrere Adressbücher, Suche, Telefon/E-Mail/Adressen/Websites mit Typen und eigenen Bezeichnungen,
@@ -81,11 +84,25 @@ docker run -d --name synchaven -p 8080:8080 -v synchaven-data:/data ghcr.io/dave
 | `TOKEN_TTL_DAYS`     | `30`              | Gültigkeit der Anmeldung |
 | `JWT_SECRET`         | *(automatisch)*   | Eigenes Secret (≥ 32 Zeichen) |
 | `CORS_ORIGINS`       | `*`               | Erlaubte Browser-Origins, kommagetrennt |
+| `VAPID_SUBJECT`      | `mailto:synchaven@example.org` | Kontaktadresse für Push-Dienste (`mailto:` oder `https:`) |
 | `RUST_LOG`           | `synchaven=info`  | Log-Level |
 | `PUID` / `PGID`      | `10001`           | Benutzer-/Gruppen-ID für Programm und `/data` (nur Docker) |
 
 **Hinweis:** Für den Betrieb im Internet einen Reverse-Proxy mit HTTPS (z. B. Caddy, Traefik, nginx)
 vorschalten und nach dem Anlegen der eigenen Konten `ALLOW_REGISTRATION=false` setzen.
+
+### Benachrichtigungen im Browser
+
+Erinnerungen werden per Web Push verschickt: Unter *Konto → Einstellungen → Benachrichtigungen* lässt sich jeder
+Browser einzeln anmelden, dort gibt es auch eine Testbenachrichtigung. Voraussetzungen:
+
+* Die Weboberfläche muss über **HTTPS** aufgerufen werden (oder `localhost`) – sonst sperren Browser Benachrichtigungen.
+* Der Server muss die Push-Dienste der Browser erreichen (z. B. `fcm.googleapis.com`, `updates.push.services.mozilla.com`,
+  `web.push.apple.com`). Für einige Dienste sollte `VAPID_SUBJECT` eine echte Kontaktadresse sein.
+* iPhone/iPad (ab iOS 16.4): Synchaven zuerst über *Teilen → Zum Home-Bildschirm* installieren und dort öffnen.
+
+Der Schlüssel des Servers (VAPID) liegt in `vapid_private_key` im Datenverzeichnis. Geht er verloren, müssen die
+Browser Benachrichtigungen neu einschalten.
 
 ### Kontakte mit DAVx⁵ synchronisieren
 
@@ -142,6 +159,12 @@ Android-Konto, damit sich die Synchronisierung nach Ablauf des Tokens selbst neu
   die Kontakte-App bietet für Synchaven-Kontakte nur diese Felder an.
 * Wer bisher DAVx⁵ für dieselben Adressbücher genutzt hat, sollte dort das Konto entfernen, sonst erscheinen
   Kontakte doppelt.
+
+**Erinnerungen:** Die App zeigt Erinnerungen an Termine als Android-Benachrichtigung – geplant aus dem lokalen
+Cache, daher auch offline und im lokalen Modus. Ein- und ausschalten unter *Einstellungen → Benachrichtigungen*; ab
+Android 13 fragt die App einmal nach der Berechtigung. Änderungen aus der Weboberfläche kommen beim nächsten Abgleich
+an (beim Öffnen der App, spätestens etwa alle vier Stunden). In den Android-Kalender werden keine Erinnerungen
+übertragen, damit sie nicht doppelt erscheinen.
 
 **Offline-Betrieb:** Kalender, alle Termine (Serien mit RRULE/EXDATE), Adressbücher und Kontakte liegen zusätzlich in
 einem lokalen Cache auf dem Gerät; Kontaktfotos werden beim Öffnen eines Kontakts gespeichert. Ist der Server nicht

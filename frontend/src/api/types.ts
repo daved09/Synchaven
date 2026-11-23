@@ -24,6 +24,10 @@ export interface Calendar {
   visible: boolean
   /** `birthdays`: automatisch aus den Kontakten erzeugt, Termine schreibgeschützt */
   kind: 'default' | 'birthdays'
+  /** Standard-Erinnerungen in Minuten vor Beginn (Termine mit Uhrzeit) */
+  default_reminders: number[]
+  /** Standard-Erinnerungen für ganztägige Termine (negativ = Uhrzeit am Tag selbst) */
+  default_all_day_reminders: number[]
   created_at: string
   updated_at: string
 }
@@ -33,6 +37,9 @@ export interface CalendarInput {
   color?: string
   description?: string
   visible?: boolean
+  /** Fehlt das Feld, bleiben die bisherigen Standard-Erinnerungen erhalten */
+  default_reminders?: number[]
+  default_all_day_reminders?: number[]
 }
 
 /** Termin (bei Serien: die Serie selbst) */
@@ -49,6 +56,8 @@ export interface CalEvent {
   timezone: string
   rrule: string | null
   exdates: string[]
+  /** Erinnerungen in Minuten vor Beginn; `null` = Standard des Kalenders */
+  reminders: number[] | null
   /** Kontakt, aus dessen Geburtstag der Termin erzeugt wurde */
   contact_id: string | null
   read_only: boolean
@@ -67,6 +76,8 @@ export interface EventInput {
   timezone: string
   rrule: string | null
   exdates?: string[]
+  /** `null` = Standard des Kalenders; fehlt das Feld, bleiben die bisherigen Erinnerungen erhalten */
+  reminders?: number[] | null
 }
 
 /** Einzelnes Vorkommen eines Termins in einem Zeitraum */
@@ -101,6 +112,14 @@ export interface ServerInfo {
   version: string
   api_version: number
   allow_registration: boolean
+}
+
+/** Abonnement eines Browsers, wie es `PushSubscription.toJSON()` liefert, plus Zeitzone */
+export interface PushSubscriptionInput {
+  endpoint: string
+  keys: { p256dh: string; auth: string }
+  timezone: string
+  user_agent?: string
 }
 
 export interface ImportResult {

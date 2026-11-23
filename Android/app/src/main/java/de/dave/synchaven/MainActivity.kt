@@ -20,7 +20,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             val settings by container.settingsStore.settings.collectAsStateWithLifecycle()
             SyncHavenTheme(settings) {
-                AppRoot(container.sessionStore, container.syncController)
+                AppRoot(container.sessionStore, container.syncController, container.settingsStore)
             }
         }
     }

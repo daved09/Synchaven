@@ -18,6 +18,10 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
 import de.dave.synchaven.data.store.SessionState
 import de.dave.synchaven.data.store.SessionStore
+import de.dave.synchaven.data.store.SettingsStore
+import de.dave.synchaven.reminders.ReminderNotifier
+import android.Manifest
+import android.os.Build
 import de.dave.synchaven.ui.common.LoadingBox
 import de.dave.synchaven.ui.common.needsLocalNetworkPermission
 import de.dave.synchaven.ui.common.rememberLocalNetworkPermissionRequest
@@ -36,7 +40,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 
 /** Oberste Ebene: wartet auf die Sitzung, fragt die Berechtigung fürs lokale Netz an und zeigt die Navigation. */
 @Composable
-fun AppRoot(sessionStore: SessionStore, syncController: SyncController) {
+fun AppRoot(sessionStore: SessionStore, syncController: SyncController, settingsStore: SettingsStore) {
     val session by sessionStore.state.collectAsStateWithLifecycle()
     Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         if (session == SessionState.Loading) {
@@ -58,7 +62,30 @@ fun AppRoot(sessionStore: SessionStore, syncController: SyncController) {
         val navController = rememberNavController()
         SessionNavigationEffect(navController, loggedIn)
         SyncHavenNavGraph(navController, startLoggedIn = loggedIn)
-        if (loggedIn) SyncOnboarding(syncController)
+        if (loggedIn) {
+            SyncOnboarding(syncController)
+            NotificationOnboarding(syncController, settingsStore)
+        }
+    }
+}
+
+/**
+ * Android 13+: einmal nach der Berechtigung für Benachrichtigungen (Erinnerungen) fragen – erst nach den
+ * Berechtigungen für die Synchronisierung, damit nicht zwei Anfragen gleichzeitig erscheinen.
+ */
+@Composable
+private fun NotificationOnboarding(sync: SyncController, settingsStore: SettingsStore) {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
+    val state by sync.state.collectAsStateWithLifecycle()
+    val settings by settingsStore.settings.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
+    val waitForSync = state.accountName != null && !state.onboarded
+    if (waitForSync || !settings.reminders || settings.notificationPermissionAsked) return
+    LaunchedEffect(Unit) {
+        scope.launch { settingsStore.update { it.copy(notificationPermissionAsked = true) } }
+        if (!ReminderNotifier.canNotify(context)) launcher.launch(Manifest.permission.POST_NOTIFICATIONS)
     }
 }
 

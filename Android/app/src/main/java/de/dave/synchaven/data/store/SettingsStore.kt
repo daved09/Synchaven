@@ -39,6 +39,10 @@ data class AppSettings(
     val showWeekNumbers: Boolean = true,
     /** Stunde, zu der Wochen- und Tagesansicht beim Öffnen scrollen */
     val dayStartHour: Int = 7,
+    /** Erinnerungen an Termine als Benachrichtigung anzeigen */
+    val reminders: Boolean = true,
+    /** Nach der Benachrichtigungs-Berechtigung (Android 13+) wurde bereits einmal gefragt */
+    val notificationPermissionAsked: Boolean = false,
 )
 
 class SettingsStore(private val dataStore: AppDataStore) {
@@ -49,6 +53,8 @@ class SettingsStore(private val dataStore: AppDataStore) {
         val weekStart = stringPreferencesKey("week_start")
         val showWeekNumbers = booleanPreferencesKey("show_week_numbers")
         val dayStartHour = intPreferencesKey("day_start_hour")
+        val reminders = booleanPreferencesKey("reminders")
+        val notificationPermissionAsked = booleanPreferencesKey("notification_permission_asked")
     }
 
     val settings: StateFlow<AppSettings> = dataStore.prefs
@@ -64,6 +70,8 @@ class SettingsStore(private val dataStore: AppDataStore) {
             prefs[Keys.weekStart] = s.weekStart.name
             prefs[Keys.showWeekNumbers] = s.showWeekNumbers
             prefs[Keys.dayStartHour] = s.dayStartHour
+            prefs[Keys.reminders] = s.reminders
+            prefs[Keys.notificationPermissionAsked] = s.notificationPermissionAsked
         }
     }
 
@@ -76,6 +84,8 @@ class SettingsStore(private val dataStore: AppDataStore) {
             weekStart = enumOr(this[Keys.weekStart], d.weekStart),
             showWeekNumbers = this[Keys.showWeekNumbers] ?: d.showWeekNumbers,
             dayStartHour = this[Keys.dayStartHour] ?: d.dayStartHour,
+            reminders = this[Keys.reminders] ?: d.reminders,
+            notificationPermissionAsked = this[Keys.notificationPermissionAsked] ?: d.notificationPermissionAsked,
         )
     }
 

@@ -61,7 +61,18 @@ fn export_rrule(rule: &str, all_day: bool) -> String {
         .join(";")
 }
 
-pub fn export(calendar_name: &str, events: &[Event]) -> String {
+/// TRIGGER einer Erinnerung (Minuten vor Beginn; negativ = nach Beginn)
+fn trigger(minutes: i32) -> String {
+    match minutes {
+        0 => "PT0S".into(),
+        m if m > 0 && m % 1440 == 0 => format!("-P{}D", m / 1440),
+        m if m > 0 => format!("-PT{m}M"),
+        m => format!("PT{}M", -m),
+    }
+}
+
+/// `reminders` liefert die Erinnerungen eines Termins (eigene oder Kalender-Standard).
+pub fn export(calendar_name: &str, events: &[Event], reminders: impl Fn(&Event) -> Vec<i32>) -> String {
     let mut out = String::new();
     for line in [
         "BEGIN:VCALENDAR",
@@ -95,6 +106,13 @@ pub fn export(calendar_name: &str, events: &[Event]) -> String {
                 fold(&dt_prop("EXDATE", *ex, ev), &mut out);
             }
         }
+        for m in reminders(ev) {
+            fold("BEGIN:VALARM", &mut out);
+            fold("ACTION:DISPLAY", &mut out);
+            fold(&format!("DESCRIPTION:{}", escape(&ev.title)), &mut out);
+            fold(&format!("TRIGGER:{}", trigger(m)), &mut out);
+            fold("END:VALARM", &mut out);
+        }
         fold("END:VEVENT", &mut out);
     }
     fold("END:VCALENDAR", &mut out);
@@ -117,6 +135,8 @@ pub struct ParsedEvent {
     pub exdates: Vec<DateTime<Utc>>,
     /// Gesetzt bei geänderten Einzelvorkommen einer Serie.
     pub recurrence_id: Option<DateTime<Utc>>,
+    /// Erinnerungen aus VALARM (Minuten vor Beginn); `None`, wenn der Termin keine enthält
+    pub reminders: Option<Vec<i32>>,
 }
 
 struct Prop {
@@ -246,6 +266,19 @@ fn parse_dt_value(value: &str, prop: &Prop, default_tz: Tz) -> Option<(DateTime<
     Some((time::local_to_utc(n, tz), false, tz))
 }
 
+/// Relativer TRIGGER eines VALARM in Minuten vor Beginn (`-PT15M` → 15, `PT9H` → -540).
+/// Absolute Zeitpunkte und Erinnerungen relativ zum Ende werden nicht übernommen.
+fn parse_trigger(prop: &Prop) -> Option<i32> {
+    if prop.param("VALUE").is_some_and(|v| v.eq_ignore_ascii_case("DATE-TIME"))
+        || prop.param("RELATED").is_some_and(|v| v.eq_ignore_ascii_case("END"))
+    {
+        return None;
+    }
+    let v = prop.value.trim();
+    let minutes = i32::try_from(parse_duration(v)?.num_minutes()).ok()?;
+    Some(if v.starts_with('-') { minutes } else { -minutes })
+}
+
 /// ISO-8601-Dauer wie `P1D`, `PT1H30M`, `P2W`.
 fn parse_duration(s: &str) -> Option<Duration> {
     let s = s.trim().trim_start_matches(['+', '-']);
@@ -296,6 +329,10 @@ struct Builder {
     exdates: Vec<DateTime<Utc>>,
     recurrence_id: Option<DateTime<Utc>>,
     cancelled: bool,
+    /// `Some`, sobald ein VALARM vorkommt
+    reminders: Option<Vec<i32>>,
+    /// TRIGGER des gerade gelesenen VALARM
+    alarm: Option<Option<i32>>,
 }
 
 impl Builder {
@@ -323,6 +360,7 @@ impl Builder {
             rrule: self.rrule,
             exdates: self.exdates,
             recurrence_id: self.recurrence_id,
+            reminders: self.reminders,
         })
     }
 }
@@ -345,8 +383,28 @@ pub fn parse(text: &str, default_tz: Tz) -> Result<Vec<ParsedEvent>, String> {
                 current = Some(Builder::default());
                 nested = 0;
             }
-            ("BEGIN", true) => nested += 1,
-            ("END", true) if nested > 0 => nested -= 1,
+            ("BEGIN", true) => {
+                nested += 1;
+                if nested == 1 && value_upper == "VALARM" {
+                    current.as_mut().unwrap().alarm = Some(None);
+                }
+            }
+            ("END", true) if nested > 0 => {
+                nested -= 1;
+                let b = current.as_mut().unwrap();
+                if nested == 0 {
+                    if let Some(alarm) = b.alarm.take() {
+                        let list = b.reminders.get_or_insert_with(Vec::new);
+                        list.extend(alarm);
+                    }
+                }
+            }
+            ("TRIGGER", true) if nested == 1 => {
+                let b = current.as_mut().unwrap();
+                if let Some(alarm) = b.alarm.as_mut() {
+                    *alarm = parse_trigger(&prop);
+                }
+            }
             ("END", true) if value_upper == "VEVENT" => {
                 if let Some(ev) = current.take().and_then(Builder::finish) {
                     events.push(ev);
@@ -400,8 +458,10 @@ mod tests {
         assert_eq!(e.end - e.start, Duration::minutes(90));
         assert_eq!(e.timezone, "Europe/Berlin");
         assert_eq!(e.exdates, vec![Utc.with_ymd_and_hms(2026, 11, 29, 9, 0, 0).unwrap()]);
+        assert_eq!(e.reminders, Some(vec![]), "VALARM ohne TRIGGER");
         let h = &evs[1];
         assert!(h.all_day);
+        assert_eq!(h.reminders, None);
         assert_eq!(h.end - h.start, Duration::days(1));
     }
 
@@ -421,17 +481,19 @@ mod tests {
             timezone: "Europe/Berlin".into(),
             rrule: Some("FREQ=DAILY;COUNT=2".into()),
             exdates: vec![],
+            reminders: None,
             contact_id: None,
             read_only: false,
             created_at: start,
             updated_at: start,
         };
-        let ics = export("Test", &[ev.clone()]);
+        let ics = export("Test", &[ev.clone()], |_| vec![-540, 0, 15, 2880]);
         assert!(ics.lines().all(|l| l.len() <= 76));
         let back = parse(&ics, chrono_tz::UTC).unwrap();
         assert_eq!(back[0].title, ev.title);
         assert_eq!(back[0].start, ev.start);
         assert_eq!(back[0].description, "a\nb");
         assert_eq!(back[0].rrule.as_deref(), Some("FREQ=DAILY;COUNT=2"));
+        assert_eq!(back[0].reminders, Some(vec![-540, 0, 15, 2880]));
     }
 }

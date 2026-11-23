@@ -10,6 +10,7 @@ import App from './App.vue'
 import { setUnauthorizedHandler } from './api/client'
 import { useAuthStore } from './stores/auth'
 import { startDynamicFavicon } from './utils/favicon'
+import { refreshPush, registerServiceWorker } from './utils/push'
 import './styles.css'
 
 const app = createApp(App)
@@ -24,3 +25,7 @@ setUnauthorizedHandler(() => {
 
 app.mount('#app')
 startDynamicFavicon()
+// Service Worker für Web-Push-Erinnerungen; ein bestehendes Abonnement wird dem angemeldeten Konto zugeordnet
+registerServiceWorker().then(() => {
+  if (useAuthStore().loggedIn) refreshPush().catch(() => {})
+})

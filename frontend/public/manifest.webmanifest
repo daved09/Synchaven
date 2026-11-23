@@ -1,0 +1,10 @@
+{
+  "name": "Synchaven",
+  "short_name": "Synchaven",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#FFFBFE",
+  "theme_color": "#6750A4",
+  "icons": [{ "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

@@ -92,7 +92,9 @@ Alle Felder optional. Für Änderung von `email` oder `new_password` ist `curren
 ```json
 {
   "id": "uuid", "name": "Arbeit", "color": "#0B57D0", "description": "",
-  "visible": true, "kind": "default", "created_at": "…", "updated_at": "…"
+  "visible": true, "kind": "default",
+  "default_reminders": [10], "default_all_day_reminders": [900],
+  "created_at": "…", "updated_at": "…"
 }
 ```
 
@@ -113,11 +115,16 @@ Löschen, Import sowie Anlegen, Bearbeiten und Löschen einzelner Termine werden
 | GET     | `/calendars/{id}/export`     | –                 | `text/calendar` (.ics) |
 | POST    | `/calendars/{id}/import?timezone=Europe/Berlin` | .ics-Datei als Body (`text/calendar`) | `{ "imported": 12, "skipped": [] }` |
 
-`CalendarInput`: `{ "name": "Arbeit", "color": "#0B57D0", "description": "", "visible": true }`
-(`color`, `description`, `visible` optional).
+`CalendarInput`: `{ "name": "Arbeit", "color": "#0B57D0", "description": "", "visible": true, "default_reminders": [10], "default_all_day_reminders": [900] }`
+(alles außer `name` optional). Fehlen `default_reminders` bzw. `default_all_day_reminders`, bleiben die bisherigen
+Standard-Erinnerungen erhalten (siehe [Erinnerungen](#erinnerungen)). Neue Kalender – auch der Geburtstagskalender –
+erinnern standardmäßig 15 Minuten vorher (`[15]`) bzw. bei ganztägigen Terminen am Tag selbst um 09:00 (`[-540]`).
 
 `/calendars/{id}/events` liefert alle Termine eines Kalenders als `Event` – Serien als ein Eintrag mit `rrule` und
 `exdates`. Gedacht für Clients, die selbst synchronisieren (die Android-App überträgt damit in den Android-Kalender).
+
+Beim Export enthält jeder Termin seine Erinnerungen (eigene oder Kalender-Standard) als `VALARM`; beim Import
+werden relative `TRIGGER` übernommen. Termine ohne `VALARM` behalten beim erneuten Import ihre Erinnerungen.
 
 Beim Import werden Termine mit gleicher `UID` aktualisiert statt dupliziert. `timezone` gilt für
 Zeitangaben ohne `TZID` („floating time“). Geänderte Einzelvorkommen (`RECURRENCE-ID`) werden als
@@ -166,10 +173,16 @@ der Titel des Vorkommens das Alter, z. B. `🎂 Erika Mustermann (62)`. `Event` 
   "all_day": false,
   "timezone": "Europe/Berlin",
   "rrule": null,
-  "exdates": []
+  "exdates": [],
+  "reminders": [10, 1440]
 }
 ```
-`description`, `location`, `all_day`, `timezone` (Standard `UTC`), `rrule`, `exdates` sind optional.
+`description`, `location`, `all_day`, `timezone` (Standard `UTC`), `rrule`, `exdates`, `reminders` sind optional.
+
+`reminders`: Liste von Erinnerungen in Minuten vor Beginn (siehe [Erinnerungen](#erinnerungen)). `null` bedeutet
+„Standard-Erinnerungen des Kalenders“, `[]` „keine Erinnerung“. **Fehlt das Feld, bleiben die bisherigen
+Erinnerungen unverändert** – neue Termine verwenden dann den Kalender-Standard. So überschreiben Clients ohne
+Erinnerungsunterstützung (z. B. die Synchronisierung mit dem Android-Kalender) nichts.
 
 `Event` (Serie bzw. Einzeltermin) entspricht dem Input plus `id`, `uid`, `created_at`, `updated_at`.
 
@@ -183,6 +196,46 @@ Entfernt ein einzelnes Vorkommen aus einer Serie:
 { "occurrence_start": "2026-12-07T08:00:00Z" }
 ```
 `occurrence_start` ist das `start` des Vorkommens aus `GET /events`.
+
+## Erinnerungen
+
+Eine Erinnerung ist eine Minutenzahl vor Beginn (höchstens 5 pro Termin, höchstens 4 Wochen = 40320 Minuten).
+Bei **ganztägigen** Terminen bezieht sie sich auf Mitternacht in der Zeitzone des Empfängers; negative Werte sind
+eine Uhrzeit am Tag selbst – wie `TRIGGER` in iCalendar:
+
+| Wert   | Termin mit Uhrzeit   | Ganztägiger Termin       |
+|--------|----------------------|--------------------------|
+| `0`    | zum Beginn           | am Tag um 00:00          |
+| `10`   | 10 Minuten vorher    | am Vortag um 23:50       |
+| `900`  | 15 Stunden vorher    | am Vortag um 09:00       |
+| `-540` | ungültig             | am Tag selbst um 09:00   |
+
+Für Termine ohne eigene Erinnerungen (`reminders: null`, z. B. alle Geburtstage) gelten die Standard-Erinnerungen
+ihres Kalenders: `default_reminders` für Termine mit Uhrzeit, `default_all_day_reminders` für ganztägige.
+Voreingestellt sind 15 Minuten vorher bzw. am Tag selbst um 09:00 – so hat jeder Termin eine Erinnerung, solange
+sie nicht am Termin oder im Kalender geändert wird.
+
+Die Android-App plant Erinnerungen selbst (aus ihrem lokalen Cache). Für Browser verschickt der Server sie per
+**Web Push**:
+
+| Methode | Pfad                    | Body | Antwort |
+|---------|-------------------------|------|---------|
+| GET     | `/push/public-key`      | –    | `{ "public_key": "B…" }` (VAPID, Base64url, ohne Anmeldung) |
+| POST    | `/push/subscriptions`   | `{ "endpoint": "https://…", "keys": { "p256dh": "…", "auth": "…" }, "timezone": "Europe/Berlin" }` | `204` |
+| DELETE  | `/push/subscriptions`   | `{ "endpoint": "https://…" }` | `204` |
+| POST    | `/push/test`            | `{ "endpoint": "https://…" }` (optional, sonst alle Browser des Kontos) | `{ "sent": 1 }` |
+
+`endpoint` und `keys` stammen aus `PushSubscription.toJSON()`; `timezone` bestimmt den Beginn ganztägiger Termine.
+Ein Endpunkt gehört immer dem zuletzt angemeldeten Konto. Der Server prüft alle 30 Sekunden auf fällige
+Erinnerungen und sendet sie verschlüsselt (RFC 8291) als JSON:
+
+```json
+{
+  "type": "reminder", "tag": "<event_id>_<start>_<minuten>", "event_id": "…", "title": "Zahnarzt",
+  "location": "", "start": "2026-11-26T13:30:00Z", "end": "2026-11-26T14:00:00Z", "all_day": false, "minutes": 10
+}
+```
+Abgelaufene Abonnements (Antwort `404`/`410` des Push-Dienstes) werden automatisch entfernt.
 
 ---
 

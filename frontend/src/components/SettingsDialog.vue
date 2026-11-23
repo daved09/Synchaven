@@ -1,9 +1,11 @@
 <script setup lang="ts">
+import { computed, ref, watch } from 'vue'
 import { SEED_COLORS } from '@/plugins/theme'
 import type { ViewMode } from '@/api/types'
 import { useAuthStore } from '@/stores/auth'
 import { useNotifyStore } from '@/stores/notify'
 import { useSettingsStore } from '@/stores/settings'
+import { disablePush, enablePush, pushState, testPush, type PushState } from '@/utils/push'
 
 const open = defineModel<boolean>({ required: true })
 const { settings } = useSettingsStore()
@@ -13,6 +15,49 @@ const notify = useNotifyStore()
 /** Die Standardansicht gehört zum Benutzerkonto */
 function setDefaultView(v: ViewMode) {
   auth.update({ default_view: v }).catch((e) => notify.fail(e))
+}
+
+// ---------- Benachrichtigungen ----------
+const push = ref<PushState | null>(null)
+const pushBusy = ref(false)
+watch(open, (v) => v && pushState().then((s) => (push.value = s)), { immediate: true })
+
+const pushHint = computed(() => ({
+  unsupported: 'Dieser Browser unterstützt keine Push-Benachrichtigungen.',
+  insecure: 'Benachrichtigungen funktionieren nur, wenn Synchaven über HTTPS aufgerufen wird.',
+  denied: 'Benachrichtigungen sind für diese Seite im Browser blockiert. Bitte in den Website-Einstellungen erlauben.',
+  off: 'Erinnerungen an Termine erscheinen als Benachrichtigung, auch wenn Synchaven nicht geöffnet ist.',
+  on: 'Erinnerungen werden an diesen Browser gesendet. Sie werden pro Termin oder als Standard pro Kalender eingestellt.',
+}[push.value ?? 'off']))
+
+async function togglePush(on: boolean | null) {
+  pushBusy.value = true
+  try {
+    if (on) {
+      push.value = await enablePush()
+      if (push.value !== 'on') notify.fail(new Error(pushHint.value))
+    } else {
+      await disablePush()
+      push.value = await pushState()
+    }
+  } catch (e) {
+    notify.fail(e)
+    push.value = await pushState()
+  } finally {
+    pushBusy.value = false
+  }
+}
+
+async function sendTest() {
+  pushBusy.value = true
+  try {
+    await testPush()
+    notify.info('Testbenachrichtigung gesendet')
+  } catch (e) {
+    notify.fail(e)
+  } finally {
+    pushBusy.value = false
+  }
 }
 
 const weekStarts = [
@@ -64,6 +109,20 @@ const hours = Array.from({ length: 13 }, (_, h) => ({ title: `${String(h).padSta
         <v-select v-model="settings.weekStartsOn" :items="weekStarts" label="Woche beginnt am" />
         <v-select v-model="settings.dayStartHour" :items="hours" label="Tagesansicht scrollt zu" />
         <v-switch v-model="settings.showWeekNumbers" label="Kalenderwochen anzeigen" color="primary" inset hide-details />
+
+        <div class="text-title-small mt-4 mb-1">Benachrichtigungen</div>
+        <v-switch
+          :model-value="push === 'on'" label="Erinnerungen in diesem Browser" color="primary" inset hide-details
+          :disabled="push === null || push === 'unsupported' || push === 'insecure' || push === 'denied'"
+          :loading="pushBusy" @update:model-value="togglePush"
+        />
+        <div class="text-body-small text-medium-emphasis">{{ pushHint }}</div>
+        <v-btn
+          v-if="push === 'on'" variant="tonal" size="small" prepend-icon="mdi-bell-ring-outline" class="mt-2"
+          :disabled="pushBusy" @click="sendTest"
+        >
+          Testbenachrichtigung senden
+        </v-btn>
       </v-card-text>
       <template #actions>
         <v-spacer />

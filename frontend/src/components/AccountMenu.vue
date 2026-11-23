@@ -7,6 +7,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useCalendarsStore } from '@/stores/calendars'
 import { useContactsStore } from '@/stores/contacts'
 import { useEventsStore } from '@/stores/events'
+import { disablePush } from '@/utils/push'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -21,7 +22,9 @@ const initials = computed(() =>
   (auth.user?.name || auth.user?.email || '?').split(/[\s@.]+/).filter(Boolean).slice(0, 2).map((s) => s[0].toUpperCase()).join(''),
 )
 
-function logout() {
+async function logout() {
+  // Dieser Browser soll keine Erinnerungen des Kontos mehr erhalten
+  await Promise.race([disablePush(), new Promise((r) => setTimeout(r, 2000))])
   auth.logout()
   calendars.reset()
   events.reset()

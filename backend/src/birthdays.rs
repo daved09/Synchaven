@@ -226,6 +226,7 @@ mod tests {
             timezone: "UTC".into(),
             rrule: Some(rrule_for(start.date_naive()).into()),
             exdates: vec![],
+            reminders: None,
             contact_id: Some("k".into()),
             read_only: true,
             created_at: start,

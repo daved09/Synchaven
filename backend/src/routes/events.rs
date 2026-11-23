@@ -13,7 +13,7 @@ use crate::{
     error::{AppError, AppResult},
     birthdays,
     models::{Event, EventInput, EventRow, Occurrence},
-    recurrence, time, AppState,
+    recurrence, reminders, time, AppState,
 };
 
 /// Validierte, speicherfertige Termindaten.
@@ -28,6 +28,8 @@ pub struct EventData {
     pub timezone: String,
     pub rrule: Option<String>,
     pub exdates: Vec<DateTime<Utc>>,
+    /// `None`: unverändert lassen; `Some(None)`: Kalender-Standard; `Some(Some(..))`: eigene Erinnerungen
+    pub reminders: Option<Option<Vec<i32>>>,
 }
 
 impl EventData {
@@ -59,6 +61,12 @@ impl EventData {
         let mut exdates = if rrule.is_some() { input.exdates.unwrap_or_default() } else { vec![] };
         exdates.sort();
         exdates.dedup();
+        let reminders = match input.reminders {
+            Some(Some(list)) => {
+                Some(Some(reminders::validate(list, input.all_day).map_err(AppError::BadRequest)?))
+            }
+            other => other,
+        };
 
         Ok(Self {
             calendar_id: input.calendar_id,
@@ -71,24 +79,35 @@ impl EventData {
             timezone: tz.name().to_string(),
             rrule,
             exdates,
+            reminders,
         })
     }
 
     fn exdates_json(&self) -> String {
         serde_json::to_string(&self.exdates.iter().map(|d| time::to_db(*d)).collect::<Vec<_>>()).unwrap()
     }
+
+    /// (Erinnerungen übernehmen?, JSON oder NULL)
+    fn reminders_db(&self) -> (bool, Option<String>) {
+        match &self.reminders {
+            None => (false, None),
+            Some(list) => (true, list.as_deref().map(reminders::to_json)),
+        }
+    }
 }
 
 /// Fügt einen Termin ein oder aktualisiert ihn anhand von (calendar_id, uid).
 pub async fn upsert(state: &AppState, uid: &str, data: &EventData) -> AppResult<String> {
     let now = time::to_db(time::now());
+    let (set_reminders, reminders) = data.reminders_db();
     let (id,): (String,) = sqlx::query_as(
-        "INSERT INTO events (id, calendar_id, uid, title, description, location, start_at, end_at, all_day, timezone, rrule, exdates, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        "INSERT INTO events (id, calendar_id, uid, title, description, location, start_at, end_at, all_day, timezone, rrule, exdates, reminders, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(calendar_id, uid) DO UPDATE SET
             title = excluded.title, description = excluded.description, location = excluded.location,
             start_at = excluded.start_at, end_at = excluded.end_at, all_day = excluded.all_day,
             timezone = excluded.timezone, rrule = excluded.rrule, exdates = excluded.exdates,
+            reminders = CASE WHEN ? THEN excluded.reminders ELSE events.reminders END,
             updated_at = excluded.updated_at
          RETURNING id",
     )
@@ -104,8 +123,10 @@ pub async fn upsert(state: &AppState, uid: &str, data: &EventData) -> AppResult<
     .bind(&data.timezone)
     .bind(&data.rrule)
     .bind(data.exdates_json())
+    .bind(reminders)
     .bind(&now)
     .bind(&now)
+    .bind(set_reminders)
     .fetch_one(&state.db)
     .await?;
     Ok(id)
@@ -265,9 +286,11 @@ pub async fn update(
     editable_event(&state, &auth.id, &id).await?;
     let data = EventData::validate(input)?;
     ensure_writable(&owned_calendar(&state, &auth.id, &data.calendar_id).await?)?;
+    let (set_reminders, reminders) = data.reminders_db();
     sqlx::query(
         "UPDATE events SET calendar_id = ?, title = ?, description = ?, location = ?, start_at = ?, end_at = ?,
-         all_day = ?, timezone = ?, rrule = ?, exdates = ?, updated_at = ? WHERE id = ?",
+         all_day = ?, timezone = ?, rrule = ?, exdates = ?, reminders = CASE WHEN ? THEN ? ELSE reminders END,
+         updated_at = ? WHERE id = ?",
     )
     .bind(&data.calendar_id)
     .bind(&data.title)
@@ -279,6 +302,8 @@ pub async fn update(
     .bind(&data.timezone)
     .bind(&data.rrule)
     .bind(data.exdates_json())
+    .bind(set_reminders)
+    .bind(reminders)
     .bind(time::to_db(time::now()))
     .bind(&id)
     .execute(&state.db)

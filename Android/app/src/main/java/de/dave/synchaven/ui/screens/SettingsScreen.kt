@@ -60,6 +60,7 @@ import de.dave.synchaven.ui.theme.SEED_COLORS
 import de.dave.synchaven.ui.theme.supportsDynamicColor
 import de.dave.synchaven.util.LOCALE
 import de.dave.synchaven.ui.settings.ChoiceItem
+import de.dave.synchaven.ui.settings.NotificationSection
 import de.dave.synchaven.ui.settings.OfflineSection
 import de.dave.synchaven.ui.settings.SectionTitle
 import de.dave.synchaven.ui.settings.SyncSection
@@ -150,6 +151,12 @@ fun SettingsScreen(onSelectTab: (MainTab) -> Unit) {
                     onInterval = vm::setSyncInterval,
                     onSyncNow = vm::syncNow,
                 )
+                HorizontalDivider()
+            }
+
+            // ---------- Benachrichtigungen ----------
+            if (session != null) {
+                NotificationSection(settings.reminders, onToggle = { on -> vm.update { it.copy(reminders = on) } })
                 HorizontalDivider()
             }
 

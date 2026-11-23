@@ -31,6 +31,7 @@ import de.dave.synchaven.util.toOffsetString
 import de.dave.synchaven.util.toViewEvent
 import de.dave.synchaven.util.viewRange
 import de.dave.synchaven.util.viewTitle
+import java.time.DayOfWeek
 import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -49,17 +50,25 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+/**
+ * Ausgangspunkt des Blätterns: Von hier aus zählt der Pager seine Seiten. Er wechselt nur bei Sprüngen
+ * (Heute, Datumswahl, Ansichtswechsel), nicht beim Wischen; [serial] macht jeden Sprung eindeutig,
+ * [forward] gibt die Richtung der Übergangsanimation an.
+ */
+data class PageAnchor(val mode: ViewMode, val date: LocalDate, val serial: Int = 0, val forward: Boolean = true)
+
 /** Angezeigter Zeitraum der Kalenderansicht */
-data class CalendarPosition(val mode: ViewMode, val date: LocalDate)
+data class CalendarPosition(val mode: ViewMode, val date: LocalDate, val anchor: PageAnchor = PageAnchor(mode, date))
 
 data class CalendarUiState(
     val mode: ViewMode = ViewMode.MONTH,
     val date: LocalDate = LocalDate.now(),
     val range: DateRange = DateRange(date, date.plusDays(1)),
+    val anchor: PageAnchor = PageAnchor(mode, date),
     val title: UiText = UiText.Plain(""),
     val settings: AppSettings = AppSettings(),
     val calendars: List<Calendar> = emptyList(),
-    /** Termine der sichtbaren Kalender im Zeitraum */
+    /** Termine der sichtbaren Kalender im Zeitraum samt vorigem und nächstem (für das Wischen) */
     val events: List<ViewEvent> = emptyList(),
     val loading: Boolean = false,
     val error: UiText? = null,
@@ -101,7 +110,7 @@ class CalendarViewModel(
         val byId = cals.associateBy { it.id }
         val visible = cals.filter { it.visible }.map { it.id }.toSet()
         CalendarUiState(
-            mode = pos.mode, date = pos.date, range = range,
+            mode = pos.mode, date = pos.date, range = range, anchor = pos.anchor,
             title = viewTitle(pos.mode, pos.date, range),
             settings = settings, calendars = cals,
             events = occurrences.filter { it.calendarId in visible }.map { it.toViewEvent(byId) }
@@ -118,15 +127,15 @@ class CalendarViewModel(
         viewModelScope.launch { runCatching { auth.me() } }
         viewModelScope.launch {
             sessionStore.state.map { (it as? SessionState.LoggedIn)?.session?.defaultView }.distinctUntilChanged()
-                .collect { mode -> if (mode != null && !pinned) position.update { it.copy(mode = mode) } }
+                .collect { mode -> if (mode != null && !pinned) jump(mode, position.value.date) }
         }
         viewModelScope.launch {
             runCatching { repo.loadCalendars() }.onFailure { error.value = it.userMessage() }
         }
-        // Termine für den sichtbaren Zeitraum laden – neu bei Zeitraumwechsel und nach jeder Änderung
+        // Termine für den sichtbaren Zeitraum und seine Nachbarn laden – neu bei Zeitraumwechsel und nach jeder Änderung
         viewModelScope.launch {
             combine(position, settingsStore.settings.map { it.weekStart }.distinctUntilChanged(), repo.eventsVersion) { pos, ws, _ ->
-                viewRange(pos.mode, pos.date, ws)
+                loadWindow(pos.mode, pos.date, ws)
             }.collectLatest { range -> loadRange(range) }
         }
         viewModelScope.launch {
@@ -156,7 +165,7 @@ class CalendarViewModel(
         viewModelScope.launch {
             runCatching { repo.loadCalendars() }.onFailure { messages.send(it.userMessage()) }
             val s = state.value
-            loadRange(s.range)
+            loadRange(loadWindow(s.mode, s.date, s.settings.weekStart))
         }
     }
 
@@ -165,18 +174,31 @@ class CalendarViewModel(
     /** Vom Benutzer gewählte Ansicht – wird zugleich als Standardansicht im Benutzerkonto gespeichert */
     fun setMode(mode: ViewMode) {
         pinned = true
-        position.update { it.copy(mode = mode) }
+        jump(mode, position.value.date)
         if (sessionStore.current?.defaultView == mode) return
         viewModelScope.launch {
             runCatching { auth.setDefaultView(mode) }.onFailure { messages.send(it.userMessage()) }
         }
     }
-    fun step(dir: Int) = position.update { it.copy(date = stepDate(it.mode, it.date, dir)) }
-    fun today() = position.update { it.copy(date = LocalDate.now()) }
+    /** Der Pager ist durch Wischen auf dem Zeitraum um [date] zur Ruhe gekommen. */
+    fun showPage(date: LocalDate) = position.update { it.copy(date = date) }
+    fun today() = jump(position.value.mode, LocalDate.now())
     fun goto(date: LocalDate, mode: ViewMode? = null) {
         if (mode != null) pinned = true
-        position.update { CalendarPosition(mode ?: it.mode, date) }
+        jump(mode ?: position.value.mode, date)
     }
+
+    /** Springt zu [date] in [mode]; der Pager beginnt dort neu. */
+    private fun jump(mode: ViewMode, date: LocalDate) = position.update {
+        if (it.mode == mode && it.date == date) it
+        else CalendarPosition(mode, date, PageAnchor(mode, date, it.anchor.serial + 1, forward = date >= it.date))
+    }
+
+    /** Zeitraum von der vorigen bis zur nächsten Seite, damit beim Wischen auch die Nachbarn Termine zeigen */
+    private fun loadWindow(mode: ViewMode, date: LocalDate, weekStart: DayOfWeek) = DateRange(
+        viewRange(mode, stepDate(mode, date, -1), weekStart).start,
+        viewRange(mode, stepDate(mode, date, 1), weekStart).end,
+    )
 
     // ---------- Suche ----------
 

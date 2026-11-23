@@ -1,5 +1,6 @@
 package de.dave.synchaven.ui.calendar
 
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -27,7 +28,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -66,6 +66,13 @@ private val HOUR_HEIGHT = 56.dp
 private val LABEL_WIDTH = 44.dp
 private val ALL_DAY_LANE = 22.dp
 
+/** Scrollposition des Stundenrasters, anfangs bei [dayStartHour] */
+@Composable
+fun rememberTimeGridScroll(dayStartHour: Int): ScrollState {
+    val px = with(LocalDensity.current) { (HOUR_HEIGHT * dayStartHour).roundToPx() }
+    return rememberScrollState(px)
+}
+
 /** Minutenraster beim Verschieben per Drag & Drop */
 private const val SNAP_MINUTES = 15
 
@@ -84,6 +91,8 @@ fun TimeGridView(
     onEventClick: (ViewEvent) -> Unit,
     onEventMove: (ViewEvent, LocalDateTime) -> Unit,
     modifier: Modifier = Modifier,
+    /** Senkrechte Scrollposition – beim Wischen teilen sich die Seiten eine, damit die Stunden fluchten */
+    scroll: ScrollState = rememberTimeGridScroll(dayStartHour),
 ) {
     val today = LocalDate.now()
     val colors = MaterialTheme.colorScheme
@@ -118,8 +127,6 @@ fun TimeGridView(
         HorizontalDivider(color = colors.outlineVariant)
 
         val density = LocalDensity.current
-        val scroll = rememberScrollState()
-        LaunchedEffect(Unit) { scroll.scrollTo(with(density) { (HOUR_HEIGHT * dayStartHour).roundToPx() }) }
         // Minütlich aktualisierte Uhrzeit für die Jetzt-Linie
         val now by produceState(LocalDateTime.now()) {
             while (true) {

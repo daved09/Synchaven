@@ -27,9 +27,8 @@ export const useViewStore = defineStore('view', () => {
   const date = ref<Date>(startOfDay(new Date()))
   const search = ref('')
 
-  /** Sichtbare Tage (für Monat: 6 Wochen-Raster) */
-  const range = computed(() => {
-    const d = date.value
+  /** Tage, die die aktuelle Ansicht für das Datum `d` zeigt (für Monat: ganze Wochen) */
+  function rangeOf(d: Date): { start: Date; end: Date } {
     switch (mode.value) {
       case 'month': {
         const start = startOfWeek(startOfMonth(d), settings.weekStartsOn)
@@ -46,7 +45,15 @@ export const useViewStore = defineStore('view', () => {
       case 'list':
         return { start: d, end: addDays(d, LIST_DAYS) }
     }
-  })
+  }
+  const range = computed(() => rangeOf(date.value))
+  /** Datum des um `n` Zeiträume verschobenen Zeitraums */
+  function shift(d: Date, n: number): Date {
+    return mode.value === 'month' ? addMonths(d, n)
+      : mode.value === 'week' ? addDays(d, 7 * n)
+      : mode.value === 'day' ? addDays(d, n)
+      : addDays(d, 30 * n)
+  }
 
   const title = computed(() => {
     const { start, end } = range.value
@@ -69,11 +76,7 @@ export const useViewStore = defineStore('view', () => {
   })
 
   function step(dir: 1 | -1) {
-    const d = date.value
-    date.value = mode.value === 'month' ? addMonths(d, dir)
-      : mode.value === 'week' ? addDays(d, 7 * dir)
-      : mode.value === 'day' ? addDays(d, dir)
-      : addDays(d, 30 * dir)
+    date.value = shift(date.value, dir)
   }
   function today() {
     date.value = startOfDay(new Date())
@@ -92,5 +95,5 @@ export const useViewStore = defineStore('view', () => {
     show(m)
     if (auth.user && auth.user.default_view !== m) auth.update({ default_view: m }).catch((e) => notify.fail(e))
   }
-  return { mode, date, search, range, title, step, today, goto, show, select }
+  return { mode, date, search, range, rangeOf, shift, title, step, today, goto, show, select }
 })

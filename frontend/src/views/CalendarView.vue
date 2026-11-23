@@ -51,11 +51,16 @@ const modes: { value: ViewMode; title: string; icon: string; key: string }[] = [
   { value: 'list', title: 'Terminliste', icon: 'mdi-format-list-bulleted', key: 'L' },
 ]
 const currentMode = computed(() => modes.find((m) => m.value === view.mode)!)
-const days = computed(() => {
-  const { start, end } = view.range
+// Auf Touch-Geräten liegen links und rechts der aktuellen Seite die Nachbarzeiträume zum Wischen bereit
+const touchDevice = window.matchMedia('(pointer: coarse)').matches
+const pages = computed(() => (touchDevice ? [-1, 0, 1] : [0]).map((off) => {
+  const date = off === 0 ? view.date : view.shift(view.date, off)
+  const { start, end } = view.rangeOf(date)
   const n = Math.round((end.getTime() - start.getTime()) / 86_400_000)
-  return Array.from({ length: n }, (_, i) => addDays(start, i))
-})
+  // Schlüssel nach Datum: Nach dem Wischen wird die Nachbarseite ohne Neuaufbau zur aktuellen
+  const key = `${view.mode}:${touchDevice ? dayKey(date) : 0}`
+  return { off, key, date, start, end, days: Array.from({ length: n }, (_, i) => addDays(start, i)) }
+}))
 
 // --- URL-Synchronisierung (?view=week&date=2026-11-22) ---
 function readRoute() {
@@ -69,14 +74,18 @@ watch(() => [view.mode, view.date] as const, ([mode, date]) => {
   router.replace({ query: { view: mode, date: dayKey(date) } })
 })
 
-// --- Daten laden ---
-watch(() => [view.range.start.getTime(), view.range.end.getTime()], () => {
-  events.load(view.range.start, view.range.end).catch((e) => notify.fail(e))
+// --- Daten laden: aktueller Zeitraum samt vorigem und nächstem (für das Wischen) ---
+const loadRange = computed(() => ({
+  start: view.rangeOf(view.shift(view.date, -1)).start,
+  end: view.rangeOf(view.shift(view.date, 1)).end,
+}))
+watch(() => [loadRange.value.start.getTime(), loadRange.value.end.getTime()], () => {
+  events.load(loadRange.value.start, loadRange.value.end).catch((e) => notify.fail(e))
 })
 onMounted(async () => {
   try {
     await Promise.all([auth.fetchMe(), calendars.load()])
-    await events.load(view.range.start, view.range.end)
+    await events.load(loadRange.value.start, loadRange.value.end)
   } catch (e) {
     notify.fail(e)
   }
@@ -191,17 +200,68 @@ async function onImportFile(e: Event) {
 }
 watch(calendarDialog, (v) => !v && events.reload())
 
-// --- Wischgesten (Handy): links/rechts blättern ---
-let touchX = 0
-let touchY = 0
+// --- Wischgesten (Touch): Die Ansicht folgt dem Finger und rastet beim Loslassen auf einem Zeitraum ein ---
+const SETTLE_MS = 250
+const surface = ref<HTMLElement>()
+/** Aktuelle Verschiebung der Seiten in Pixeln */
+const dragX = ref(0)
+/** Seiten gleiten gerade in ihre Endlage */
+const settling = ref(false)
+let swipe: { x: number; y: number; axis: 'x' | 'y' | null; lastX: number; lastT: number; v: number } | null = null
+
 function onTouchStart(e: TouchEvent) {
-  touchX = e.touches[0].clientX
-  touchY = e.touches[0].clientY
+  if (!touchDevice || settling.value || e.touches.length !== 1) {
+    swipe = null
+    return
+  }
+  const t = e.touches[0]
+  swipe = { x: t.clientX, y: t.clientY, axis: null, lastX: t.clientX, lastT: e.timeStamp, v: 0 }
 }
-function onTouchEnd(e: TouchEvent) {
-  const dx = e.changedTouches[0].clientX - touchX
-  const dy = e.changedTouches[0].clientY - touchY
-  if (Math.abs(dx) > 70 && Math.abs(dx) > Math.abs(dy) * 2) view.step(dx < 0 ? 1 : -1)
+function onTouchMove(e: TouchEvent) {
+  if (!swipe) return
+  if (e.touches.length !== 1) return endSwipe(e, true)
+  const t = e.touches[0]
+  const dx = t.clientX - swipe.x
+  const dy = t.clientY - swipe.y
+  if (!swipe.axis) {
+    // Richtung erst nach etwas Bewegung festlegen – senkrecht bleibt es normales Scrollen
+    if (Math.hypot(dx, dy) < 10) return
+    swipe.axis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y'
+    if (swipe.axis === 'x') syncGridScroll()
+  }
+  if (swipe.axis !== 'x') return
+  const dt = e.timeStamp - swipe.lastT
+  if (dt > 0) swipe.v = 0.8 * ((t.clientX - swipe.lastX) / dt) + 0.2 * swipe.v
+  swipe.lastX = t.clientX
+  swipe.lastT = e.timeStamp
+  dragX.value = dx
+}
+function endSwipe(e: TouchEvent, cancel = false) {
+  const s = swipe
+  swipe = null
+  if (!s || s.axis !== 'x') return
+  const w = surface.value?.clientWidth || window.innerWidth
+  const dx = dragX.value
+  // Finger vor dem Loslassen angehalten → kein Schwung
+  const v = e.timeStamp - s.lastT > 100 ? 0 : s.v
+  const fling = Math.abs(v) > 0.4 && Math.sign(v) === Math.sign(dx)
+  const dir: -1 | 0 | 1 = cancel || (Math.abs(dx) < w / 2 && !fling) ? 0 : dx < 0 ? 1 : -1
+  settling.value = true
+  dragX.value = -dir * w
+  setTimeout(() => {
+    // Ohne Übergang zurücksetzen: Die Nachbarseite ist nun die aktuelle und steht schon an ihrem Platz
+    settling.value = false
+    if (dir) view.step(dir)
+    dragX.value = 0
+  }, SETTLE_MS)
+}
+/** Nachbarseiten auf dieselbe Uhrzeit scrollen wie die aktuelle, damit die Stunden beim Wischen fluchten */
+function syncGridScroll() {
+  const current = surface.value?.querySelector<HTMLElement>('.page.current .tg-scroll')
+  if (!current) return
+  surface.value!.querySelectorAll<HTMLElement>('.page:not(.current) .tg-scroll').forEach((el) => {
+    el.scrollTop = current.scrollTop
+  })
 }
 
 // --- Tastenkürzel ---
@@ -338,24 +398,37 @@ function onKey(e: KeyboardEvent) {
   </v-app-bar>
 
   <v-main class="main">
-    <div class="view-surface" @touchstart.passive="onTouchStart" @touchend.passive="onTouchEnd">
-      <MonthView
-        v-if="view.mode === 'month'"
-        :events="events.visible" :start="view.range.start" :end="view.range.end" :month="view.date.getMonth()"
-        :week-starts-on="settings.weekStartsOn" :show-week-numbers="settings.showWeekNumbers && mdAndUp"
-        @select="openEvent" @create="(d) => newEvent(d)" @open-day="openDay" @move="moveEvent"
-      />
-      <TimeGrid
-        v-else-if="view.mode === 'week' || view.mode === 'day'"
-        :key="view.mode"
-        :events="events.visible" :days="days" :day-start-hour="settings.dayStartHour"
-        @select="openEvent" @create="(s, allDay) => newEvent(s, allDay)" @open-day="openDay" @move="moveEvent"
-      />
-      <AgendaView
-        v-else
-        :events="events.visible" :start="view.range.start" :days="LIST_DAYS" :search="view.search"
-        @select="openEvent" @open-day="openDay"
-      />
+    <div
+      ref="surface" class="view-surface"
+      @touchstart.passive="onTouchStart" @touchmove.passive="onTouchMove"
+      @touchend.passive="endSwipe($event)" @touchcancel.passive="endSwipe($event, true)"
+    >
+      <div
+        class="track" :class="{ settling }"
+        :style="touchDevice ? { transform: `translateX(calc(-100% + ${dragX}px))` } : undefined"
+      >
+        <div
+          v-for="p in pages" :key="p.key" class="page" :class="{ current: p.off === 0 }"
+          :inert="p.off !== 0 || undefined"
+        >
+          <MonthView
+            v-if="view.mode === 'month'"
+            :events="events.visible" :start="p.start" :end="p.end" :month="p.date.getMonth()"
+            :week-starts-on="settings.weekStartsOn" :show-week-numbers="settings.showWeekNumbers && mdAndUp"
+            @select="openEvent" @create="(d) => newEvent(d)" @open-day="openDay" @move="moveEvent"
+          />
+          <TimeGrid
+            v-else-if="view.mode === 'week' || view.mode === 'day'"
+            :events="events.visible" :days="p.days" :day-start-hour="settings.dayStartHour"
+            @select="openEvent" @create="(s, allDay) => newEvent(s, allDay)" @open-day="openDay" @move="moveEvent"
+          />
+          <AgendaView
+            v-else
+            :events="events.visible" :start="p.start" :days="LIST_DAYS" :search="view.search"
+            @select="openEvent" @open-day="openDay"
+          />
+        </div>
+      </div>
     </div>
     <v-btn
       v-if="smAndDown" class="fab" color="primary-container" size="x-large" icon="mdi-plus" rounded="lg" elevation="3"
@@ -376,6 +449,11 @@ function onKey(e: KeyboardEvent) {
 .view-surface {
   height: 100%; background: rgb(var(--v-theme-surface)); border-top-left-radius: 24px; overflow: hidden;
 }
+.track { display: flex; height: 100%; }
+.track.settling { transition: transform .25s cubic-bezier(.2, 0, 0, 1); }
+.page { flex: 0 0 100%; min-width: 0; height: 100%; overflow: hidden; }
+/* Waagerechtes Ziehen gehört der Wischgeste, senkrechtes dem Scrollen */
+.page, .page :deep(.tg-scroll), .page :deep(.agenda) { touch-action: pan-y; }
 .create-btn { text-transform: none; letter-spacing: .1px; font-weight: 500; }
 .search { width: 280px; max-width: 40vw; }
 .cal-item .cal-menu { opacity: 0; transition: opacity .15s; }

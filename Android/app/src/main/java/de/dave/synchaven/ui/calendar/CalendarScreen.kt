@@ -10,8 +10,9 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -52,6 +53,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -60,8 +63,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
@@ -82,11 +83,13 @@ import de.dave.synchaven.ui.common.appViewModel
 import de.dave.synchaven.util.FMT_DATE_SHORT
 import de.dave.synchaven.util.LIST_DAYS
 import de.dave.synchaven.util.ViewEvent
+import de.dave.synchaven.util.stepDate
+import de.dave.synchaven.util.viewRange
 import de.dave.synchaven.util.toInstant
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.temporal.ChronoUnit
-import kotlin.math.abs
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -201,16 +204,15 @@ fun CalendarScreen(
                     )
                     s.error != null && s.events.isEmpty() && s.calendars.isEmpty() ->
                         ErrorBox(s.error!!, onRetry = vm::refresh)
-                    else -> SwipeContainer(onSwipe = vm::step) {
-                        CalendarContent(
-                            s = s,
-                            onDayClick = { vm.goto(it, ViewMode.DAY) },
-                            onNewEventOn = ::newEventOn,
-                            onNewEventAt = ::newEventAt,
-                            onEventClick = { selectedId = it.id },
-                            onEventMove = ::requestMove,
-                        )
-                    }
+                    else -> CalendarContent(
+                        s = s,
+                        onPageSettled = vm::showPage,
+                        onDayClick = { vm.goto(it, ViewMode.DAY) },
+                        onNewEventOn = ::newEventOn,
+                        onNewEventAt = ::newEventAt,
+                        onEventClick = { selectedId = it.id },
+                        onEventMove = ::requestMove,
+                    )
                 }
             }
         }
@@ -253,65 +255,76 @@ fun CalendarScreen(
     }
 }
 
+/** Seitenzahl des Pagers – von der Mitte aus lässt sich praktisch unbegrenzt in beide Richtungen blättern */
+private const val PAGE_COUNT = 20_000
+private const val START_PAGE = PAGE_COUNT / 2
+
+/**
+ * Kalenderansicht als Pager: Beim Wischen folgt der Zeitraum dem Finger, der vorige bzw. nächste ist
+ * daneben schon zu sehen. Sprünge (Heute, Datumswahl, Ansichtswechsel) beginnen einen neuen Pager.
+ */
 @Composable
 private fun CalendarContent(
     s: CalendarUiState,
+    onPageSettled: (LocalDate) -> Unit,
     onDayClick: (LocalDate) -> Unit,
     onNewEventOn: (LocalDate) -> Unit,
     onNewEventAt: (LocalDateTime, Boolean) -> Unit,
     onEventClick: (ViewEvent) -> Unit,
     onEventMove: (ViewEvent, LocalDateTime) -> Unit,
 ) {
-    // Richtung der Animation aus dem Vergleich mit dem vorigen Zeitraum
+    // Gemeinsame Scrollposition aller Wochen-/Tagesseiten
+    val gridScroll = rememberTimeGridScroll(s.settings.dayStartHour)
+    val onSettled by rememberUpdatedState(onPageSettled)
     AnimatedContent(
-        targetState = s.mode to s.range,
+        targetState = s.anchor,
         transitionSpec = {
-            if (initialState.first != targetState.first) fadeIn() togetherWith fadeOut()
+            if (initialState.mode != targetState.mode) fadeIn() togetherWith fadeOut()
             else {
-                val forward = targetState.second.start > initialState.second.start
+                val forward = targetState.forward
                 slideInHorizontally { if (forward) it / 3 else -it / 3 } + fadeIn() togetherWith
                     slideOutHorizontally { if (forward) -it / 3 else it / 3 } + fadeOut()
             }
         },
         label = "calendar",
-    ) { (mode, range) ->
-        when (mode) {
-            ViewMode.MONTH -> MonthView(
-                range = range, month = s.date, events = s.events,
-                weekStart = s.settings.weekStart, showWeekNumbers = s.settings.showWeekNumbers,
-                onDayClick = onDayClick, onDayLongClick = onNewEventOn, onEventClick = onEventClick,
-            )
-            ViewMode.WEEK, ViewMode.DAY -> TimeGridView(
-                days = range.days, events = s.events, dayStartHour = s.settings.dayStartHour,
-                onDayClick = onDayClick,
-                onSlotClick = { onNewEventAt(it, false) },
-                onAllDayClick = { onNewEventAt(it.atStartOfDay(), true) },
-                onEventClick = onEventClick,
-                onEventMove = onEventMove,
-            )
-            ViewMode.LIST -> AgendaView(
-                days = range.days, events = s.events,
-                emptyText = pluralStringResource(R.plurals.calendar_list_empty, LIST_DAYS.toInt(), LIST_DAYS),
-                onEventClick = onEventClick,
-            )
+    ) { anchor ->
+        fun dateOf(page: Int) = stepDate(anchor.mode, anchor.date, page - START_PAGE)
+        val pager = rememberPagerState(initialPage = START_PAGE) { PAGE_COUNT }
+        LaunchedEffect(pager) {
+            snapshotFlow { pager.settledPage }.drop(1).collect { onSettled(dateOf(it)) }
+        }
+        HorizontalPager(
+            state = pager,
+            modifier = Modifier.fillMaxSize(),
+            // Nachbarseiten vorab aufbauen, damit das Wischen ohne Ruckeln beginnt
+            beyondViewportPageCount = 1,
+            key = { it },
+        ) { page ->
+            val date = dateOf(page)
+            val range = viewRange(anchor.mode, date, s.settings.weekStart)
+            when (anchor.mode) {
+                ViewMode.MONTH -> MonthView(
+                    range = range, month = date, events = s.events,
+                    weekStart = s.settings.weekStart, showWeekNumbers = s.settings.showWeekNumbers,
+                    onDayClick = onDayClick, onDayLongClick = onNewEventOn, onEventClick = onEventClick,
+                )
+                ViewMode.WEEK, ViewMode.DAY -> TimeGridView(
+                    days = range.days, events = s.events, dayStartHour = s.settings.dayStartHour,
+                    onDayClick = onDayClick,
+                    onSlotClick = { onNewEventAt(it, false) },
+                    onAllDayClick = { onNewEventAt(it.atStartOfDay(), true) },
+                    onEventClick = onEventClick,
+                    onEventMove = onEventMove,
+                    scroll = gridScroll,
+                )
+                ViewMode.LIST -> AgendaView(
+                    days = range.days, events = s.events,
+                    emptyText = pluralStringResource(R.plurals.calendar_list_empty, LIST_DAYS.toInt(), LIST_DAYS),
+                    onEventClick = onEventClick,
+                )
+            }
         }
     }
-}
-
-/** Wischen nach links/rechts blättert zum nächsten/vorigen Zeitraum. */
-@Composable
-private fun SwipeContainer(onSwipe: (Int) -> Unit, content: @Composable () -> Unit) {
-    val threshold = with(LocalDensity.current) { 72.dp.toPx() }
-    Box(
-        Modifier.fillMaxSize().pointerInput(Unit) {
-            var total = 0f
-            detectHorizontalDragGestures(
-                onDragStart = { total = 0f },
-                onHorizontalDrag = { _, amount -> total += amount },
-                onDragEnd = { if (abs(total) > threshold) onSwipe(if (total < 0) 1 else -1) },
-            )
-        }
-    ) { content() }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

@@ -3,6 +3,7 @@ package de.dave.synchaven.data.local
 import de.dave.synchaven.data.model.Contact
 import de.dave.synchaven.data.model.PostalAddress
 import de.dave.synchaven.data.model.TypedValue
+import de.dave.synchaven.util.displayName
 import java.time.Instant
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
@@ -337,7 +338,7 @@ object VCard {
             Line(name = "VERSION", value = "3.0"),
             Line(name = "PRODID", value = "-//Synchaven//Synchaven Android//DE"),
             Line(name = "UID", value = c.uid),
-            Line(name = "FN", value = escape(c.fullName)),
+            Line(name = "FN", value = escape(c.displayName())),
             Line(name = "N", value = joinComponents(listOf(c.familyName, c.givenName, c.additionalNames, c.prefix, c.suffix))),
         )
         fun opt(name: String, v: String) {

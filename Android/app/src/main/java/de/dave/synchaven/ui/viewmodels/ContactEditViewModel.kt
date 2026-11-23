@@ -18,6 +18,7 @@ import de.dave.synchaven.util.birthdayFromInput
 import de.dave.synchaven.util.birthdayToInput
 import de.dave.synchaven.util.derivedName
 import de.dave.synchaven.util.isBlank
+import de.dave.synchaven.util.partsName
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
@@ -30,6 +31,10 @@ data class ContactEditUiState(
     val loading: Boolean = true,
     val isNew: Boolean = true,
     val addressBooks: List<AddressBook> = emptyList(),
+    /**
+     * `fullName` bleibt nur bei Kontakten ohne Namensteile erhalten (z. B. importiert mit nur FN), sonst leer:
+     * der Anzeigename wird immer aus den Namensteilen gebildet.
+     */
     val contact: Contact = Contact(),
     /** Geburtstag wie eingegeben (TT.MM.JJJJ oder TT.MM.) */
     val birthdayInput: String = "",
@@ -66,7 +71,8 @@ class ContactEditViewModel(
             }.onSuccess { (books, contact) ->
                 _state.update {
                     it.copy(
-                        loading = false, addressBooks = books, contact = contact.copy(photo = null),
+                        loading = false, addressBooks = books,
+                        contact = contact.copy(photo = null, fullName = if (contact.partsName().isEmpty()) contact.fullName else ""),
                         birthdayInput = birthdayToInput(contact.birthday),
                         showAllNameFields = listOf(contact.prefix, contact.additionalNames, contact.suffix, contact.nickname)
                             .any { s -> s.isNotBlank() },

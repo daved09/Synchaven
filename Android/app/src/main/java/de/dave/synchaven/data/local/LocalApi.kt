@@ -539,7 +539,7 @@ class LocalApi(
             return "${h.substring(0, 8)}-${h.substring(8, 12)}-${h.substring(12, 16)}-${h.substring(16, 20)}-${h.substring(20, 32)}"
         }
 
-        /** Wie `ContactData::normalize` des Servers: Leerraum entfernen, leere Einträge weglassen, Namen ableiten. */
+        /** Wie `ContactData::normalize` des Servers: Leerraum entfernen, leere Einträge weglassen, Namen bilden. */
         fun ContactInput.normalizedInput(): ContactInput {
             fun known(t: String): String {
                 val lower = t.trim().lowercase()
@@ -557,9 +557,11 @@ class LocalApi(
                     listOf(a.poBox, a.extended, a.street, a.locality, a.region, a.postalCode, a.country).any { it.isNotBlank() }
                 }.map { it.copy(type = known(it.type)) },
             )
-            if (n.fullName.isNotEmpty()) return n
+            // Mit Namensteilen immer daraus bilden, sonst einen vorhandenen Namen behalten (wie im Backend)
             val name = listOf(n.prefix, n.givenName, n.additionalNames, n.familyName, n.suffix)
                 .filter { it.isNotEmpty() }.joinToString(" ")
+            if (name.isNotEmpty()) return n.copy(fullName = name)
+            if (n.fullName.isNotEmpty()) return n
             val derived = (listOf(name, n.organization) + n.emails.map { it.value } + n.phones.map { it.value })
                 .firstOrNull { it.isNotEmpty() }.orEmpty()
             return n.copy(fullName = derived)

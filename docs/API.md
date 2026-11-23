@@ -298,8 +298,8 @@ Ohne Fotos (siehe `has_photo`), sortiert nach Anzeigename. Kontaktgruppen werden
   "note": ""
 }
 ```
-Alle Felder außer `addressbook_id` sind optional. Ein leerer `full_name` wird aus den Namensteilen (ersatzweise
-Firma, E-Mail, Telefon) gebildet. `type`: Telefon `mobile|home|work|fax|pager|other`, sonst `home|work|other` –
+Alle Felder außer `addressbook_id` sind optional. `full_name` wird immer aus den Namensteilen gebildet; ein
+mitgeschickter Wert gilt nur, wenn alle Namensteile leer sind, ersatzweise Firma, E-Mail oder Telefon. `type`: Telefon `mobile|home|work|fax|pager|other`, sonst `home|work|other` –
 andere Werte werden als eigene Bezeichnung gespeichert. `birthday`: `YYYY-MM-DD` oder `--MM-DD` (ohne Jahr).
 Ändert sich `addressbook_id`, wird der Kontakt verschoben.
 

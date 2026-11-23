@@ -3,6 +3,7 @@ package de.dave.synchaven.data.local
 import de.dave.synchaven.data.model.CalEvent
 import de.dave.synchaven.data.model.Calendar
 import de.dave.synchaven.data.offline.OfflineData
+import de.dave.synchaven.util.displayName
 import java.time.LocalDate
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
@@ -58,7 +59,7 @@ object Birthdays {
                 id = existing[c.id]?.id ?: newId(),
                 calendarId = calendar.id,
                 uid = "birthday-${c.id}@synchaven",
-                title = "🎂 ${c.fullName}",
+                title = "🎂 ${c.displayName()}",
                 description = if (year != null) "Geboren am ${date.format(GERMAN_DATE)}" else "",
                 start = start.toString(),
                 end = start.plusSeconds(86_400).toString(),

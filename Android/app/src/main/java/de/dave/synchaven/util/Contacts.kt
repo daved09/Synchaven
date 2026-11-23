@@ -31,16 +31,23 @@ fun typeLabel(type: String, phone: Boolean = false): UiText =
     (if (phone) PHONE_TYPES else OTHER_TYPES).firstOrNull { it.value == type }?.title
         ?: if (type.isBlank()) uiText(R.string.type_other) else type.toUiText()
 
-/** Anzeigename aus den Namensteilen (wie im Backend). */
-fun Contact.derivedName(): String {
-    val name = listOf(prefix, givenName, additionalNames, familyName, suffix)
+/** Name aus den Namensteilen (wie im Backend) */
+fun Contact.partsName(): String =
+    listOf(prefix, givenName, additionalNames, familyName, suffix)
         .map { it.trim() }.filter { it.isNotEmpty() }.joinToString(" ")
+
+/** Anzeigename aus Namensteilen, Firma, E-Mail oder Telefon (wie im Backend) */
+fun Contact.derivedName(): String {
+    val name = partsName()
     return (listOf(name, organization.trim()) + emails.map { it.value.trim() } + phones.map { it.value.trim() })
         .firstOrNull { it.isNotEmpty() } ?: ""
 }
 
-/** Anzeigename; leer, wenn der Kontakt weder Name noch Firma, E-Mail oder Telefon hat */
-fun Contact.displayName(): String = fullName.ifBlank { derivedName() }
+/**
+ * Anzeigename: immer aus den Namensteilen, falls vorhanden (wie im Backend); leer, wenn der Kontakt weder Name
+ * noch Firma, E-Mail oder Telefon hat
+ */
+fun Contact.displayName(): String = partsName().ifEmpty { fullName.trim().ifEmpty { derivedName() } }
 
 /** Anzeigename mit Platzhalter für Kontakte ohne Namen */
 fun Contact.displayNameText(): UiText = displayName().ifBlank { null }?.toUiText() ?: uiText(R.string.contact_no_name)

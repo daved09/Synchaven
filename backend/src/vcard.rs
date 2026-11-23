@@ -403,14 +403,19 @@ pub struct ContactData {
 }
 
 impl ContactData {
-    /// Anzeigename aus Namensteilen, Firma, E-Mail oder Telefon ableiten.
-    pub fn derived_name(&self) -> String {
-        let name = [&self.prefix, &self.given_name, &self.additional_names, &self.family_name, &self.suffix]
+    /// Name aus den Namensteilen (Präfix, Vorname, weitere Vornamen, Nachname, Suffix).
+    pub fn parts_name(&self) -> String {
+        [&self.prefix, &self.given_name, &self.additional_names, &self.family_name, &self.suffix]
             .iter()
             .map(|s| s.trim())
             .filter(|s| !s.is_empty())
             .collect::<Vec<_>>()
-            .join(" ");
+            .join(" ")
+    }
+
+    /// Anzeigename aus Namensteilen, Firma, E-Mail oder Telefon ableiten.
+    pub fn derived_name(&self) -> String {
+        let name = self.parts_name();
         let found = [name.as_str(), self.organization.trim()]
             .into_iter()
             .chain(self.emails.iter().map(|e| e.value.trim()))
@@ -445,7 +450,17 @@ impl ContactData {
         for a in &mut self.addresses {
             a.kind = normalize_kind(&a.kind);
         }
-        if self.full_name.is_empty() {
+        self.update_full_name();
+    }
+
+    /// Anzeigename festlegen: Gibt es Namensteile, wird er immer daraus gebildet (kein eigener Anzeigename).
+    /// Nur ohne Namensteile bleibt ein vorhandener Name (z. B. `FN` einer importierten Karte), sonst Firma,
+    /// E-Mail oder Telefon.
+    pub fn update_full_name(&mut self) {
+        let parts = self.parts_name();
+        if !parts.is_empty() {
+            self.full_name = parts;
+        } else if self.full_name.trim().is_empty() {
             self.full_name = self.derived_name();
         }
     }
@@ -572,9 +587,7 @@ pub fn extract(card: &Card) -> ContactData {
     data.phones.retain(|t| !t.value.is_empty());
     data.emails.retain(|t| !t.value.is_empty());
     data.urls.retain(|t| !t.value.is_empty());
-    if data.full_name.is_empty() {
-        data.full_name = data.derived_name();
-    }
+    data.update_full_name();
     data
 }
 
@@ -702,7 +715,8 @@ pub fn apply(card: &mut Card, old: &ContactData, new: &ContactData) {
     let v4 = card.version().starts_with('4');
     let opt = |s: &str| (!s.trim().is_empty()).then(|| escape(s.trim()));
 
-    if new.full_name != old.full_name {
+    // Mit dem FN der Karte vergleichen: ein veraltetes FN wird beim nächsten Bearbeiten korrigiert.
+    if card.text("FN").trim() != new.full_name {
         card.set("FN", Some(escape(&new.full_name)));
     }
     let n_new = [&new.family_name, &new.given_name, &new.additional_names, &new.prefix, &new.suffix];
@@ -891,7 +905,7 @@ mod tests {
         let cards = parse_cards(V3);
         assert_eq!(cards.len(), 1);
         let d = extract(&cards[0]);
-        assert_eq!(d.full_name, "Erika Mustermann");
+        assert_eq!(d.full_name, "Dr. Erika Mustermann");
         assert_eq!(d.family_name, "Mustermann");
         assert_eq!(d.prefix, "Dr.");
         assert_eq!(d.organization, "Firma, GmbH");
@@ -959,7 +973,7 @@ mod tests {
         assert_eq!(card.version(), "3.0");
         assert_eq!(card.uid().as_deref(), Some("neu"));
         assert_eq!(d.family_name, "Müller");
-        assert_eq!(d.full_name, "Jürgen Müller, Sen.");
+        assert_eq!(d.full_name, "Jürgen Müller");
         assert_eq!(d.phones[0], TypedValue { kind: "mobile".into(), value: "+491701234".into() });
         assert_eq!(d.phones[1].kind, "home");
         assert_eq!(d.note, "Sehr lange Notiz, die umbrochen wird\r\nneue Zeile".replace("\r\n", "\n"));
@@ -986,6 +1000,27 @@ mod tests {
         assert_eq!(back, d);
         assert!(card.serialize().contains("BDAY;X-APPLE-OMIT-YEAR=1604:1604-03-04"));
         assert!(card.serialize().lines().all(|l| l.len() <= 76));
+    }
+
+    #[test]
+    fn full_name_follows_name_parts() {
+        // Veraltetes FN (umbenannt in einem Programm, das FN nicht anpasst)
+        let mut card = parse_cards("BEGIN:VCARD\nVERSION:3.0\nFN:Heike Weiss\nN:Heike;Tante;;;\nEND:VCARD\n").remove(0);
+        let old = extract(&card);
+        assert_eq!(old.full_name, "Tante Heike");
+        let mut new = old.clone();
+        new.note = "x".into();
+        apply(&mut card, &old, &new);
+        assert!(card.serialize().contains("FN:Tante Heike"));
+
+        // Eingehender Anzeigename wird bei vorhandenen Namensteilen ignoriert
+        let mut d = ContactData { full_name: "Alt".into(), given_name: "Neu".into(), ..Default::default() };
+        d.normalize();
+        assert_eq!(d.full_name, "Neu");
+
+        // Ohne Namensteile bleibt FN erhalten
+        let card = parse_cards("BEGIN:VCARD\nVERSION:3.0\nFN:Bäckerei Schmidt\nEND:VCARD\n").remove(0);
+        assert_eq!(extract(&card).full_name, "Bäckerei Schmidt");
     }
 
     #[test]

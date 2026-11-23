@@ -6,7 +6,7 @@ import TypedListEditor from '@/components/TypedListEditor.vue'
 import { useContactsStore } from '@/stores/contacts'
 import { useNotifyStore } from '@/stores/notify'
 import {
-  birthdayFromInput, birthdayToInput, derivedName, emptyAddress, emptyContact, OTHER_TYPES, PHONE_TYPES,
+  birthdayFromInput, birthdayToInput, derivedName, emptyAddress, partsName, emptyContact, OTHER_TYPES, PHONE_TYPES,
 } from '@/utils/contact'
 
 const open = defineModel<boolean>({ required: true })
@@ -21,8 +21,11 @@ const formRef = ref()
 const saving = ref(false)
 const form = ref<ContactData>(emptyContact())
 const bookId = ref('')
-/** Eigener Anzeigename; leer = aus den Namensteilen ableiten */
-const nameOverride = ref('')
+/**
+ * Name einer Karte ohne Namensteile (z. B. importiert mit nur FN) – bleibt erhalten, solange keine Namensteile
+ * eingetragen werden. Sonst bildet der Server den Namen immer aus den Namensteilen.
+ */
+const keptName = ref('')
 const showMore = ref(false)
 const birthdayText = ref('')
 let initialBirthdayText = ''
@@ -36,14 +39,14 @@ watch(open, (v) => {
     const copy: ContactData = JSON.parse(JSON.stringify(c))
     form.value = { ...emptyContact(), ...copy }
     bookId.value = c.addressbook_id
-    nameOverride.value = c.full_name === derivedName(c) ? '' : c.full_name
+    keptName.value = partsName(c) ? '' : c.full_name
   } else {
     form.value = { ...emptyContact(), phones: [{ type: 'mobile', value: '' }], emails: [{ type: 'home', value: '' }] }
     bookId.value = props.bookId ?? contacts.books[0]?.id ?? ''
-    nameOverride.value = ''
+    keptName.value = ''
   }
   const f = form.value
-  showMore.value = !!(f.prefix || f.additional_names || f.suffix || f.nickname || nameOverride.value)
+  showMore.value = !!(f.prefix || f.additional_names || f.suffix || f.nickname)
   initialBirthday = f.birthday
   birthdayText.value = initialBirthdayText = birthdayToInput(f.birthday)
 })
@@ -61,12 +64,12 @@ function addAddress() {
 async function save() {
   const { valid } = await formRef.value.validate()
   if (!valid) return
-  if (!nameOverride.value.trim() && !autoName.value) {
+  if (!keptName.value && !autoName.value) {
     notify.fail(new Error('Bitte einen Namen, eine Firma, E-Mail-Adresse oder Telefonnummer angeben'))
     return
   }
   const birthday = birthdayText.value === initialBirthdayText ? initialBirthday : birthdayFromInput(birthdayText.value) ?? ''
-  const input = { ...form.value, full_name: nameOverride.value.trim(), birthday, addressbook_id: bookId.value }
+  const input = { ...form.value, full_name: keptName.value, birthday, addressbook_id: bookId.value }
   saving.value = true
   try {
     const c = props.contactId ? await contacts.update(props.contactId, input) : await contacts.create(input)
@@ -109,10 +112,6 @@ async function save() {
                     <v-text-field v-model="form.suffix" label="Namenszusatz (z. B. jun.)" class="flex-1-1 min-field" />
                     <v-text-field v-model="form.nickname" label="Spitzname" class="flex-1-1 min-field" />
                   </div>
-                  <v-text-field
-                    v-model="nameOverride" label="Anzeigename" :placeholder="autoName || 'Wird automatisch gebildet'"
-                    persistent-placeholder hint="Leer lassen, um ihn aus den Namensfeldern zu bilden" persistent-hint class="mb-2"
-                  />
                 </div>
               </v-expand-transition>
               <v-btn

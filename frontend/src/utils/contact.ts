@@ -37,12 +37,17 @@ export function emptyAddress(type = 'home'): PostalAddress {
   return { type, po_box: '', extended: '', street: '', locality: '', region: '', postal_code: '', country: '' }
 }
 
-/** Anzeigename aus den Namensteilen (wie im Backend). */
-export function derivedName(c: ContactData): string {
-  const name = [c.prefix, c.given_name, c.additional_names, c.family_name, c.suffix]
+/** Name aus den Namensteilen (wie im Backend). */
+export function partsName(c: ContactData): string {
+  return [c.prefix, c.given_name, c.additional_names, c.family_name, c.suffix]
     .map((s) => s.trim())
     .filter(Boolean)
     .join(' ')
+}
+
+/** Anzeigename aus Namensteilen, Firma, E-Mail oder Telefon (wie im Backend). */
+export function derivedName(c: ContactData): string {
+  const name = partsName(c)
   return [name, c.organization.trim(), ...c.emails.map((e) => e.value.trim()), ...c.phones.map((p) => p.value.trim())]
     .find(Boolean) ?? ''
 }

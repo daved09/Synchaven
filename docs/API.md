@@ -316,7 +316,7 @@ Die ganze Datenbank (alle Benutzer inkl. Passwort-Hashes) als Datei `synchaven-e
 Geburtstagskalender sind nicht enthalten, der Import erzeugt sie aus den Kontakten neu. Gleiches
 Format wie `synchaven export` auf der Kommandozeile:
 ```json
-{ "format": "synchaven-export", "format_version": 1, "app_version": "1.0.0", "exported_at": "…", "migration": 2,
+{ "format": "synchaven-export", "format_version": 1, "app_version": "1.0.0", "exported_at": "…", "migration": 1,
   "tables": { "users": [ { "id": "…", "email": "…", … } ], "calendars": [ … ], … } }
 ```
 

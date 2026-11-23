@@ -5,6 +5,7 @@ import { addDays, diffDays, fmt, fmtTime, isSameDay, isoWeek, startOfDay } from 
 import { isBarEvent, lastDay, layoutDay, layoutRow } from '@/utils/layout'
 import { indexAtX, trackDrag } from '@/utils/drag'
 import { onColor } from '@/plugins/theme'
+import { isDraft } from '@/utils/draft'
 
 const props = defineProps<{
   events: ViewEvent[]
@@ -171,7 +172,7 @@ const today = new Date()
           v-for="it in barItems"
           :key="it.ev.id"
           class="bar"
-          :class="{ 'cont-before': it.contBefore, 'cont-after': it.contAfter, dragging: drag?.ev.id === it.ev.id }"
+          :class="{ 'cont-before': it.contBefore, 'cont-after': it.contAfter, dragging: drag?.ev.id === it.ev.id, draft: isDraft(it.ev) }"
           :style="{
             left: `calc(${(it.start / days.length) * 100}% + 2px)`,
             width: `calc(${((it.end - it.start) / days.length) * 100}% - 4px)`,
@@ -223,7 +224,7 @@ const today = new Date()
             v-for="it in col.items"
             :key="it.ev.id"
             class="ev"
-            :class="{ short: it.height < 55, 'cont-before': it.contBefore, 'cont-after': it.contAfter, dragging: drag?.ev.id === it.ev.id }"
+            :class="{ short: it.height < 55, 'cont-before': it.contBefore, 'cont-after': it.contAfter, dragging: drag?.ev.id === it.ev.id, draft: isDraft(it.ev) }"
             :style="{
               top: `${it.top * PX_PER_MIN}px`,
               height: `${it.height * PX_PER_MIN - 2}px`,
@@ -320,6 +321,8 @@ const today = new Date()
 .ev:hover { filter: brightness(1.08); z-index: 2; }
 .ev, .bar { user-select: none; }
 .ev.dragging, .bar.dragging { opacity: .35; }
+/* Vorläufige Karte beim Anlegen */
+.ev.draft, .bar.draft { z-index: 3; box-shadow: 0 4px 12px rgba(0, 0, 0, .3); cursor: default; }
 .ghost { z-index: 4; pointer-events: none; box-shadow: 0 4px 12px rgba(0, 0, 0, .3); cursor: grabbing; }
 .ev:focus-visible { outline: 2px solid rgb(var(--v-theme-primary)); z-index: 2; }
 .ev.short { padding-top: 1px; }

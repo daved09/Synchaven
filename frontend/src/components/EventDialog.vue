@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { useDisplay } from 'vuetify'
 import { api } from '@/api/client'
 import type { EventInput } from '@/api/types'
@@ -9,6 +9,7 @@ import { useNotifyStore } from '@/stores/notify'
 import {
   addDays, addMinutes, allDayToLocal, browserTimeZone, combine, dayKey, localToAllDay, parseDayKey, timeKey,
 } from '@/utils/date'
+import type { EventDraft } from '@/utils/draft'
 import { buildRRule, emptyForm, jsDayToCode, parseRRule, type RecurrenceForm } from '@/utils/rrule'
 import RecurrenceEditor from './RecurrenceEditor.vue'
 
@@ -20,7 +21,14 @@ export interface EventPreset {
 }
 
 const open = defineModel<boolean>({ required: true })
-const props = defineProps<{ eventId: string | null; preset: EventPreset | null }>()
+/** Vorläufige Karte des neuen Termins, wird beim Bearbeiten laufend aktualisiert */
+const draft = defineModel<EventDraft | null>('draft', { default: null })
+const props = defineProps<{
+  eventId: string | null
+  preset: EventPreset | null
+  /** Element, neben dem der Dialog erscheint (die vorläufige Karte); sonst mittig */
+  anchor?: HTMLElement | null
+}>()
 
 const { xs } = useDisplay()
 const calendars = useCalendarsStore()
@@ -28,6 +36,7 @@ const events = useEventsStore()
 const notify = useNotifyStore()
 
 const formRef = ref()
+const titleRef = ref<{ focus: () => void; $el: HTMLElement }>()
 const loading = ref(false)
 const saving = ref(false)
 const title = ref('')
@@ -57,9 +66,12 @@ function fill(s: Date, e: Date, isAllDay: boolean) {
   endTime.value = timeKey(e)
 }
 
+/** Neben der vorläufigen Karte statt mittig; wird beim Öffnen festgelegt, damit der Dialog nicht umspringt */
+const anchored = ref(false)
+
 watch(open, async (v) => {
   if (!v) return
-  formRef.value?.resetValidation()
+  anchored.value = !xs.value && !props.eventId && !!props.anchor
   if (props.eventId) {
     loading.value = true
     try {
@@ -93,7 +105,22 @@ watch(open, async (v) => {
     rec.value = emptyForm(p.start)
     isSeries.value = false
   }
+  // Erst nach dem Befüllen: sonst meldet das geleerte Titelfeld sofort einen Fehler
+  await nextTick()
+  formRef.value?.resetValidation()
+  // autofocus greift nur beim ersten Öffnen
+  focusTitle()
 })
+/** Fokus ins Titelfeld, solange nichts anderes im Dialog fokussiert ist. Am Ziel ausgerichtet ist
+ * der Dialog die ersten Frames noch unsichtbar, daher einige Frames lang erneut versuchen. */
+function focusTitle(tries = 10) {
+  const content = (titleRef.value?.$el as HTMLElement | undefined)?.closest('.v-overlay__content')
+  if (!open.value || !content) return
+  const active = document.activeElement
+  if (active !== content && content.contains(active)) return
+  titleRef.value!.focus()
+  if (tries > 0 && !content.contains(document.activeElement)) requestAnimationFrame(() => focusTitle(tries - 1))
+}
 
 /** Beim Verschieben des Beginns bleibt die Dauer erhalten. */
 function changeStart(date: string | null, time: string | null) {
@@ -108,7 +135,28 @@ function changeStart(date: string | null, time: string | null) {
   if (rec.value.freq === 'WEEKLY' && rec.value.byday.length <= 1) rec.value = { ...rec.value, byday: [jsDayToCode(start.value)] }
 }
 
+const liveDraft = computed<EventDraft | null>(() => {
+  if (!open.value || props.eventId || !startDate.value || !endDate.value) return null
+  const s = start.value
+  // Ganztägig ist das Ende im Formular inklusiv; ungültige Enden mit Mindestdauer anzeigen
+  const e = allDay.value ? addDays(end.value, 1) : end.value
+  const min = allDay.value ? addDays(s, 1) : addMinutes(s, 15)
+  return { start: s, end: e < min ? min : e, allDay: allDay.value, title: title.value, calendarId: calendarId.value }
+})
+watch(liveDraft, (d) => (draft.value = d))
+
 const endError = computed(() => (startDate.value && endDate.value && end.value < start.value ? 'Ende liegt vor dem Beginn' : ''))
+
+const anchoredProps = {
+  locationStrategy: 'connected',
+  location: 'end center',
+  // v-dialog richtet sonst die Mitte des Dialogs am Ziel aus
+  origin: 'auto',
+  offset: 12,
+  contentClass: 'event-dialog-anchored',
+  width: 480,
+  scrim: 'transparent',
+} as const
 
 const calendarItems = computed(() => calendars.writable.map((c) => ({ title: c.name, value: c.id, color: c.color })))
 
@@ -143,7 +191,10 @@ async function save() {
 </script>
 
 <template>
-  <v-dialog v-model="open" :fullscreen="xs" max-width="640" persistent @keydown.esc="open = false">
+  <v-dialog
+    v-model="open" :fullscreen="xs" max-width="640" persistent scrollable @keydown.esc="open = false" @after-enter="focusTitle()"
+    v-bind="anchored ? anchoredProps : {}" :target="anchored ? anchor ?? undefined : undefined"
+  >
     <v-card color="surface-container-high" :loading="loading">
       <v-toolbar color="transparent" density="comfortable">
         <v-btn icon="mdi-close" @click="open = false" />
@@ -153,7 +204,7 @@ async function save() {
       <v-card-text class="pt-2">
         <v-form ref="formRef" :disabled="loading" @submit.prevent="save">
           <v-text-field
-            v-model="title" label="Titel" autofocus maxlength="500" class="mb-1"
+            ref="titleRef" v-model="title" label="Titel" autofocus maxlength="500" class="mb-1"
             :rules="[(v: string) => !!v.trim() || 'Bitte einen Titel eingeben']"
           />
 
@@ -204,6 +255,11 @@ async function save() {
     </v-card>
   </v-dialog>
 </template>
+
+<style>
+/* Am Ziel ausgerichtet: ohne den Außenabstand, den v-dialog für die mittige Anzeige setzt */
+.v-dialog > .v-overlay__content.event-dialog-anchored { margin: 0; }
+</style>
 
 <style scoped>
 .dot { display: inline-block; width: 12px; height: 12px; border-radius: 6px; flex: 0 0 12px; }

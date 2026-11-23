@@ -5,6 +5,7 @@ import { addDays, diffDays, fmt, fmtTime, isoWeek, isSameDay, startOfDay, weekda
 import { clampRow, isBarEvent, lastDay, layoutRow } from '@/utils/layout'
 import { indexAtY, trackDrag } from '@/utils/drag'
 import { onColor } from '@/plugins/theme'
+import { isDraft } from '@/utils/draft'
 
 const props = defineProps<{
   events: ViewEvent[]
@@ -88,7 +89,8 @@ function dayLabel(d: Date) {
   return d.getDate() === 1 ? fmt(d, { day: 'numeric', month: 'short' }) : String(d.getDate())
 }
 function barStyle(ev: ViewEvent) {
-  return isBarEvent(ev) || !isSameDay(ev.startDate, ev.endDate)
+  // Die vorläufige Karte immer gefüllt zeigen, damit sie auffällt
+  return isDraft(ev) || isBarEvent(ev) || !isSameDay(ev.startDate, ev.endDate)
 }
 </script>
 
@@ -124,7 +126,7 @@ function barStyle(ev: ViewEvent) {
             v-for="it in row.items"
             :key="it.ev.id"
             class="item"
-            :class="{ bar: barStyle(it.ev), 'cont-before': it.contBefore, 'cont-after': it.contAfter, dragging: drag?.ev.id === it.ev.id }"
+            :class="{ bar: barStyle(it.ev), 'cont-before': it.contBefore, 'cont-after': it.contAfter, dragging: drag?.ev.id === it.ev.id, draft: isDraft(it.ev) }"
             :style="{
               left: `calc(${(it.start / 7) * 100}% + 3px)`,
               width: `calc(${((it.end - it.start) / 7) * 100}% - 6px)`,
@@ -210,6 +212,7 @@ function barStyle(ev: ViewEvent) {
   box-shadow: inset 0 0 0 2px rgba(var(--v-theme-primary), .5);
 }
 .item.bar { font-weight: 500; display: block; }
+.item.draft { z-index: 1; box-shadow: 0 4px 12px rgba(0, 0, 0, .3); cursor: default; }
 .item.bar:hover { filter: brightness(1.08); }
 .item.cont-before { border-top-left-radius: 0; border-bottom-left-radius: 0; }
 .item.cont-after { border-top-right-radius: 0; border-bottom-right-radius: 0; }

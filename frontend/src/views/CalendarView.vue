@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useDisplay } from 'vuetify'
 import type { Calendar, ViewEvent } from '@/api/types'
@@ -18,6 +18,7 @@ import { useNotifyStore } from '@/stores/notify'
 import { useSettingsStore, type ViewMode } from '@/stores/settings'
 import { LIST_DAYS, useViewStore } from '@/stores/view'
 import { addDays, addMinutes, dayKey, parseDayKey } from '@/utils/date'
+import { draftEvent, isDraft, type EventDraft } from '@/utils/draft'
 
 const route = useRoute()
 const router = useRouter()
@@ -40,6 +41,9 @@ const selected = ref<ViewEvent | null>(null)
 const editorOpen = ref(false)
 const editId = ref<string | null>(null)
 const preset = ref<EventPreset | null>(null)
+/** Vorläufige Karte des Termins, der gerade angelegt wird */
+const draft = ref<EventDraft | null>(null)
+const draftAnchor = ref<HTMLElement | null>(null)
 const calendarDialog = ref(false)
 const editCalendar = ref<Calendar | null>(null)
 const accountMenu = ref<InstanceType<typeof AccountMenu>>()
@@ -60,6 +64,20 @@ const pages = computed(() => (touchDevice ? [-1, 0, 1] : [0]).map((off) => {
   // Schlüssel nach Datum: Nach dem Wischen wird die Nachbarseite ohne Neuaufbau zur aktuellen
   const key = `${view.mode}:${touchDevice ? dayKey(date) : 0}`
   return { off, key, date, start, end, days: Array.from({ length: n }, (_, i) => addDays(start, i)) }
+}))
+
+/** Termine im Raster samt vorläufiger Karte */
+const gridEvents = computed(() => {
+  const d = draft.value
+  if (!d) return events.visible
+  return [...events.visible, draftEvent(d, calendars.byId.get(d.calendarId)?.color ?? '#6750A4')]
+})
+const findDraftEl = () => surface.value?.querySelector<HTMLElement>('.page.current .draft') ?? null
+// Wandert die Karte (anderer Tag, ganztägig …), entsteht ein neues Element; der Dialog folgt ihm.
+// Verschwindet sie aus dem sichtbaren Zeitraum, bleibt der Dialog an der letzten Stelle.
+watch(draft, () => nextTick(() => {
+  const el = findDraftEl()
+  if (el) draftAnchor.value = el
 }))
 
 // --- URL-Synchronisierung (?view=week&date=2026-11-22) ---
@@ -95,10 +113,11 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 
 // --- Aktionen ---
 function openEvent(ev: ViewEvent) {
+  if (isDraft(ev)) return
   selected.value = ev
   detailsOpen.value = true
 }
-function newEvent(start?: Date, allDay = false) {
+async function newEvent(start?: Date, allDay = false) {
   let s = start
   if (!s) {
     const now = new Date()
@@ -108,8 +127,17 @@ function newEvent(start?: Date, allDay = false) {
     s = new Date(s)
     s.setHours(9, 0, 0, 0)
   }
-  preset.value = { start: s, end: allDay ? addDays(s, 1) : addMinutes(s, 60), allDay }
+  const calendarId = calendars.writable.find((c) => c.visible)?.id ?? calendars.writable[0]?.id
+  preset.value = { start: s, end: allDay ? addDays(s, 1) : addMinutes(s, 60), allDay, calendarId }
   editId.value = null
+  // Karte zuerst zeigen, damit der Dialog daneben aufgehen kann
+  draftAnchor.value = null
+  if (calendarId && view.mode !== 'list') {
+    draft.value = { ...preset.value, title: '', calendarId }
+    await nextTick()
+    draftAnchor.value = findDraftEl()
+    draftAnchor.value?.scrollIntoView({ block: 'nearest' })
+  }
   editorOpen.value = true
 }
 function editEvent(ev: ViewEvent) {
@@ -133,6 +161,7 @@ async function deleteEvent(ev: ViewEvent, scope: 'one' | 'all') {
   }
 }
 async function moveEvent(ev: ViewEvent, newStart: Date) {
+  if (isDraft(ev)) return
   if (ev.recurring && !(await confirmRef.value!.ask(
     'Serientermin verschieben?',
     `Nur der Termin am ${ev.startDate.toLocaleDateString('de-DE')} wird verschoben und dabei aus der Serie gelöst.`,
@@ -413,13 +442,13 @@ function onKey(e: KeyboardEvent) {
         >
           <MonthView
             v-if="view.mode === 'month'"
-            :events="events.visible" :start="p.start" :end="p.end" :month="p.date.getMonth()"
+            :events="gridEvents" :start="p.start" :end="p.end" :month="p.date.getMonth()"
             :week-starts-on="settings.weekStartsOn" :show-week-numbers="settings.showWeekNumbers && mdAndUp"
             @select="openEvent" @create="(d) => newEvent(d)" @open-day="openDay" @move="moveEvent"
           />
           <TimeGrid
             v-else-if="view.mode === 'week' || view.mode === 'day'"
-            :events="events.visible" :days="p.days" :day-start-hour="settings.dayStartHour"
+            :events="gridEvents" :days="p.days" :day-start-hour="settings.dayStartHour"
             @select="openEvent" @create="(s, allDay) => newEvent(s, allDay)" @open-day="openDay" @move="moveEvent"
           />
           <AgendaView
@@ -437,7 +466,7 @@ function onKey(e: KeyboardEvent) {
   </v-main>
 
   <EventDetails v-model="detailsOpen" :event="selected" @edit="editEvent" @delete="deleteEvent" />
-  <EventDialog v-model="editorOpen" :event-id="editId" :preset="preset" />
+  <EventDialog v-model="editorOpen" v-model:draft="draft" :event-id="editId" :preset="preset" :anchor="draftAnchor" />
   <CalendarDialog v-model="calendarDialog" :calendar="editCalendar" />
   <ConfirmDialog ref="confirmRef" />
 </template>

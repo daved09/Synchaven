@@ -10,7 +10,7 @@ import {
   addDays, addMinutes, allDayToLocal, browserTimeZone, combine, dayKey, localToAllDay, parseDayKey, timeKey,
 } from '@/utils/date'
 import type { EventDraft } from '@/utils/draft'
-import { buildRRule, emptyForm, jsDayToCode, parseRRule, type RecurrenceForm } from '@/utils/rrule'
+import { buildRRule, describeRRule, emptyForm, jsDayToCode, parseRRule, type RecurrenceForm } from '@/utils/rrule'
 import RecurrenceEditor from './RecurrenceEditor.vue'
 
 export interface EventPreset {
@@ -147,6 +147,13 @@ watch(liveDraft, (d) => (draft.value = d))
 
 const endError = computed(() => (startDate.value && endDate.value && end.value < start.value ? 'Ende liegt vor dem Beginn' : ''))
 
+/** Beschriftung des Wiederholungs-Knopfs, z. B. "Wöchentlich am Sa" */
+const recurrenceLabel = computed(() => {
+  if (rec.value.freq === 'CUSTOM') return 'Benutzerdefiniert'
+  return describeRRule(buildRRule(rec.value, start.value), start.value) || 'Wiederholt sich nicht'
+})
+const recurrenceMenu = ref(false)
+
 const anchoredProps = {
   locationStrategy: 'connected',
   location: 'end center',
@@ -154,7 +161,7 @@ const anchoredProps = {
   origin: 'auto',
   offset: 12,
   contentClass: 'event-dialog-anchored',
-  width: 480,
+  width: 520,
   scrim: 'transparent',
 } as const
 
@@ -192,66 +199,103 @@ async function save() {
 
 <template>
   <v-dialog
-    v-model="open" :fullscreen="xs" max-width="640" persistent scrollable @keydown.esc="open = false" @after-enter="focusTitle()"
+    v-model="open" :fullscreen="xs" max-width="560" persistent scrollable @keydown.esc="open = false" @after-enter="focusTitle()"
     v-bind="anchored ? anchoredProps : {}" :target="anchored ? anchor ?? undefined : undefined"
   >
     <v-card color="surface-container-high" :loading="loading">
-      <v-toolbar color="transparent" density="comfortable">
-        <v-btn icon="mdi-close" @click="open = false" />
-        <v-toolbar-title>{{ eventId ? 'Termin bearbeiten' : 'Neuer Termin' }}</v-toolbar-title>
-        <v-btn color="primary" variant="flat" class="mr-3" :loading="saving" :disabled="loading" @click="save">Speichern</v-btn>
-      </v-toolbar>
-      <v-card-text class="pt-2">
+      <div class="d-flex align-center pl-6 pr-2 pt-2">
+        <span class="text-title-medium flex-1-1">{{ eventId ? 'Termin bearbeiten' : 'Neuer Termin' }}</span>
+        <v-btn icon="mdi-close" variant="text" size="small" aria-label="Schließen" @click="open = false" />
+      </div>
+      <v-card-text class="pt-2 pb-2">
         <v-form ref="formRef" :disabled="loading" @submit.prevent="save">
-          <v-text-field
-            ref="titleRef" v-model="title" label="Titel" autofocus maxlength="500" class="mb-1"
-            :rules="[(v: string) => !!v.trim() || 'Bitte einen Titel eingeben']"
-          />
-
-          <v-select v-model="calendarId" :items="calendarItems" label="Kalender" prepend-inner-icon="mdi-calendar-outline" class="mb-1">
-            <template #item="{ props: p, item }">
-              <v-list-item v-bind="p">
-                <template #prepend><span class="dot mr-3" :style="{ background: item.raw.color }" /></template>
-              </v-list-item>
-            </template>
-            <template #selection="{ item }">
-              <span class="dot mr-2" :style="{ background: item.raw.color }" />{{ item.title }}
-            </template>
-          </v-select>
-
-          <v-switch v-model="allDay" label="Ganztägig" color="primary" hide-details inset class="mb-3" />
-
-          <div class="d-flex ga-3 flex-wrap">
+          <div class="row">
+            <v-icon icon="mdi-text-short" class="row-icon" />
             <v-text-field
-              :model-value="startDate" type="date" label="Beginn" class="flex-1-1" style="min-width: 160px"
-              :rules="[(v: string) => !!v || 'Pflichtfeld']"
-              @update:model-value="(v: string) => changeStart(v, null)"
-            />
-            <v-text-field
-              v-if="!allDay" :model-value="startTime" type="time" label="Uhrzeit" style="max-width: 150px"
-              @update:model-value="(v: string) => changeStart(null, v)"
+              ref="titleRef" v-model="title" placeholder="Titel hinzufügen" aria-label="Titel" autofocus maxlength="500"
+              density="compact" hide-details="auto" :rules="[(v: string) => !!v.trim() || 'Bitte einen Titel eingeben']"
             />
           </div>
-          <div class="d-flex ga-3 flex-wrap">
-            <v-text-field
-              v-model="endDate" type="date" label="Ende" class="flex-1-1" style="min-width: 160px"
-              :error-messages="endError" :rules="[(v: string) => !!v || 'Pflichtfeld']"
+
+          <div class="row">
+            <v-icon icon="mdi-clock-outline" class="row-icon" />
+            <div class="d-flex flex-column ga-2">
+              <div class="d-flex ga-2">
+                <v-text-field
+                  :model-value="startDate" type="date" aria-label="Beginn" density="compact" hide-details="auto" class="flex-1-1"
+                  :rules="[(v: string) => !!v || 'Pflichtfeld']"
+                  @update:model-value="(v: string) => changeStart(v, null)"
+                />
+                <v-text-field
+                  v-if="!allDay" :model-value="startTime" type="time" aria-label="Beginn Uhrzeit" density="compact" hide-details
+                  class="time" @update:model-value="(v: string) => changeStart(null, v)"
+                />
+              </div>
+              <div class="d-flex ga-2">
+                <v-text-field
+                  v-model="endDate" type="date" aria-label="Ende" density="compact" hide-details="auto" class="flex-1-1"
+                  :error-messages="endError" :rules="[(v: string) => !!v || 'Pflichtfeld']"
+                />
+                <v-text-field v-if="!allDay" v-model="endTime" type="time" aria-label="Ende Uhrzeit" density="compact" hide-details class="time" />
+              </div>
+              <div v-if="!allDay && timezone !== browserTimeZone()" class="text-body-small text-medium-emphasis">
+                <v-icon icon="mdi-earth" size="14" /> Zeitzone des Termins: {{ timezone }}
+              </div>
+              <div class="d-flex align-center justify-space-between flex-wrap ga-2">
+                <v-checkbox v-model="allDay" label="Ganztägig" color="primary" density="compact" hide-details class="flex-0-0" />
+                <v-menu v-model="recurrenceMenu" :close-on-content-click="false" location="bottom end">
+                  <template #activator="{ props: p }">
+                    <v-btn v-bind="p" variant="outlined" size="small" prepend-icon="mdi-repeat" class="text-none recurrence-btn">
+                      <span class="text-truncate">{{ recurrenceLabel }}</span>
+                    </v-btn>
+                  </template>
+                  <v-card color="surface-container-highest" width="420" class="pa-4">
+                    <RecurrenceEditor v-model="rec" :start="start" />
+                    <div class="d-flex justify-end mt-3">
+                      <v-btn variant="text" @click="recurrenceMenu = false">Fertig</v-btn>
+                    </div>
+                  </v-card>
+                </v-menu>
+              </div>
+              <v-alert v-if="isSeries" type="info" variant="tonal" density="compact" icon="mdi-information-outline" class="text-body-medium">
+                Änderungen gelten für alle Termine dieser Serie.
+              </v-alert>
+            </div>
+          </div>
+
+          <div class="row">
+            <v-icon icon="mdi-calendar-outline" class="row-icon" />
+            <v-select v-model="calendarId" :items="calendarItems" aria-label="Kalender" density="compact" hide-details>
+              <template #item="{ props: p, item }">
+                <v-list-item v-bind="p">
+                  <template #prepend><span class="dot mr-3" :style="{ background: item.raw.color }" /></template>
+                </v-list-item>
+              </template>
+              <template #selection="{ item }">
+                <span class="dot mr-2" :style="{ background: item.raw.color }" />{{ item.title }}
+              </template>
+            </v-select>
+          </div>
+
+          <div class="row">
+            <v-icon icon="mdi-map-marker-outline" class="row-icon" />
+            <v-text-field v-model="location" placeholder="Ort hinzufügen" aria-label="Ort" density="compact" hide-details />
+          </div>
+
+          <div class="row">
+            <v-icon icon="mdi-text" class="row-icon" />
+            <v-textarea
+              v-model="description" placeholder="Beschreibung hinzufügen" aria-label="Beschreibung" density="compact" hide-details
+              rows="3" auto-grow max-rows="10"
             />
-            <v-text-field v-if="!allDay" v-model="endTime" type="time" label="Uhrzeit" style="max-width: 150px" />
           </div>
-          <div v-if="!allDay && timezone !== browserTimeZone()" class="text-body-small text-medium-emphasis mb-3 mt-n2">
-            <v-icon icon="mdi-earth" size="14" /> Zeitzone des Termins: {{ timezone }}
-          </div>
-
-          <RecurrenceEditor v-model="rec" :start="start" class="mb-4" />
-          <v-alert v-if="isSeries" type="info" variant="tonal" density="compact" class="mb-4" icon="mdi-information-outline">
-            Änderungen gelten für alle Termine dieser Serie.
-          </v-alert>
-
-          <v-text-field v-model="location" label="Ort" prepend-inner-icon="mdi-map-marker-outline" />
-          <v-textarea v-model="description" label="Beschreibung" prepend-inner-icon="mdi-text" rows="3" auto-grow />
         </v-form>
       </v-card-text>
+      <v-card-actions class="px-6 pb-4">
+        <v-btn variant="outlined" @click="open = false">Abbrechen</v-btn>
+        <v-spacer />
+        <v-btn color="primary" variant="flat" :loading="saving" :disabled="loading" @click="save">Speichern</v-btn>
+      </v-card-actions>
     </v-card>
   </v-dialog>
 </template>
@@ -263,4 +307,9 @@ async function save() {
 
 <style scoped>
 .dot { display: inline-block; width: 12px; height: 12px; border-radius: 6px; flex: 0 0 12px; }
+/* Zeile mit Symbol links, wie in kompakten Kalender-Dialogen üblich */
+.row { display: grid; grid-template-columns: 24px minmax(0, 1fr); column-gap: 16px; align-items: start; margin-bottom: 12px; }
+.row-icon { margin-top: 8px; opacity: .7; }
+.time { flex: 0 0 120px; }
+.recurrence-btn { max-width: 100%; }
 </style>

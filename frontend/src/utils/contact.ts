@@ -30,6 +30,7 @@ export function emptyContact(): ContactData {
   return {
     full_name: '', prefix: '', given_name: '', additional_names: '', family_name: '', suffix: '', nickname: '',
     organization: '', department: '', title: '', phones: [], emails: [], addresses: [], urls: [], birthday: '', note: '',
+    categories: [],
   }
 }
 
@@ -91,10 +92,15 @@ export function matches(c: Contact, query: string): boolean {
   const hay = [
     c.full_name, c.nickname, c.organization, c.department, c.title, c.note,
     ...c.emails.map((e) => e.value), ...c.phones.map((p) => p.value),
-    ...c.addresses.map((a) => `${a.street} ${a.postal_code} ${a.locality} ${a.country}`),
+    ...c.addresses.map((a) => `${a.street} ${a.postal_code} ${a.locality} ${a.country}`), ...c.categories,
   ].join(' ').toLowerCase()
   if (hay.includes(q)) return true
   return digits.length >= 3 && c.phones.some((p) => p.value.replace(/[^\d+]/g, '').includes(digits))
+}
+
+/** Gleiche Kategorie (ohne Groß-/Kleinschreibung, wie im Backend) */
+export function sameCategory(a: string, b: string): boolean {
+  return a.toLowerCase() === b.toLowerCase()
 }
 
 export function formatAddress(a: PostalAddress): string[] {

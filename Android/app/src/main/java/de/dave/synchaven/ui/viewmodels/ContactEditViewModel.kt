@@ -16,6 +16,8 @@ import de.dave.synchaven.ui.navigation.ContactEditRoute
 import de.dave.synchaven.uiText
 import de.dave.synchaven.util.birthdayFromInput
 import de.dave.synchaven.util.birthdayToInput
+import de.dave.synchaven.util.cleanCategories
+import de.dave.synchaven.util.sameCategory
 import de.dave.synchaven.util.derivedName
 import de.dave.synchaven.util.isBlank
 import de.dave.synchaven.util.partsName
@@ -38,6 +40,10 @@ data class ContactEditUiState(
     val contact: Contact = Contact(),
     /** Geburtstag wie eingegeben (TT.MM.JJJJ oder TT.MM.) */
     val birthdayInput: String = "",
+    /** Eingabe einer neuen Kategorie */
+    val categoryInput: String = "",
+    /** Kategorien aller Kontakte (Vorschläge) */
+    val allCategories: List<String> = emptyList(),
     /** Präfix, zweiter Vorname, Suffix und Spitzname anzeigen */
     val showAllNameFields: Boolean = false,
     val saving: Boolean = false,
@@ -66,12 +72,15 @@ class ContactEditViewModel(
                             ?: books.firstOrNull()?.id.orEmpty(),
                         phones = listOf(TypedValue("mobile", "")),
                         emails = listOf(TypedValue("home", "")),
+                        categories = listOfNotNull(route.category),
                     )
                 books to contact
             }.onSuccess { (books, contact) ->
                 _state.update {
                     it.copy(
                         loading = false, addressBooks = books,
+                        allCategories = cleanCategories(repo.contacts.value.orEmpty().flatMap { c -> c.categories })
+                            .sortedWith(String.CASE_INSENSITIVE_ORDER),
                         contact = contact.copy(photo = null, fullName = if (contact.partsName().isEmpty()) contact.fullName else ""),
                         birthdayInput = birthdayToInput(contact.birthday),
                         showAllNameFields = listOf(contact.prefix, contact.additionalNames, contact.suffix, contact.nickname)
@@ -87,6 +96,18 @@ class ContactEditViewModel(
     fun onBirthdayChange(v: String) = _state.update { it.copy(birthdayInput = v, error = null) }
 
     fun showAllNameFields() = _state.update { it.copy(showAllNameFields = true) }
+
+    // ---------- Kategorien ----------
+
+    fun onCategoryInput(v: String) = _state.update { it.copy(categoryInput = v, error = null) }
+
+    /** Fügt die eingegebene (oder eine vorgeschlagene) Kategorie hinzu; bekannte in ihrer Schreibweise. */
+    fun addCategory(name: String = _state.value.categoryInput) = _state.update { s ->
+        val known = s.allCategories.firstOrNull { sameCategory(it, name.trim()) } ?: name
+        s.copy(contact = s.contact.copy(categories = cleanCategories(s.contact.categories + known)), categoryInput = "")
+    }
+
+    fun removeCategory(name: String) = update { it.copy(categories = it.categories.filterNot { c -> c == name }) }
 
     // ---------- Telefon, E-Mail, Websites ----------
 
@@ -130,6 +151,7 @@ class ContactEditViewModel(
     fun removeAddress(index: Int) = update { it.copy(addresses = it.addresses.filterIndexed { i, _ -> i != index }) }
 
     fun save() {
+        if (_state.value.categoryInput.isNotBlank()) addCategory()
         val s = _state.value
         val birthday = birthdayFromInput(s.birthdayInput)
         val c = s.contact.copy(

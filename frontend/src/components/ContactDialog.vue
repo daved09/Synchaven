@@ -7,10 +7,11 @@ import { useContactsStore } from '@/stores/contacts'
 import { useNotifyStore } from '@/stores/notify'
 import {
   birthdayFromInput, birthdayToInput, derivedName, emptyAddress, partsName, emptyContact, OTHER_TYPES, PHONE_TYPES,
+  sameCategory,
 } from '@/utils/contact'
 
 const open = defineModel<boolean>({ required: true })
-const props = defineProps<{ contactId: string | null; bookId: string | null }>()
+const props = defineProps<{ contactId: string | null; bookId: string | null; category?: string | null }>()
 const emit = defineEmits<{ saved: [contact: Contact] }>()
 
 const { xs } = useDisplay()
@@ -41,7 +42,10 @@ watch(open, (v) => {
     bookId.value = c.addressbook_id
     keptName.value = partsName(c) ? '' : c.full_name
   } else {
-    form.value = { ...emptyContact(), phones: [{ type: 'mobile', value: '' }], emails: [{ type: 'home', value: '' }] }
+    form.value = {
+      ...emptyContact(), phones: [{ type: 'mobile', value: '' }], emails: [{ type: 'home', value: '' }],
+      categories: props.category ? [props.category] : [],
+    }
     bookId.value = props.bookId ?? contacts.books[0]?.id ?? ''
     keptName.value = ''
   }
@@ -53,6 +57,18 @@ watch(open, (v) => {
 
 const autoName = computed(() => derivedName(form.value))
 const bookItems = computed(() => contacts.books.map((b) => ({ title: b.name, value: b.id })))
+const categoryItems = computed(() => contacts.categories.map((c) => c.name))
+
+/** Leere und doppelte Einträge (ohne Groß-/Kleinschreibung) entfernen; vorhandene Schreibweise übernehmen. */
+function setCategories(list: string[]) {
+  const out: string[] = []
+  for (const raw of list) {
+    const name = raw.trim().replace(/\s+/g, ' ')
+    const known = categoryItems.value.find((c) => sameCategory(c, name))
+    if (name && !out.some((c) => sameCategory(c, name))) out.push(known ?? name)
+  }
+  form.value.categories = out
+}
 
 const birthdayRule = (v: string) =>
   v === initialBirthdayText || birthdayFromInput(v) !== null || 'Format: TT.MM.JJJJ oder TT.MM.'
@@ -184,6 +200,14 @@ async function save() {
           <div class="d-flex ga-2 align-start">
             <v-icon icon="mdi-text" class="mt-4 field-icon" />
             <v-textarea v-model="form.note" label="Notiz" rows="2" auto-grow class="flex-1-1" />
+          </div>
+          <div class="d-flex ga-2 align-start">
+            <v-icon icon="mdi-label-outline" class="mt-4 field-icon" />
+            <v-combobox
+              :model-value="form.categories" :items="categoryItems" label="Kategorien" multiple chips closable-chips
+              hint="Vorhandene auswählen oder neue eingeben (Enter)" class="flex-1-1" :delimiters="[',']"
+              @update:model-value="setCategories"
+            />
           </div>
           <div v-if="bookItems.length > 1" class="d-flex ga-2 align-start">
             <v-icon icon="mdi-book-account-outline" class="mt-4 field-icon" />

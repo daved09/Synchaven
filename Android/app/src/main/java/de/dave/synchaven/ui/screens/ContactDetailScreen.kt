@@ -18,6 +18,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.automirrored.outlined.Label
 import androidx.compose.material.icons.automirrored.outlined.Message
 import androidx.compose.material.icons.automirrored.outlined.Notes
 import androidx.compose.material.icons.outlined.Cake
@@ -185,6 +186,11 @@ fun ContactDetailScreen(onBack: () -> Unit, onEdit: (String) -> Unit) {
                 }
                 if (c.birthday.isNotBlank()) {
                     item(key = "bday") { DetailItem(Icons.Outlined.Cake, formatBirthday(c.birthday).asString(), stringResource(R.string.contact_birthday)) }
+                }
+                if (c.categories.isNotEmpty()) {
+                    item(key = "categories") {
+                        DetailItem(Icons.AutoMirrored.Outlined.Label, c.categories.joinToString(", "), stringResource(R.string.contact_categories))
+                    }
                 }
                 if (c.note.isNotBlank()) {
                     item(key = "note") { DetailItem(Icons.AutoMirrored.Outlined.Notes, c.note, stringResource(R.string.contact_note)) }

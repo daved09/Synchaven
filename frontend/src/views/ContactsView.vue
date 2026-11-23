@@ -12,7 +12,7 @@ import DavSetupDialog from '@/components/DavSetupDialog.vue'
 import { useAuthStore } from '@/stores/auth'
 import { useContactsStore } from '@/stores/contacts'
 import { useNotifyStore } from '@/stores/notify'
-import { avatarColor, displayName, groupLetter, initials, matches, subtitle } from '@/utils/contact'
+import { avatarColor, displayName, groupLetter, initials, matches, sameCategory, subtitle } from '@/utils/contact'
 
 const route = useRoute()
 const router = useRouter()
@@ -35,9 +35,14 @@ const bookDialog = ref(false)
 const editBook = ref<AddressBook | null>(null)
 const davOpen = ref(false)
 const dragOver = ref(false)
+const renameOpen = ref(false)
+const renameFrom = ref('')
+const renameTo = ref('')
+const renaming = ref(false)
 
-// --- Auswahl über die URL (?book=…&id=…), damit Links und „Zurück“ funktionieren ---
+// --- Auswahl über die URL (?book=…|?category=…&id=…), damit Links und „Zurück“ funktionieren ---
 const bookFilter = computed(() => (route.query.book as string | undefined) ?? null)
+const categoryFilter = computed(() => (route.query.category as string | undefined) ?? null)
 const selectedId = computed(() => (route.query.id as string | undefined) ?? null)
 const selected = computed(() => contacts.list.find((c) => c.id === selectedId.value) ?? null)
 const mobileDetails = computed({
@@ -52,15 +57,19 @@ function select(c: Contact | null) {
   if (c && smAndDown.value && !selectedId.value) router.push({ query })
   else router.replace({ query })
 }
-function filterBook(id: string | null) {
-  const query: Record<string, string> = {}
-  if (id) query.book = id
+function setFilter(query: { book?: string; category?: string }) {
   router.replace({ query })
   if (smAndDown.value) drawer.value = false
 }
+const filterBook = (id: string | null) => setFilter(id ? { book: id } : {})
+const filterCategory = (name: string) => setFilter({ category: name })
 
 const filtered = computed(() =>
-  contacts.sorted.filter((c) => (!bookFilter.value || c.addressbook_id === bookFilter.value) && matches(c, search.value)),
+  contacts.sorted.filter(
+    (c) => (!bookFilter.value || c.addressbook_id === bookFilter.value)
+      && (!categoryFilter.value || c.categories.some((x) => sameCategory(x, categoryFilter.value!)))
+      && matches(c, search.value),
+  ),
 )
 const totalCount = computed(() => contacts.books.reduce((n, b) => n + b.contact_count, 0))
 const currentBook = computed(() => (bookFilter.value ? contacts.bookById.get(bookFilter.value) ?? null : null))
@@ -106,6 +115,7 @@ function editContact(c: Contact) {
 }
 function onSaved(c: Contact) {
   if (bookFilter.value && c.addressbook_id !== bookFilter.value) filterBook(null)
+  if (categoryFilter.value && !c.categories.some((x) => sameCategory(x, categoryFilter.value!))) filterBook(null)
   setTimeout(() => select(c))
 }
 async function deleteContact(c: Contact) {
@@ -189,8 +199,44 @@ function onDrop(e: DragEvent) {
   importFiles(files, currentBook.value ?? contacts.books[0] ?? null)
 }
 
+// --- Kategorien ---
+function openRename(name: string) {
+  renameFrom.value = name
+  renameTo.value = name
+  renameOpen.value = true
+}
+async function renameCategory() {
+  const to = renameTo.value.trim()
+  if (!to || to === renameFrom.value) {
+    renameOpen.value = false
+    return
+  }
+  renaming.value = true
+  try {
+    await contacts.rewriteCategory(renameFrom.value, to)
+    if (categoryFilter.value && sameCategory(categoryFilter.value, renameFrom.value)) setFilter({ category: to })
+    renameOpen.value = false
+    notify.info('Kategorie umbenannt')
+  } catch (e) {
+    notify.fail(e)
+  } finally {
+    renaming.value = false
+  }
+}
+async function deleteCategory(name: string, count: number) {
+  const who = count === 1 ? 'einem Kontakt' : `${count} Kontakten`
+  if (!(await confirmRef.value!.ask('Kategorie löschen?', `„${name}“ wird bei ${who} entfernt. Die Kontakte selbst bleiben erhalten.`))) return
+  try {
+    await contacts.rewriteCategory(name, null)
+    if (categoryFilter.value && sameCategory(categoryFilter.value, name)) filterBook(null)
+    notify.info('Kategorie gelöscht')
+  } catch (e) {
+    notify.fail(e)
+  }
+}
+
 // --- Tastenkürzel ---
-const anyDialog = () => editorOpen.value || bookDialog.value || davOpen.value || !!accountMenu.value?.dialogOpen
+const anyDialog = () => editorOpen.value || bookDialog.value || davOpen.value || renameOpen.value || !!accountMenu.value?.dialogOpen
 function onKey(e: KeyboardEvent) {
   const t = e.target as HTMLElement
   if (e.ctrlKey || e.metaKey || e.altKey || anyDialog()) return
@@ -223,7 +269,7 @@ function onKey(e: KeyboardEvent) {
     </div>
     <v-list nav density="comfortable" bg-color="transparent">
       <v-list-item
-        rounded="xl" prepend-icon="mdi-account-multiple-outline" title="Alle Kontakte" :active="!bookFilter"
+        rounded="xl" prepend-icon="mdi-account-multiple-outline" title="Alle Kontakte" :active="!bookFilter && !categoryFilter"
         color="secondary" @click="filterBook(null)"
       >
         <template #append><span class="text-label-medium">{{ totalCount }}</span></template>
@@ -253,6 +299,33 @@ function onKey(e: KeyboardEvent) {
           </v-menu>
         </template>
       </v-list-item>
+
+      <template v-if="contacts.categories.length">
+        <div class="pl-4 pr-2 mt-2">
+          <v-list-subheader class="px-0">Kategorien</v-list-subheader>
+        </div>
+        <v-list-item
+          v-for="cat in contacts.categories" :key="cat.name.toLowerCase()" rounded="xl" prepend-icon="mdi-label-outline"
+          :title="cat.name" :active="!!categoryFilter && sameCategory(categoryFilter, cat.name)" color="secondary"
+          class="book-item" @click="filterCategory(cat.name)"
+        >
+          <template #append>
+            <span class="text-label-medium count">{{ cat.count }}</span>
+            <v-menu location="end">
+              <template #activator="{ props: p }">
+                <v-btn v-bind="p" icon="mdi-dots-vertical" size="small" variant="text" class="book-menu" @click.stop />
+              </template>
+              <v-list density="compact" rounded="lg">
+                <v-list-item prepend-icon="mdi-pencil-outline" title="Umbenennen" @click="openRename(cat.name)" />
+                <v-divider />
+                <v-list-item
+                  prepend-icon="mdi-delete-outline" title="Löschen" base-color="error" @click="deleteCategory(cat.name, cat.count)"
+                />
+              </v-list>
+            </v-menu>
+          </template>
+        </v-list-item>
+      </template>
 
       <v-divider class="my-3 mx-4" />
       <v-list-item rounded="xl" prepend-icon="mdi-sync" title="Mit DAVx⁵ synchronisieren" @click="davOpen = true" />
@@ -285,12 +358,12 @@ function onKey(e: KeyboardEvent) {
     >
       <div class="list-pane" :class="{ narrow: mdAndUp }">
         <div class="px-4 pt-4 pb-1 text-title-small text-medium-emphasis">
-          {{ currentBook?.name ?? 'Alle Kontakte' }}
+          {{ currentBook?.name ?? categoryFilter ?? 'Alle Kontakte' }}
           <span v-if="search"> · {{ filtered.length }} Treffer</span>
         </div>
 
         <div v-if="!contacts.loading && !filtered.length" class="empty pa-8 text-center">
-          <template v-if="search">
+          <template v-if="search || categoryFilter">
             <v-icon icon="mdi-account-search-outline" size="56" class="mb-3 text-medium-emphasis" />
             <div class="text-body-large">Keine Kontakte gefunden</div>
           </template>
@@ -358,7 +431,24 @@ function onKey(e: KeyboardEvent) {
     </v-card>
   </v-dialog>
 
-  <ContactDialog v-model="editorOpen" :contact-id="editId" :book-id="bookFilter" @saved="onSaved" />
+  <ContactDialog v-model="editorOpen" :contact-id="editId" :book-id="bookFilter" :category="categoryFilter" @saved="onSaved" />
+  <v-dialog v-model="renameOpen" max-width="400">
+    <v-card title="Kategorie umbenennen" color="surface-container-high">
+      <v-card-text>
+        <v-text-field
+          v-model="renameTo" label="Name" autofocus hide-details maxlength="100" @keydown.enter="renameCategory"
+        />
+        <div class="text-body-small text-medium-emphasis mt-3">
+          Gilt für alle Kontakte. Gibt es den neuen Namen schon, werden beide Kategorien zusammengeführt.
+        </div>
+      </v-card-text>
+      <v-card-actions>
+        <v-spacer />
+        <v-btn @click="renameOpen = false">Abbrechen</v-btn>
+        <v-btn color="primary" :loading="renaming" :disabled="!renameTo.trim()" @click="renameCategory">Umbenennen</v-btn>
+      </v-card-actions>
+    </v-card>
+  </v-dialog>
   <AddressBookDialog v-model="bookDialog" :book="editBook" />
   <DavSetupDialog v-model="davOpen" />
   <ConfirmDialog ref="confirmRef" />

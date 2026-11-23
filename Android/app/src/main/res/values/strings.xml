@@ -242,6 +242,9 @@
     <string name="contact_nickname">„%1$s“</string>
     <string name="contact_birthday">Geburtstag</string>
     <string name="contact_note">Notiz</string>
+    <string name="contact_categories">Kategorien</string>
+    <string name="field_new_category">Kategorie hinzufügen</string>
+    <string name="action_add_category">Kategorie hinzufügen</string>
     <string name="contact_address_book">Adressbuch</string>
     <string name="contact_not_found">Kontakt nicht gefunden</string>
     <string name="dialog_delete_contact_title">Kontakt löschen?</string>

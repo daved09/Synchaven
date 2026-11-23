@@ -125,6 +125,10 @@ export const api = {
   createContact: (data: ContactInput) => request<Contact>('POST', '/contacts', { body: data }),
   updateContact: (id: string, data: ContactInput) => request<Contact>('PUT', `/contacts/${id}`, { body: data }),
   deleteContact: (id: string) => request<void>('DELETE', `/contacts/${id}`),
+  renameContactCategory: (name: string, newName: string) =>
+    request<{ updated: number }>('POST', '/contact-categories/rename', { body: { name, new_name: newName } }),
+  deleteContactCategory: (name: string) =>
+    request<{ updated: number }>('POST', '/contact-categories/delete', { body: { name } }),
 
   adminExport: () => request<string>('GET', '/admin/export', { asText: true }),
   adminImport: (json: string) =>

@@ -199,6 +199,7 @@ fun ContactInput.toLocalContact(id: String, base: Contact? = null) = Contact(
     urls = urls,
     birthday = birthday,
     note = note,
+    categories = categories ?: base?.categories.orEmpty(),
     hasPhoto = when (photo) {
         null -> base?.hasPhoto ?: false
         else -> photo.isNotEmpty()

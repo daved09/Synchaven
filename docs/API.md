@@ -295,7 +295,8 @@ Ohne Fotos (siehe `has_photo`), sortiert nach Anzeigename. Kontaktgruppen werden
   }],
   "urls": [{ "type": "work", "value": "https://example.org" }],
   "birthday": "1964-08-12",
-  "note": ""
+  "note": "",
+  "categories": ["Familie", "Verein"]
 }
 ```
 Alle Felder außer `addressbook_id` sind optional. `full_name` wird immer aus den Namensteilen gebildet; ein
@@ -306,10 +307,25 @@ andere Werte werden als eigene Bezeichnung gespeichert. `birthday`: `YYYY-MM-DD`
 Optional `photo`: neues Foto als data:-URL (`data:image/jpeg;base64,…`), `""` entfernt das Foto. Fehlt das Feld (oder
 ist es `null`), bleibt das Foto unverändert.
 
+`categories`: Kategorien des Kontakts (vCard `CATEGORIES`, von DAVx⁵ als Kontaktgruppen übernommen), höchstens 100
+mit je bis zu 100 Zeichen. Leerzeichen am Rand und Doppelte (ohne Groß-/Kleinschreibung) werden entfernt. Fehlt das
+Feld (oder ist es `null`), bleiben die Kategorien unverändert. Die Suche (`q`) findet auch Kategorien.
+
 `Contact` entspricht dem Input plus `id`, `uid`, `etag`, `has_photo`, `photo?`, `created_at`, `updated_at`. `etag`
 ändert sich mit jeder Änderung des Kontakts (auch des Fotos oder per CardDAV) und eignet sich zum Abgleich.
 
 ### `DELETE /contacts/{id}` → `204`
+
+## Kontaktkategorien
+
+Kategorien gibt es nur an den Kontakten; die Liste aller Kategorien ergibt sich aus `GET /contacts`. Groß-/
+Kleinschreibung von `name` spielt keine Rolle. Betroffen sind alle Adressbücher des Benutzers.
+
+### `POST /contact-categories/rename` → `{ "updated": 3 }`
+Body `{ "name": "Freunde", "new_name": "Freundeskreis" }`. Gibt es `new_name` am Kontakt schon, werden beide zusammengeführt.
+
+### `POST /contact-categories/delete` → `{ "updated": 3 }`
+Body `{ "name": "Freunde" }`. Entfernt die Kategorie aus allen Kontakten; die Kontakte bleiben erhalten.
 
 ## Verwaltung (nur `ADMIN_EMAILS`, sonst `403`)
 

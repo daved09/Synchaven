@@ -3,6 +3,7 @@ package de.dave.synchaven.data.local
 import de.dave.synchaven.data.api.ApiException
 import de.dave.synchaven.util.Reminders
 import de.dave.synchaven.util.applyReminders
+import de.dave.synchaven.util.cleanCategories
 import de.dave.synchaven.util.effectiveReminders
 import de.dave.synchaven.data.api.NoServerConfiguredException
 import de.dave.synchaven.data.api.SyncHavenApi
@@ -484,7 +485,8 @@ class LocalApi(
             additionalNames = input.additionalNames, familyName = input.familyName, suffix = input.suffix,
             nickname = input.nickname, organization = input.organization, department = input.department,
             title = input.title, phones = input.phones, emails = input.emails, addresses = input.addresses,
-            urls = input.urls, birthday = input.birthday, note = input.note, hasPhoto = photo != null,
+            urls = input.urls, birthday = input.birthday, note = input.note,
+            categories = input.categories ?: previous?.categories.orEmpty(), hasPhoto = photo != null,
         )
         // Foto zuerst, damit es zum neuen ETag schon da ist, wenn die Liste ihn zeigt
         store.savePhoto(id, contact.etag, photo)
@@ -499,6 +501,7 @@ class LocalApi(
     private fun validateContact(c: ContactInput) {
         if (c.fullName.isEmpty()) bad("Bitte einen Namen, eine Firma, E-Mail-Adresse oder Telefonnummer angeben")
         if (c.fullName.length > 500 || c.note.length > 20_000) bad("Name oder Notiz ist zu lang")
+        if (c.categories.orEmpty().let { l -> l.size > 100 || l.any { it.length > 100 } }) bad("Zu viele oder zu lange Kategorien")
         if (c.birthday.isNotEmpty() && Birthdays.parse(c.birthday) == null) bad("Ungültiger Geburtstag")
     }
 
@@ -550,6 +553,7 @@ class LocalApi(
                 familyName = familyName.trim(), suffix = suffix.trim(), nickname = nickname.trim(),
                 organization = organization.trim(), department = department.trim(), title = title.trim(),
                 birthday = birthday.trim(), note = note.trimEnd(), fullName = fullName.trim(),
+                categories = categories?.let(::cleanCategories),
                 phones = phones.filter { it.value.isNotBlank() }.map { it.copy(type = known(it.type), value = it.value.trim()) },
                 emails = emails.filter { it.value.isNotBlank() }.map { it.copy(type = known(it.type), value = it.value.trim()) },
                 urls = urls.filter { it.value.isNotBlank() }.map { it.copy(type = known(it.type), value = it.value.trim()) },

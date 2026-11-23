@@ -1,6 +1,8 @@
 package de.dave.synchaven.ui.screens
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -12,9 +14,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.Label
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.RemoveCircleOutline
@@ -28,9 +32,12 @@ import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.InputChip
+import androidx.compose.material3.InputChipDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -43,6 +50,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -58,6 +66,7 @@ import de.dave.synchaven.ui.common.appViewModel
 import de.dave.synchaven.util.OTHER_TYPES
 import de.dave.synchaven.util.PHONE_TYPES
 import de.dave.synchaven.util.TypeOption
+import de.dave.synchaven.util.sameCategory
 import de.dave.synchaven.util.typeLabel
 import de.dave.synchaven.ui.viewmodels.ContactEditViewModel
 import de.dave.synchaven.ui.viewmodels.TypedField
@@ -166,6 +175,14 @@ fun ContactEditScreen(onClose: () -> Unit, onCreated: (String) -> Unit) {
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.fillMaxWidth(),
                 )
+                CategoryEditor(
+                    categories = c.categories,
+                    input = s.categoryInput,
+                    suggestions = s.allCategories.filter { a -> c.categories.none { sameCategory(it, a) } },
+                    onInput = vm::onCategoryInput,
+                    onAdd = vm::addCategory,
+                    onRemove = vm::removeCategory,
+                )
                 OutlinedTextField(
                     value = c.note,
                     onValueChange = { v -> vm.update { it.copy(note = v) } },
@@ -181,6 +198,55 @@ fun ContactEditScreen(onClose: () -> Unit, onCreated: (String) -> Unit) {
                     onSelect = { id -> vm.update { it.copy(addressBookId = id) } },
                     modifier = Modifier.fillMaxWidth(),
                 )
+            }
+        }
+    }
+}
+
+/** Zugewiesene Kategorien als Chips, Eingabe für neue und Vorschläge aus anderen Kontakten */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun CategoryEditor(
+    categories: List<String>,
+    input: String,
+    suggestions: List<String>,
+    onInput: (String) -> Unit,
+    onAdd: (String) -> Unit,
+    onRemove: (String) -> Unit,
+) {
+    Text(stringResource(R.string.contact_categories), style = MaterialTheme.typography.labelLarge)
+    if (categories.isNotEmpty()) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            for (cat in categories) {
+                InputChip(
+                    selected = true,
+                    onClick = { onRemove(cat) },
+                    label = { Text(cat) },
+                    leadingIcon = { Icon(Icons.AutoMirrored.Outlined.Label, null, Modifier.size(InputChipDefaults.IconSize)) },
+                    trailingIcon = { Icon(Icons.Outlined.Close, stringResource(R.string.action_remove), Modifier.size(InputChipDefaults.IconSize)) },
+                )
+            }
+        }
+    }
+    OutlinedTextField(
+        value = input,
+        onValueChange = onInput,
+        label = { Text(stringResource(R.string.field_new_category)) },
+        singleLine = true,
+        trailingIcon = {
+            IconButton(onClick = { onAdd(input) }, enabled = input.isNotBlank()) {
+                Icon(Icons.Outlined.Add, stringResource(R.string.action_add_category))
+            }
+        },
+        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, imeAction = ImeAction.Done),
+        keyboardActions = KeyboardActions(onDone = { if (input.isNotBlank()) onAdd(input) }),
+        modifier = Modifier.fillMaxWidth(),
+    )
+    val shown = suggestions.filter { input.isBlank() || it.contains(input.trim(), ignoreCase = true) }.take(12)
+    if (shown.isNotEmpty()) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            for (cat in shown) {
+                SuggestionChip(onClick = { onAdd(cat) }, label = { Text(cat) })
             }
         }
     }

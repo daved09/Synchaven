@@ -332,6 +332,11 @@ pub fn escape(s: &str) -> String {
 
 /// Strukturierten Wert (N, ADR, ORG) an unescapten `;` teilen und entschlüsseln.
 fn components(value: &str) -> Vec<String> {
+    split_escaped(value, ';')
+}
+
+/// Wert an unescapten Trennzeichen teilen und die Teile entschlüsseln.
+fn split_escaped(value: &str, sep: char) -> Vec<String> {
     let mut parts = Vec::new();
     let mut cur = String::new();
     let mut chars = value.chars();
@@ -343,7 +348,7 @@ fn components(value: &str) -> Vec<String> {
                     cur.push(n);
                 }
             }
-            ';' => parts.push(unescape(&std::mem::take(&mut cur))),
+            c if c == sep => parts.push(unescape(&std::mem::take(&mut cur))),
             _ => cur.push(c),
         }
     }
@@ -400,6 +405,20 @@ pub struct ContactData {
     /// `YYYY-MM-DD` oder `--MM-DD` (ohne Jahr)
     pub birthday: String,
     pub note: String,
+    /// Kategorien (`CATEGORIES`), z. B. „Familie“, „Arbeit“
+    pub categories: Vec<String>,
+}
+
+/// Kategorien bereinigen: Leerzeichen entfernen, leere und doppelte (ohne Groß-/Kleinschreibung) entfernen.
+pub fn clean_categories<S: AsRef<str>>(list: &[S]) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    for c in list {
+        let c = c.as_ref().split_whitespace().collect::<Vec<_>>().join(" ");
+        if !c.is_empty() && !out.iter().any(|x| x.to_lowercase() == c.to_lowercase()) {
+            out.push(c);
+        }
+    }
+    out
 }
 
 impl ContactData {
@@ -435,6 +454,7 @@ impl ContactData {
             *s = s.trim().to_string();
         }
         self.note = self.note.trim_end().to_string();
+        self.categories = clean_categories(&self.categories);
         for list in [&mut self.phones, &mut self.emails, &mut self.urls] {
             list.retain(|t| !t.value.trim().is_empty());
             for t in list.iter_mut() {
@@ -583,6 +603,7 @@ pub fn extract(card: &Card) -> ContactData {
         urls: all("URL").map(|l| typed_value(card, l)).collect(),
         birthday: card.get("BDAY").map(normalize_bday).unwrap_or_default(),
         note: all("NOTE").map(|l| unescape(&l.value)).collect::<Vec<_>>().join("\n").trim_end().to_string(),
+        categories: clean_categories(&all("CATEGORIES").flat_map(|l| split_escaped(&l.value, ',')).collect::<Vec<_>>()),
     };
     data.phones.retain(|t| !t.value.is_empty());
     data.emails.retain(|t| !t.value.is_empty());
@@ -651,6 +672,7 @@ pub fn search_text(d: &ContactData) -> String {
     parts.extend(d.phones.iter().map(|e| e.value.clone()));
     parts.extend(d.phones.iter().map(|e| e.value.chars().filter(|c| c.is_ascii_digit() || *c == '+').collect()));
     parts.extend(d.addresses.iter().map(|a| format!("{} {} {}", a.street, a.postal_code, a.locality)));
+    parts.extend(d.categories.iter().cloned());
     parts.join(" ").to_lowercase()
 }
 
@@ -741,6 +763,10 @@ pub fn apply(card: &mut Card, old: &ContactData, new: &ContactData) {
     }
     if new.note != old.note {
         card.set("NOTE", (!new.note.trim().is_empty()).then(|| escape(&new.note)));
+    }
+    if new.categories != old.categories {
+        let value = new.categories.iter().map(|c| escape(c)).collect::<Vec<_>>().join(",");
+        card.set("CATEGORIES", (!value.is_empty()).then_some(value));
     }
     if new.birthday != old.birthday {
         let b = new.birthday.trim();
@@ -862,6 +888,10 @@ pub fn normalize_import(mut card: Card, new_uid: impl FnOnce() -> String) -> Car
                     .map(|p| escape(&p.replace("\\;", ";")))
                     .collect();
                 line.value = parts.join(";");
+            } else if line.name == "CATEGORIES" {
+                // Kommas trennen die Kategorien
+                let parts: Vec<String> = line.value.split(',').map(|p| escape(&p.replace("\\;", ";"))).collect();
+                line.value = parts.join(",");
             } else if TEXT.contains(&line.name.as_str()) {
                 line.value = escape(&line.value.replace("\\;", ";").replace("\\n", "\n").replace("\\N", "\n"));
             }
@@ -1021,6 +1051,34 @@ mod tests {
         // Ohne Namensteile bleibt FN erhalten
         let card = parse_cards("BEGIN:VCARD\nVERSION:3.0\nFN:Bäckerei Schmidt\nEND:VCARD\n").remove(0);
         assert_eq!(extract(&card).full_name, "Bäckerei Schmidt");
+    }
+
+    #[test]
+    fn categories() {
+        let mut card =
+            parse_cards("BEGIN:VCARD\nVERSION:3.0\nFN:A\nCATEGORIES:Familie,Freunde\\, alt\nCATEGORIES:familie,Arbeit\nEND:VCARD\n")
+                .remove(0);
+        let old = extract(&card);
+        assert_eq!(old.categories, ["Familie", "Freunde, alt", "Arbeit"]);
+        assert!(search_text(&old).contains("arbeit"));
+
+        let mut new = old.clone();
+        new.categories = vec![" Arbeit ".into(), "Verein".into(), "verein".into(), "".into()];
+        new.normalize();
+        assert_eq!(new.categories, ["Arbeit", "Verein"]);
+        apply(&mut card, &old, &new);
+        let text = card.serialize();
+        assert_eq!(text.matches("CATEGORIES").count(), 1);
+        assert!(text.contains("CATEGORIES:Arbeit,Verein"));
+
+        let old = extract(&card);
+        let new = ContactData { categories: vec![], ..old.clone() };
+        apply(&mut card, &old, &new);
+        assert!(!card.serialize().contains("CATEGORIES"));
+
+        // vCard 2.1: Kommas trennen die Kategorien
+        let v21 = parse_cards("BEGIN:VCARD\nVERSION:2.1\nN:A;B\nCATEGORIES:Familie,Arbeit\nEND:VCARD\n").remove(0);
+        assert_eq!(extract(&normalize_import(v21, || "x".into())).categories, ["Familie", "Arbeit"]);
     }
 
     #[test]

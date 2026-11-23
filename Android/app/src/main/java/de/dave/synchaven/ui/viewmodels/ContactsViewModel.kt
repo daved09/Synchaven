@@ -18,6 +18,7 @@ import de.dave.synchaven.util.LOCALE
 import de.dave.synchaven.util.displayName
 import de.dave.synchaven.util.groupLetter
 import de.dave.synchaven.util.matches
+import de.dave.synchaven.util.sameCategory
 import java.text.Collator
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -28,10 +29,16 @@ import kotlinx.coroutines.launch
 
 data class ContactGroup(val letter: String, val contacts: List<Contact>)
 
+data class CategoryCount(val name: String, val count: Int)
+
 data class ContactsUiState(
     val addressBooks: List<AddressBook> = emptyList(),
     /** `null` = alle Adressbücher */
     val selectedBookId: String? = null,
+    /** Kategorien aller Kontakte, alphabetisch */
+    val categories: List<CategoryCount> = emptyList(),
+    /** `null` = alle Kategorien */
+    val selectedCategory: String? = null,
     val query: String = "",
     val groups: List<ContactGroup> = emptyList(),
     val total: Int = 0,
@@ -50,17 +57,26 @@ class ContactsViewModel(
 ) : ViewModel() {
     val messages = UiMessages()
     private val selectedBookId = MutableStateFlow<String?>(null)
+    private val selectedCategory = MutableStateFlow<String?>(null)
     private val query = MutableStateFlow("")
     private val loading = MutableStateFlow(true)
     private val error = MutableStateFlow<UiText?>(null)
     private val collator = Collator.getInstance(LOCALE).apply { strength = Collator.PRIMARY }
 
     val state: StateFlow<ContactsUiState> = combine(
-        repo.addressBooks, repo.contacts, selectedBookId, query, combine(loading, error, ::Pair),
-    ) { books, contacts, bookId, q, (isLoading, err) ->
+        repo.addressBooks, repo.contacts, combine(selectedBookId, selectedCategory, ::Pair), query,
+        combine(loading, error, ::Pair),
+    ) { books, contacts, (bookId, category), q, (isLoading, err) ->
         val validBook = bookId?.takeIf { id -> books.orEmpty().any { it.id == id } }
+        val categories = contacts.orEmpty()
+            .flatMap { it.categories }
+            .groupBy { it.lowercase(LOCALE) }
+            .map { (_, names) -> CategoryCount(names.first(), names.size) }
+            .sortedWith { a, b -> collator.compare(a.name, b.name) }
+        val validCategory = category?.takeIf { cat -> categories.any { sameCategory(it.name, cat) } }
         val filtered = contacts.orEmpty()
             .filter { validBook == null || it.addressBookId == validBook }
+            .filter { c -> validCategory == null || c.categories.any { sameCategory(it, validCategory) } }
             .filter { it.matches(q) }
             .sortedWith { a, b -> collator.compare(a.displayName(), b.displayName()) }
         val groups = filtered.groupBy { it.groupLetter() }
@@ -68,6 +84,7 @@ class ContactsViewModel(
             .sortedWith(compareBy({ it.letter == "#" }, { it.letter }))
         ContactsUiState(
             addressBooks = books.orEmpty(), selectedBookId = validBook, query = q,
+            categories = categories, selectedCategory = validCategory,
             groups = groups, total = filtered.size,
             loading = isLoading && contacts == null, refreshing = isLoading && contacts != null, error = err,
         )
@@ -93,6 +110,10 @@ class ContactsViewModel(
 
     fun selectBook(id: String?) {
         selectedBookId.value = id
+    }
+
+    fun selectCategory(name: String?) {
+        selectedCategory.value = name
     }
 
     fun saveAddressBook(id: String?, input: AddressBookInput) = launchAction {

@@ -13,6 +13,7 @@ import android.net.Uri
 import android.provider.ContactsContract
 import android.provider.ContactsContract.CommonDataKinds.Email
 import android.provider.ContactsContract.CommonDataKinds.Event
+import android.provider.ContactsContract.CommonDataKinds.GroupMembership
 import android.provider.ContactsContract.CommonDataKinds.Nickname
 import android.provider.ContactsContract.CommonDataKinds.Note
 import android.provider.ContactsContract.CommonDataKinds.Organization
@@ -22,6 +23,7 @@ import android.provider.ContactsContract.CommonDataKinds.StructuredName
 import android.provider.ContactsContract.CommonDataKinds.StructuredPostal
 import android.provider.ContactsContract.CommonDataKinds.Website
 import android.provider.ContactsContract.Data
+import android.provider.ContactsContract.Groups
 import android.provider.ContactsContract.RawContacts
 import android.util.Base64
 import android.util.Log
@@ -33,6 +35,7 @@ import de.dave.synchaven.data.model.Contact
 import de.dave.synchaven.data.model.ContactInput
 import de.dave.synchaven.data.model.PostalAddress
 import de.dave.synchaven.data.model.TypedValue
+import de.dave.synchaven.util.cleanCategories
 import java.io.ByteArrayOutputStream
 
 private const val TAG = "ContactsSync"
@@ -41,12 +44,18 @@ private const val TAG = "ContactsSync"
 private const val MAX_PHOTO_BYTES = 400_000
 private const val MAX_PHOTO_SIZE = 720
 
-/** Datenarten, die die App verwaltet – andere (z. B. Gruppen) bleiben beim Aktualisieren erhalten. */
+/** Datenarten, die die App verwaltet – andere bleiben beim Aktualisieren erhalten. */
 private val MANAGED_MIMETYPES = listOf(
     StructuredName.CONTENT_ITEM_TYPE, Nickname.CONTENT_ITEM_TYPE, Organization.CONTENT_ITEM_TYPE,
     Phone.CONTENT_ITEM_TYPE, Email.CONTENT_ITEM_TYPE, StructuredPostal.CONTENT_ITEM_TYPE,
     Website.CONTENT_ITEM_TYPE, Event.CONTENT_ITEM_TYPE, Note.CONTENT_ITEM_TYPE, Photo.CONTENT_ITEM_TYPE,
+    GroupMembership.CONTENT_ITEM_TYPE,
 )
+
+/** `SYNC4` eines Kontakts, dessen Gruppen die Kategorien des Servers wiedergeben (ab dieser App-Version geschrieben) */
+private const val CATEGORIES_MAPPED = "categories"
+
+private data class LocalGroup(val id: Long, val title: String, val dirty: Boolean, val deleted: Boolean)
 
 private data class LocalContact(
     val id: Long,
@@ -57,6 +66,8 @@ private data class LocalContact(
     val photoMarker: String?,
     val dirty: Boolean,
     val deleted: Boolean,
+    /** Gruppen entsprechen den Kategorien (siehe [CATEGORIES_MAPPED]) */
+    val categoriesMapped: Boolean,
 )
 
 /**
@@ -64,7 +75,8 @@ private data class LocalContact(
  * Richtungen. Lokale Änderungen werden zuerst hochgeladen, danach der Stand des Servers übernommen.
  *
  * Abbildung: `SOURCE_ID` = Kontakt-ID, `SYNC1` = ETag des Servers, `SYNC2` = Adressbuch, `SYNC3` = Stand des
- * Fotos (erkennt Fotoänderungen auf dem Gerät). Neue Kontakte vom Gerät landen im ersten Adressbuch.
+ * Fotos (erkennt Fotoänderungen auf dem Gerät), `SYNC4` = [CATEGORIES_MAPPED]. Neue Kontakte vom Gerät landen im
+ * ersten Adressbuch. Kategorien sind die Gruppen (Labels) des Kontos; ungenutzte Gruppen werden entfernt.
  */
 class ContactsSyncer(
     private val account: Account,
@@ -81,6 +93,11 @@ class ContactsSyncer(
 
     private val rawContactsUri = RawContacts.CONTENT_URI.asSyncAdapter()
     private val dataUri = Data.CONTENT_URI.asSyncAdapter()
+    private val groupsUri = Groups.CONTENT_URI.asSyncAdapter()
+    private fun groupUri(id: Long) = ContentUris.withAppendedId(Groups.CONTENT_URI, id).asSyncAdapter()
+
+    /** Gruppen des Kontos nach ID; neu angelegte kommen beim Schreiben hinzu */
+    private val groups = mutableMapOf<Long, LocalGroup>()
     private fun rawContactUri(id: Long) = ContentUris.withAppendedId(RawContacts.CONTENT_URI, id).asSyncAdapter()
 
     var firstItemError: Throwable? = null
@@ -91,6 +108,8 @@ class ContactsSyncer(
         val books = apiCall { api.addressBooks() }
         val defaultBook = books.firstOrNull()?.id ?: return
         val bookIds = books.map { it.id }.toSet()
+        loadGroups()
+        applyGroupChanges()
 
         // 1. Lokale Änderungen hochladen
         for (c in localContacts().filter { it.dirty || it.deleted }) {
@@ -110,7 +129,8 @@ class ContactsSyncer(
                         result.stats.numInserts++
                     }
                     existing.dirty || existing.deleted -> Unit
-                    existing.etag != c.etag -> {
+                    // Vor dieser App-Version geschriebene Kontakte erhalten ihre Kategorien als Gruppen
+                    existing.etag != c.etag || (!existing.categoriesMapped && c.categories.isNotEmpty()) -> {
                         write(existing.id, full(c))
                         result.stats.numUpdates++
                     }
@@ -125,6 +145,76 @@ class ContactsSyncer(
                 result.stats.numDeletes++
             }
         }
+        ops.flush()
+        deleteUnusedGroups()
+    }
+
+    // ---------- Gruppen (Kategorien) ----------
+
+    private fun loadGroups() {
+        groups.clear()
+        provider.query(
+            groupsUri, arrayOf(Groups._ID, Groups.TITLE, Groups.DIRTY, Groups.DELETED),
+            "${Groups.ACCOUNT_NAME} = ? AND ${Groups.ACCOUNT_TYPE} = ?", arrayOf(account.name, account.type), null,
+        )?.use { c ->
+            while (c.moveToNext()) {
+                val g = LocalGroup(c.getLong(0), c.getString(1).orEmpty().trim(), c.getInt(2) != 0, c.getInt(3) != 0)
+                groups[g.id] = g
+            }
+        }
+    }
+
+    private fun groupMembers(groupId: Long): List<Long> = provider.query(
+        dataUri, arrayOf(Data.RAW_CONTACT_ID), "${Data.MIMETYPE} = ? AND ${GroupMembership.GROUP_ROW_ID} = ?",
+        arrayOf(GroupMembership.CONTENT_ITEM_TYPE, groupId.toString()), null,
+    )?.use { c -> buildList { while (c.moveToNext()) add(c.getLong(0)) } } ?: emptyList()
+
+    /**
+     * Auf dem Gerät umbenannte oder gelöschte Gruppen: Die Mitglieder werden als geändert markiert, damit ihre
+     * Kategorien hochgeladen werden.
+     */
+    private fun applyGroupChanges() {
+        val ops = Batch(provider)
+        for (g in groups.values.filter { it.dirty || it.deleted }) {
+            for (raw in groupMembers(g.id)) {
+                ops += ContentProviderOperation.newUpdate(rawContactUri(raw)).withValue(RawContacts.DIRTY, 1).build()
+            }
+            if (g.deleted) {
+                ops += ContentProviderOperation.newDelete(dataUri).withSelection(
+                    "${Data.MIMETYPE} = ? AND ${GroupMembership.GROUP_ROW_ID} = ?",
+                    arrayOf(GroupMembership.CONTENT_ITEM_TYPE, g.id.toString()),
+                ).build()
+                ops += ContentProviderOperation.newDelete(groupUri(g.id)).build()
+            } else {
+                ops += ContentProviderOperation.newUpdate(groupUri(g.id)).withValue(Groups.DIRTY, 0).build()
+            }
+        }
+        ops.flush()
+        groups.values.removeAll { it.deleted }
+    }
+
+    /** ID der Gruppe zur Kategorie, bei Bedarf neu angelegt */
+    private fun groupFor(category: String): Long {
+        groups.values.firstOrNull { it.title.equals(category, ignoreCase = true) }?.let { return it.id }
+        val values = ContentValues().apply {
+            put(Groups.ACCOUNT_NAME, account.name)
+            put(Groups.ACCOUNT_TYPE, account.type)
+            put(Groups.TITLE, category)
+            put(Groups.GROUP_VISIBLE, 1)
+            put(Groups.SHOULD_SYNC, 1)
+        }
+        val id = provider.insert(groupsUri, values)?.let(ContentUris::parseId)
+            ?: throw IllegalStateException("Gruppe „$category“ konnte nicht angelegt werden")
+        groups[id] = LocalGroup(id, category, dirty = false, deleted = false)
+        return id
+    }
+
+    private fun deleteUnusedGroups() {
+        val used = provider.query(
+            dataUri, arrayOf(GroupMembership.GROUP_ROW_ID), "${Data.MIMETYPE} = ?", arrayOf(GroupMembership.CONTENT_ITEM_TYPE), null,
+        )?.use { c -> buildSet<Long> { while (c.moveToNext()) add(c.getLong(0)) } } ?: return
+        val ops = Batch(provider)
+        for (g in groups.values.filter { it.id !in used }) ops += ContentProviderOperation.newDelete(groupUri(g.id)).build()
         ops.flush()
     }
 
@@ -150,7 +240,7 @@ class ContactsSyncer(
             rawContactsUri,
             arrayOf(
                 RawContacts._ID, RawContacts.SOURCE_ID, RawContacts.SYNC1, RawContacts.SYNC2, RawContacts.SYNC3,
-                RawContacts.DIRTY, RawContacts.DELETED,
+                RawContacts.DIRTY, RawContacts.DELETED, RawContacts.SYNC4,
             ),
             "${RawContacts.ACCOUNT_NAME} = ? AND ${RawContacts.ACCOUNT_TYPE} = ?", arrayOf(account.name, account.type), null,
         )?.use { c ->
@@ -161,6 +251,7 @@ class ContactsSyncer(
                             id = c.getLong(0), serverId = c.getString(1), etag = c.getString(2),
                             addressBookId = c.getString(3), photoMarker = c.getString(4),
                             dirty = c.getInt(5) != 0, deleted = c.getInt(6) != 0,
+                            categoriesMapped = c.getString(7) == CATEGORIES_MAPPED,
                         )
                     )
                 }
@@ -208,6 +299,7 @@ class ContactsSyncer(
         val urls = mutableListOf<TypedValue>()
         var birthday = ""
         val notes = mutableListOf<String>()
+        val categories = mutableListOf<String>()
         var photoMarker = ""
 
         val columns = arrayOf(
@@ -251,6 +343,7 @@ class ContactsSyncer(
                     Website.CONTENT_ITEM_TYPE -> if (d(1).isNotEmpty()) urls += TypedValue(websiteTypeFromAndroid(type(), d(3)), d(1))
                     Event.CONTENT_ITEM_TYPE -> if (type() == Event.TYPE_BIRTHDAY && birthday.isEmpty()) birthday = normalizeBirthday(d(1))
                     Note.CONTENT_ITEM_TYPE -> if (d(1).isNotEmpty()) notes += cur.getString(3).orEmpty().trimEnd()
+                    GroupMembership.CONTENT_ITEM_TYPE -> d(1).toLongOrNull()?.let { groups[it] }?.let { categories += it.title }
                     Photo.CONTENT_ITEM_TYPE -> photoMarker = "${cur.getLong(0)}:${cur.getInt(2)}"
                 }
             }
@@ -268,6 +361,8 @@ class ContactsSyncer(
             phones = phones, emails = emails, addresses = addresses, urls = urls,
             birthday = birthday,
             note = notes.joinToString("\n"),
+            // Vor dieser App-Version geschriebene Kontakte haben noch keine Gruppen: Kategorien des Servers behalten
+            categories = if (c.categoriesMapped || categories.isNotEmpty()) cleanCategories(categories) else null,
             photo = photo,
         )
     }
@@ -304,6 +399,7 @@ class ContactsSyncer(
             put(RawContacts.SYNC1, c.etag)
             put(RawContacts.SYNC2, c.addressBookId)
             put(RawContacts.DIRTY, 0)
+            put(RawContacts.SYNC4, CATEGORIES_MAPPED)
             // Stand des Fotos: ohne Foto sofort bekannt, sonst nach dem Schreiben (rememberPhoto)
             if (photo == null) put(RawContacts.SYNC3, "")
         }
@@ -383,6 +479,10 @@ class ContactsSyncer(
             put(Event.START_DATE, c.birthday)
         }
         if (c.note.isNotBlank()) row(Note.CONTENT_ITEM_TYPE) { put(Note.NOTE, c.note) }
+        for (cat in c.categories) {
+            val group = groupFor(cat)
+            row(GroupMembership.CONTENT_ITEM_TYPE) { put(GroupMembership.GROUP_ROW_ID, group) }
+        }
         if (photo != null) row(Photo.CONTENT_ITEM_TYPE) { put(Photo.PHOTO, photo) }
 
         val results = ops.flush()

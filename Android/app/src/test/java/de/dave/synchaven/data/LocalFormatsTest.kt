@@ -159,6 +159,24 @@ class LocalFormatsTest {
     }
 
     @Test
+    fun vCardCategories() {
+        val card = VCard.parseCards(
+            "BEGIN:VCARD\nVERSION:3.0\nFN:A\nCATEGORIES:Familie,Freunde\\, alt\nCATEGORIES:familie,Arbeit\nEND:VCARD\n",
+        ).single()
+        val c = VCard.extract(card)
+        assertEquals(listOf("Familie", "Freunde, alt", "Arbeit"), c.categories)
+        val text = VCard.create(c.copy(uid = "u1"), photo = null).serialize()
+        assertTrue(text, text.contains("CATEGORIES:Familie,Freunde\\, alt,Arbeit"))
+        assertEquals(c.categories, VCard.extract(VCard.parseCards(text).single()).categories)
+
+        val input = c.toInput().copy(categories = listOf(" Verein ", "verein", "")).normalizedInput()
+        assertEquals(listOf("Verein"), input.categories)
+
+        val v21 = "BEGIN:VCARD\r\nVERSION:2.1\r\nN:A;B\r\nCATEGORIES:Familie,Arbeit\r\nEND:VCARD\r\n"
+        assertEquals(listOf("Familie", "Arbeit"), VCard.extract(VCard.normalizeImport(VCard.parseCards(v21).single())).categories)
+    }
+
+    @Test
     fun appleBirthdayWithoutYear() {
         val card = VCard.parseCards("BEGIN:VCARD\nVERSION:3.0\nFN:A\nBDAY;X-APPLE-OMIT-YEAR=1604:1604-05-12\nEND:VCARD\n").single()
         assertEquals("--05-12", VCard.extract(card).birthday)

@@ -3,6 +3,7 @@ package de.dave.synchaven.data.local
 import de.dave.synchaven.data.model.Contact
 import de.dave.synchaven.data.model.PostalAddress
 import de.dave.synchaven.data.model.TypedValue
+import de.dave.synchaven.util.cleanCategories
 import de.dave.synchaven.util.displayName
 import java.time.Instant
 import java.time.ZoneOffset
@@ -77,7 +78,10 @@ object VCard {
     fun escape(s: String) = ICal.escape(s)
 
     /** Strukturierten Wert (N, ADR, ORG) an unescapten `;` teilen und entschlüsseln. */
-    private fun components(value: String): List<String> {
+    private fun components(value: String): List<String> = splitEscaped(value, ';')
+
+    /** Wert an unescapten Trennzeichen teilen und die Teile entschlüsseln. */
+    private fun splitEscaped(value: String, sep: Char): List<String> {
         val parts = mutableListOf<String>()
         val cur = StringBuilder()
         var i = 0
@@ -89,7 +93,7 @@ object VCard {
                     if (i + 1 < value.length) cur.append(value[i + 1])
                     i++
                 }
-                ';' -> {
+                sep -> {
                     parts += unescape(cur.toString())
                     cur.clear()
                 }
@@ -211,6 +215,9 @@ object VCard {
             if (v21) {
                 if (line.name in STRUCTURED) {
                     value = ICal.splitUnquoted(value, ';').joinToString(";") { escape(it.replace("\\;", ";")) }
+                } else if (line.name == "CATEGORIES") {
+                    // Kommas trennen die Kategorien
+                    value = value.split(',').joinToString(",") { escape(it.replace("\\;", ";")) }
                 } else if (line.name in TEXT) {
                     value = escape(value.replace("\\;", ";").replace("\\n", "\n").replace("\\N", "\n"))
                 }
@@ -297,6 +304,7 @@ object VCard {
             urls = all("URL").map { typedValue(card, it) }.filter { it.value.isNotEmpty() },
             birthday = card.get("BDAY")?.let(::normalizeBday).orEmpty(),
             note = all("NOTE").joinToString("\n") { unescape(it.value) }.trimEnd(),
+            categories = cleanCategories(all("CATEGORIES").flatMap { splitEscaped(it.value, ',') }),
             photo = photo(card),
         )
     }
@@ -377,6 +385,7 @@ object VCard {
         c.urls.forEach { multi("URL", it.type, it.value) }
         lines += labels
         if (c.note.isNotBlank()) lines += Line(name = "NOTE", value = escape(c.note))
+        if (c.categories.isNotEmpty()) lines += Line(name = "CATEGORIES", value = c.categories.joinToString(",") { escape(it) })
         photo?.let(::photoLine)?.let { lines += it }
         lines += Line(name = "REV", value = REV_FMT.format(now))
         return Card(lines)

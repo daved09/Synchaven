@@ -217,6 +217,8 @@ data class Contact(
     /** `YYYY-MM-DD` oder `--MM-DD` (ohne Jahr) */
     val birthday: String = "",
     val note: String = "",
+    /** Kategorien (vCard `CATEGORIES`) */
+    val categories: List<String> = emptyList(),
     @SerialName("has_photo") val hasPhoto: Boolean = false,
     /** nur bei Einzelabfrage: data:-URL */
     val photo: String? = null,
@@ -225,7 +227,7 @@ data class Contact(
         addressBookId = addressBookId, fullName = fullName, prefix = prefix, givenName = givenName,
         additionalNames = additionalNames, familyName = familyName, suffix = suffix, nickname = nickname,
         organization = organization, department = department, title = title, phones = phones,
-        emails = emails, addresses = addresses, urls = urls, birthday = birthday, note = note,
+        emails = emails, addresses = addresses, urls = urls, birthday = birthday, note = note, categories = categories,
     )
 }
 
@@ -248,6 +250,8 @@ data class ContactInput(
     val urls: List<TypedValue>,
     val birthday: String,
     val note: String,
+    /** `null` lässt die Kategorien unverändert */
+    val categories: List<String>? = null,
     /** Neues Foto als data:-URL, `""` entfernt es, `null` lässt es unverändert */
     val photo: String? = null,
 )

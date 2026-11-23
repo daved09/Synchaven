@@ -26,4 +26,4 @@ data class EventEditRoute(
 data class ContactDetailRoute(val id: String)
 
 @Serializable
-data class ContactEditRoute(val id: String? = null, val addressBookId: String? = null)
+data class ContactEditRoute(val id: String? = null, val addressBookId: String? = null, val category: String? = null)

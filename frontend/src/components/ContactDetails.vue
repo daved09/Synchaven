@@ -52,6 +52,14 @@ const empty = computed(
       <div class="text-headline-small">{{ displayName(c) }}</div>
       <div v-if="c.nickname" class="text-body-medium text-medium-emphasis">„{{ c.nickname }}“</div>
       <div v-if="job" class="text-body-medium text-medium-emphasis mt-1">{{ job }}</div>
+      <div v-if="c.categories.length" class="d-flex flex-wrap justify-center ga-2 mt-3">
+        <v-chip
+          v-for="cat in c.categories" :key="cat" size="small" variant="tonal" prepend-icon="mdi-label-outline"
+          :to="{ query: { category: cat, id: c.id } }"
+        >
+          {{ cat }}
+        </v-chip>
+      </div>
 
       <div class="d-flex ga-6 mt-5">
         <div v-if="c.phones[0]" class="quick">

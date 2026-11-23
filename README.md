@@ -17,7 +17,7 @@ Material-3-Design** (Vuetify), einer **REST API** für eigene Clients wie eine A
 * iCalendar-Import und -Export (.ics) – kompatibel mit Google Kalender, Outlook, Thunderbird, Apple
 * Ansichten: Monat, Woche, Tag, Terminliste mit Suche
 * **Kontakte:** mehrere Adressbücher, Suche, Telefon/E-Mail/Adressen/Websites mit Typen und eigenen Bezeichnungen,
-  Geburtstag (auch ohne Jahr), Notizen, Fotos aus importierten oder synchronisierten Kontakten
+  Geburtstag (auch ohne Jahr), Notizen, Kategorien (zum Filtern, umbenennbar; in DAVx⁵ als Kontaktgruppen), Fotos aus importierten oder synchronisierten Kontakten
 * **Geburtstagskalender:** Geburtstage aller Kontakte erscheinen automatisch als jährliche Termine im eigenen
   Kalender „Geburtstage“ (mit Alter, sofern das Geburtsjahr bekannt ist) – auch für per DAVx⁵ synchronisierte Kontakte
 * vCard-Import und -Export (.vcf, auch per Drag & Drop) – vCard 2.1, 3.0 und 4.0, z. B. aus Android, iPhone,

@@ -94,8 +94,24 @@ pub struct ContactInput {
     /// Neues Foto als data:-URL, `""` entfernt es, fehlt das Feld, bleibt das Foto unverändert.
     #[serde(default)]
     photo: Option<String>,
+    /// Fehlt das Feld (ältere Clients), bleiben die Kategorien unverändert.
+    #[serde(default)]
+    categories: Option<Vec<String>>,
     #[serde(flatten)]
     data: ContactData,
+}
+
+impl ContactInput {
+    /// Formulardaten; ohne Feld `categories` die bisherigen Kategorien.
+    fn data(self, old: &[String]) -> ContactData {
+        ContactData { categories: self.categories.unwrap_or_else(|| old.to_vec()), ..self.data }
+    }
+}
+
+/// REV auf den aktuellen Zeitpunkt setzen.
+fn touch(card: &mut vcard::Card) {
+    card.lines.retain(|l| l.name != "REV");
+    card.lines.push(vcard::Line::new("REV", vcard::rev_value(time::now())));
 }
 
 fn apply_photo(card: &mut vcard::Card, photo: Option<&str>) -> AppResult<()> {
@@ -290,6 +306,9 @@ fn validate_contact(mut data: ContactData) -> AppResult<ContactData> {
     if data.full_name.chars().count() > 500 || data.note.chars().count() > 20_000 {
         return Err(AppError::BadRequest("Name oder Notiz ist zu lang".into()));
     }
+    if data.categories.len() > 100 || data.categories.iter().any(|c| c.chars().count() > 100) {
+        return Err(AppError::BadRequest("Zu viele oder zu lange Kategorien".into()));
+    }
     let b = &data.birthday;
     let valid_bday = b.is_empty()
         || chrono::NaiveDate::parse_from_str(b, "%Y-%m-%d").is_ok()
@@ -344,13 +363,15 @@ pub async fn create(
     Json(input): Json<ContactInput>,
 ) -> AppResult<(StatusCode, Json<Contact>)> {
     contacts::owned_book(&state.db, &auth.id, &input.addressbook_id).await?;
-    let data = validate_contact(input.data)?;
+    let book_id = input.addressbook_id.clone();
+    let photo = input.photo.clone();
+    let data = validate_contact(input.data(&[]))?;
     let uid = contacts::new_uid();
     let mut card = vcard::create(&uid, &data, time::now());
-    apply_photo(&mut card, input.photo.as_deref())?;
+    apply_photo(&mut card, photo.as_deref())?;
     let text = card.serialize();
     let mut conn = state.db.acquire().await?;
-    let id = contacts::insert(&mut conn, &input.addressbook_id, &contacts::href_for(&uid), &text, &contacts::index(&card, &uid))
+    let id = contacts::insert(&mut conn, &book_id, &contacts::href_for(&uid), &text, &contacts::index(&card, &uid))
         .await?;
     drop(conn);
     Ok((StatusCode::CREATED, Json(Contact::from_row(&owned_contact(&state, &auth.id, &id).await?, true))))
@@ -363,37 +384,37 @@ pub async fn update(
     Json(input): Json<ContactInput>,
 ) -> AppResult<Json<Contact>> {
     let row = owned_contact(&state, &auth.id, &id).await?;
-    let new = validate_contact(input.data)?;
     let mut card = vcard::parse_cards(&row.vcard).into_iter().next().unwrap_or_default();
     let old = vcard::extract(&card);
-    vcard::apply(&mut card, &old, &new);
     apply_photo(&mut card, input.photo.as_deref())?;
-    card.lines.retain(|l| l.name != "REV");
-    card.lines.push(vcard::Line::new("REV", vcard::rev_value(time::now())));
+    let input_book = input.addressbook_id.clone();
+    let new = validate_contact(input.data(&old.categories))?;
+    vcard::apply(&mut card, &old, &new);
+    touch(&mut card);
     let text = card.serialize();
     let idx = contacts::index(&card, &row.uid);
 
     let mut tx = state.db.begin().await?;
-    if input.addressbook_id != row.addressbook_id {
+    if input_book != row.addressbook_id {
         // In ein anderes Adressbuch verschieben
-        contacts::owned_book(&state.db, &auth.id, &input.addressbook_id).await?;
-        if contacts::find_by_uid(&mut tx, &input.addressbook_id, &idx.uid).await?.is_some() {
+        contacts::owned_book(&state.db, &auth.id, &input_book).await?;
+        if contacts::find_by_uid(&mut tx, &input_book, &idx.uid).await?.is_some() {
             return Err(AppError::Conflict("Der Kontakt existiert im Ziel-Adressbuch bereits".into()));
         }
         let (taken,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM contacts WHERE addressbook_id = ? AND href = ?")
-            .bind(&input.addressbook_id)
+            .bind(&input_book)
             .bind(&row.href)
             .fetch_one(&mut *tx)
             .await?;
         let href = if taken > 0 { contacts::href_for(&contacts::new_uid()) } else { row.href.clone() };
         sqlx::query("UPDATE contacts SET addressbook_id = ?, href = ? WHERE id = ?")
-            .bind(&input.addressbook_id)
+            .bind(&input_book)
             .bind(&href)
             .bind(&row.id)
             .execute(&mut *tx)
             .await?;
         contacts::bump(&mut tx, &row.addressbook_id).await?;
-        let moved = ContactRow { addressbook_id: input.addressbook_id.clone(), href, ..row };
+        let moved = ContactRow { addressbook_id: input_book.clone(), href, ..row };
         contacts::update(&mut tx, &moved, &text, &idx).await?;
     } else {
         contacts::update(&mut tx, &row, &text, &idx).await?;
@@ -407,4 +428,90 @@ pub async fn delete(State(state): State<AppState>, auth: AuthUser, Path(id): Pat
     let mut conn = state.db.acquire().await?;
     contacts::delete(&mut conn, &row).await?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+// ---------- Kategorien ----------
+
+#[derive(Deserialize)]
+pub struct CategoryInput {
+    name: String,
+    /// Nur beim Umbenennen
+    #[serde(default)]
+    new_name: String,
+}
+
+/// Benennt eine Kategorie in allen Kontakten des Benutzers um (`new_name = None`: entfernt sie).
+async fn rewrite_category(state: &AppState, user_id: &str, name: &str, new_name: Option<&str>) -> AppResult<Json<Value>> {
+    let name = name.trim().to_lowercase();
+    if name.is_empty() {
+        return Err(AppError::BadRequest("Kategorie fehlt".into()));
+    }
+    if new_name.is_some_and(|n| n.trim().is_empty() || n.trim().chars().count() > 100) {
+        return Err(AppError::BadRequest("Der Name muss 1–100 Zeichen lang sein".into()));
+    }
+    // Die Kategorien stehen im Suchtext – Vorauswahl, geprüft wird an der Karte.
+    let pattern = format!("%{}%", name.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_"));
+    let rows = sqlx::query_as::<_, ContactRow>(
+        "SELECT c.* FROM contacts c JOIN addressbooks b ON b.id = c.addressbook_id
+         WHERE b.user_id = ? AND c.search LIKE ? ESCAPE '\\'",
+    )
+    .bind(user_id)
+    .bind(&pattern)
+    .fetch_all(&state.db)
+    .await?;
+    let mut tx = state.db.begin().await?;
+    let mut updated = 0;
+    for row in rows {
+        let Some(mut card) = vcard::parse_cards(&row.vcard).into_iter().next() else { continue };
+        let old = vcard::extract(&card);
+        if !old.categories.iter().any(|c| c.to_lowercase() == name) {
+            continue;
+        }
+        let renamed: Vec<&str> = old
+            .categories
+            .iter()
+            .filter_map(|c| if c.to_lowercase() == name { new_name } else { Some(c.as_str()) })
+            .collect();
+        let new = ContactData { categories: vcard::clean_categories(&renamed), ..old.clone() };
+        vcard::apply(&mut card, &old, &new);
+        touch(&mut card);
+        contacts::update(&mut tx, &row, &card.serialize(), &contacts::index(&card, &row.uid)).await?;
+        updated += 1;
+    }
+    tx.commit().await?;
+    Ok(Json(json!({ "updated": updated })))
+}
+
+pub async fn rename_category(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Json(input): Json<CategoryInput>,
+) -> AppResult<Json<Value>> {
+    rewrite_category(&state, &auth.id, &input.name, Some(&input.new_name)).await
+}
+
+pub async fn delete_category(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Json(input): Json<CategoryInput>,
+) -> AppResult<Json<Value>> {
+    rewrite_category(&state, &auth.id, &input.name, None).await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn missing_categories_keep_old_ones() {
+        let old = vec!["Familie".to_string()];
+        let input: ContactInput = serde_json::from_str(r#"{"addressbook_id":"b","given_name":"A"}"#).unwrap();
+        assert_eq!(input.data(&old).categories, old);
+        let input: ContactInput =
+            serde_json::from_str(r#"{"addressbook_id":"b","given_name":"A","categories":["Arbeit"]}"#).unwrap();
+        let data = input.data(&old);
+        assert_eq!((data.categories, data.given_name.as_str()), (vec!["Arbeit".to_string()], "A"));
+        let input: ContactInput = serde_json::from_str(r#"{"addressbook_id":"b","categories":[]}"#).unwrap();
+        assert!(input.data(&old).categories.is_empty());
+    }
 }

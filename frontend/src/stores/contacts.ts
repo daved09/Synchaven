@@ -23,6 +23,19 @@ export const useContactsStore = defineStore('contacts', () => {
   const sorted = computed(() =>
     [...list.value].sort((a, b) => a.full_name.localeCompare(b.full_name, 'de', { sensitivity: 'base' })),
   )
+  /** Alle Kategorien mit Anzahl der Kontakte, alphabetisch */
+  const categories = computed(() => {
+    const counts = new Map<string, { name: string; count: number }>()
+    for (const c of list.value) {
+      for (const name of c.categories ?? []) {
+        const key = name.toLowerCase()
+        const entry = counts.get(key)
+        if (entry) entry.count++
+        else counts.set(key, { name, count: 1 })
+      }
+    }
+    return [...counts.values()].sort((a, b) => a.name.localeCompare(b.name, 'de', { sensitivity: 'base' }))
+  })
 
   async function load() {
     loading.value = true
@@ -72,6 +85,13 @@ export const useContactsStore = defineStore('contacts', () => {
     await reloadBooks()
   }
 
+  /** Benennt eine Kategorie in allen Kontakten um (`newName` = null: entfernt sie). */
+  async function rewriteCategory(name: string, newName: string | null) {
+    const r = newName === null ? await api.deleteContactCategory(name) : await api.renameContactCategory(name, newName)
+    list.value = await api.contacts()
+    return r.updated
+  }
+
   async function createBook(data: AddressBookInput) {
     const b = await api.createAddressBook(data)
     books.value.push(b)
@@ -102,7 +122,7 @@ export const useContactsStore = defineStore('contacts', () => {
   }
 
   return {
-    books, list, loading, photos, bookById, sorted,
-    load, fetchPhoto, create, update, remove, createBook, updateBook, removeBook, exportBook, importFile, reset,
+    books, list, loading, photos, bookById, sorted, categories,
+    load, fetchPhoto, create, update, remove, rewriteCategory, createBook, updateBook, removeBook, exportBook, importFile, reset,
   }
 })

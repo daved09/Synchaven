@@ -18,6 +18,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.Label
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.ImportContacts
 import androidx.compose.material.icons.outlined.MoreVert
@@ -29,6 +30,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -72,6 +74,7 @@ import de.dave.synchaven.util.displayNameText
 import de.dave.synchaven.util.subtitle
 import de.dave.synchaven.ui.contacts.AddressBooksDialog
 import de.dave.synchaven.ui.contacts.Avatar
+import de.dave.synchaven.ui.viewmodels.CategoryCount
 import de.dave.synchaven.ui.viewmodels.ContactsViewModel
 import kotlinx.coroutines.launch
 
@@ -80,8 +83,8 @@ import kotlinx.coroutines.launch
 fun ContactsScreen(
     onSelectTab: (MainTab) -> Unit,
     onOpenContact: (String) -> Unit,
-    /** Neuer Kontakt, vorbelegt mit dem gewählten Adressbuch */
-    onNewContact: (String?) -> Unit,
+    /** Neuer Kontakt, vorbelegt mit dem gewählten Adressbuch und der gewählten Kategorie */
+    onNewContact: (bookId: String?, category: String?) -> Unit,
 ) {
     val vm = appViewModel { ContactsViewModel(it.contactRepository, it.fileTransfer) }
     val s by vm.state.collectAsStateWithLifecycle()
@@ -136,7 +139,7 @@ fun ContactsScreen(
         },
         bottomBar = { MainBottomBar(MainTab.CONTACTS, onSelectTab) },
         floatingActionButton = {
-            FloatingActionButton(onClick = { onNewContact(s.selectedBookId) }) { Icon(Icons.Outlined.PersonAdd, stringResource(R.string.contacts_new)) }
+            FloatingActionButton(onClick = { onNewContact(s.selectedBookId, s.selectedCategory) }) { Icon(Icons.Outlined.PersonAdd, stringResource(R.string.contacts_new)) }
         },
         snackbarHost = { SnackbarHost(snackbar) },
     ) { padding ->
@@ -151,8 +154,15 @@ fun ContactsScreen(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
                 )
             }
-            if (s.addressBooks.size > 1) {
-                BookFilter(s.addressBooks, s.selectedBookId, vm::selectBook)
+            if (s.addressBooks.size > 1 || s.categories.isNotEmpty()) {
+                ContactFilter(
+                    books = s.addressBooks.takeIf { it.size > 1 }.orEmpty(),
+                    selectedBook = s.selectedBookId,
+                    categories = s.categories,
+                    selectedCategory = s.selectedCategory,
+                    onSelectBook = vm::selectBook,
+                    onSelectCategory = vm::selectCategory,
+                )
             }
             when {
                 s.loading -> LoadingBox()
@@ -161,7 +171,9 @@ fun ContactsScreen(
                     if (s.groups.isEmpty()) {
                         Box(Modifier.fillMaxSize().padding(32.dp), contentAlignment = Alignment.Center) {
                             Text(
-                                stringResource(if (s.query.isBlank()) R.string.contacts_empty else R.string.contacts_no_results),
+                                stringResource(
+                                    if (s.query.isBlank() && s.selectedCategory == null) R.string.contacts_empty else R.string.contacts_no_results,
+                                ),
                                 textAlign = TextAlign.Center,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
@@ -238,20 +250,41 @@ fun ContactsScreen(
     }
 }
 
+/** Filter nach Adressbuch (nur bei mehreren) und Kategorie */
 @Composable
-private fun BookFilter(books: List<AddressBook>, selected: String?, onSelect: (String?) -> Unit) {
+private fun ContactFilter(
+    books: List<AddressBook>,
+    selectedBook: String?,
+    categories: List<CategoryCount>,
+    selectedCategory: String?,
+    onSelectBook: (String?) -> Unit,
+    onSelectCategory: (String?) -> Unit,
+) {
     LazyRow(
         contentPadding = PaddingValues(horizontal = 16.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         item {
-            FilterChip(selected = selected == null, onClick = { onSelect(null) }, label = { Text(stringResource(R.string.contacts_filter_all)) })
-        }
-        items(books, key = { it.id }) { b ->
             FilterChip(
-                selected = selected == b.id,
-                onClick = { onSelect(if (selected == b.id) null else b.id) },
+                selected = selectedBook == null && selectedCategory == null,
+                onClick = { onSelectBook(null); onSelectCategory(null) },
+                label = { Text(stringResource(R.string.contacts_filter_all)) },
+            )
+        }
+        items(books, key = { "b" + it.id }) { b ->
+            FilterChip(
+                selected = selectedBook == b.id,
+                onClick = { onSelectBook(if (selectedBook == b.id) null else b.id) },
                 label = { Text(stringResource(R.string.contacts_book_chip, b.name, b.contactCount)) },
+            )
+        }
+        items(categories, key = { "c" + it.name.lowercase() }) { cat ->
+            val selected = selectedCategory == cat.name
+            FilterChip(
+                selected = selected,
+                onClick = { onSelectCategory(if (selected) null else cat.name) },
+                label = { Text(stringResource(R.string.contacts_book_chip, cat.name, cat.count)) },
+                leadingIcon = { Icon(Icons.AutoMirrored.Outlined.Label, null, Modifier.size(FilterChipDefaults.IconSize)) },
             )
         }
     }

@@ -39,6 +39,8 @@ pub fn api_router() -> Router<AppState> {
         .route("/addressbooks/{id}/import", post(contacts::import_book))
         .route("/contacts", get(contacts::list).post(contacts::create))
         .route("/contacts/{id}", get(contacts::get).put(contacts::update).delete(contacts::delete))
+        .route("/contact-categories/rename", post(contacts::rename_category))
+        .route("/contact-categories/delete", post(contacts::delete_category))
         .route("/push/public-key", get(push::public_key))
         .route("/push/subscriptions", post(push::subscribe).delete(push::unsubscribe))
         .route("/push/test", post(push::test))

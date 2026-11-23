@@ -189,6 +189,8 @@ export interface ContactData {
   /** `YYYY-MM-DD` oder `--MM-DD` (ohne Jahr) */
   birthday: string
   note: string
+  /** Kategorien (vCard `CATEGORIES`) */
+  categories: string[]
 }
 
 export interface Contact extends ContactData {

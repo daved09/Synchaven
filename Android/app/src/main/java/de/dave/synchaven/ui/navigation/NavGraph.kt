@@ -54,7 +54,9 @@ fun SyncHavenNavGraph(navController: NavHostController, startLoggedIn: Boolean) 
             ContactsScreen(
                 onSelectTab = selectTab,
                 onOpenContact = { navController.navigate(ContactDetailRoute(it)) },
-                onNewContact = { bookId -> navController.navigate(ContactEditRoute(addressBookId = bookId)) },
+                onNewContact = { bookId, category ->
+                    navController.navigate(ContactEditRoute(addressBookId = bookId, category = category))
+                },
             )
         }
         composable<SettingsRoute>(enterTransition = { EnterTransition.None }, exitTransition = { ExitTransition.None }) {

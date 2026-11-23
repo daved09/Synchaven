@@ -85,12 +85,25 @@ fun Contact.matches(query: String): Boolean {
     val q = query.trim().lowercase(LOCALE)
     if (q.isEmpty()) return true
     val digits = q.replace(Regex("[^\\d+]"), "")
-    val hay = (listOf(fullName, nickname, organization, department, title, note) +
+    val hay = (listOf(fullName, nickname, organization, department, title, note) + categories +
         emails.map { it.value } + phones.map { it.value } +
         addresses.map { "${it.street} ${it.postalCode} ${it.locality} ${it.country}" })
         .joinToString(" ").lowercase(LOCALE)
     if (hay.contains(q)) return true
     return digits.length >= 3 && phones.any { it.value.replace(Regex("[^\\d+]"), "").contains(digits) }
+}
+
+/** Gleiche Kategorie (ohne Groß-/Kleinschreibung, wie im Backend) */
+fun sameCategory(a: String, b: String) = a.lowercase(LOCALE) == b.lowercase(LOCALE)
+
+/** Wie `clean_categories` des Servers: Leerraum zusammenfassen, leere und doppelte Einträge entfernen. */
+fun cleanCategories(list: List<String>): List<String> {
+    val out = mutableListOf<String>()
+    for (raw in list) {
+        val c = raw.trim().split(Regex("\\s+")).filter { it.isNotEmpty() }.joinToString(" ")
+        if (c.isNotEmpty() && out.none { sameCategory(it, c) }) out += c
+    }
+    return out
 }
 
 fun PostalAddress.lines(): List<UiText> = listOfNotNull(

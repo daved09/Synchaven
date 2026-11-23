@@ -9,6 +9,7 @@ import router from './router'
 import App from './App.vue'
 import { setUnauthorizedHandler } from './api/client'
 import { useAuthStore } from './stores/auth'
+import { startDynamicFavicon } from './utils/favicon'
 import './styles.css'
 
 const app = createApp(App)
@@ -22,3 +23,4 @@ setUnauthorizedHandler(() => {
 })
 
 app.mount('#app')
+startDynamicFavicon()

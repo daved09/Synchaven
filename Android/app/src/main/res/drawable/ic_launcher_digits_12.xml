@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Generiert von Android/tools/generate_day_icons.py – nicht von Hand bearbeiten. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillType="nonZero"
+        android:pathData="M48.27 51.46V71.5H44.31V56.02L39.56 57.53V54.41L47.84 51.46ZM68.44 68.41V71.5H54.76V68.86L61.23 61.93Q62.21 60.84 62.77 60.01Q63.33 59.18 63.59 58.51Q63.84 57.85 63.84 57.24Q63.84 56.34 63.54 55.68Q63.24 55.03 62.65 54.67Q62.07 54.32 61.22 54.32Q60.31 54.32 59.66 54.76Q59.01 55.2 58.67 55.98Q58.33 56.76 58.33 57.75H54.36Q54.36 55.96 55.22 54.47Q56.07 52.98 57.62 52.1Q59.17 51.21 61.3 51.21Q63.4 51.21 64.85 51.89Q66.3 52.57 67.05 53.84Q67.8 55.11 67.8 56.87Q67.8 57.86 67.48 58.8Q67.17 59.74 66.58 60.67Q66 61.6 65.17 62.54Q64.35 63.49 63.35 64.51L59.87 68.41Z" />
+</vector>

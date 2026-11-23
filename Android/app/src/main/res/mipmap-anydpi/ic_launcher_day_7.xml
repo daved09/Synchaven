@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Generiert von Android/tools/generate_day_icons.py – nicht von Hand bearbeiten. -->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@drawable/ic_launcher_background" />
+    <foreground>
+        <layer-list>
+            <item android:drawable="@drawable/ic_launcher_calendar" />
+            <item android:drawable="@drawable/ic_launcher_digits_7" />
+        </layer-list>
+    </foreground>
+    <monochrome>
+        <layer-list>
+            <item android:drawable="@drawable/ic_launcher_calendar_mono" />
+            <item android:drawable="@drawable/ic_launcher_digits_7" />
+        </layer-list>
+    </monochrome>
+</adaptive-icon>

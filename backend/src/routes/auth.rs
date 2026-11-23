@@ -69,9 +69,25 @@ async fn load_user(state: &AppState, id: &str) -> AppResult<UserRow> {
         .await?)
 }
 
+/// Benutzer für die Antwort, mit Admin-Kennzeichen aus der Konfiguration
+pub fn user_out(state: &AppState, row: UserRow) -> User {
+    let is_admin = state.config.is_admin(&row.email);
+    User { is_admin, ..row.into() }
+}
+
 fn respond(state: &AppState, user: UserRow) -> AppResult<Json<AuthResponse>> {
     let (token, expires_at) = state.jwt.issue(&user.id)?;
-    Ok(Json(AuthResponse { token, token_type: "Bearer", expires_at, user: user.into() }))
+    Ok(Json(AuthResponse { token, token_type: "Bearer", expires_at, user: user_out(state, user) }))
+}
+
+/// Registrierung erlaubt? Das erste Konto lässt sich immer anlegen – sonst käme man nach einem Neuanfang
+/// mit leerer Datenbank (etwa um einen Export einzuspielen) bei `ALLOW_REGISTRATION=false` nicht mehr hinein.
+pub async fn registration_open(state: &AppState) -> AppResult<bool> {
+    if state.config.allow_registration {
+        return Ok(true);
+    }
+    let any: Option<(i64,)> = sqlx::query_as("SELECT 1 FROM users LIMIT 1").fetch_optional(&state.db).await?;
+    Ok(any.is_none())
 }
 
 /// Neues Token für die angemeldete Sitzung – damit Clients wie die Android-Synchronisierung angemeldet bleiben,
@@ -84,7 +100,7 @@ pub async fn register(
     State(state): State<AppState>,
     Json(input): Json<RegisterInput>,
 ) -> AppResult<(StatusCode, Json<AuthResponse>)> {
-    if !state.config.allow_registration {
+    if !registration_open(&state).await? {
         return Err(AppError::Forbidden("Registrierung ist deaktiviert".into()));
     }
     let email = normalize_email(&input.email)?;
@@ -153,7 +169,7 @@ pub async fn login(State(state): State<AppState>, Json(input): Json<LoginInput>)
 }
 
 pub async fn me(State(state): State<AppState>, auth: AuthUser) -> AppResult<Json<User>> {
-    Ok(Json(load_user(&state, &auth.id).await?.into()))
+    Ok(Json(user_out(&state, load_user(&state, &auth.id).await?)))
 }
 
 pub async fn update_me(
@@ -211,5 +227,5 @@ pub async fn update_me(
         .bind(&user.id)
         .execute(&state.db)
         .await?;
-    Ok(Json(load_user(&state, &auth.id).await?.into()))
+    Ok(Json(user_out(&state, load_user(&state, &auth.id).await?)))
 }

@@ -14,16 +14,23 @@ pub struct Config {
     pub cors_origins: Vec<String>,
     /// Kontaktadresse für Push-Dienste (VAPID `sub`), `mailto:` oder `https:`
     pub vapid_subject: String,
+    /// E-Mail-Adressen der Administratoren (kleingeschrieben), dürfen die ganze Datenbank exportieren/importieren
+    pub admin_emails: Vec<String>,
 }
 
 fn env_or(key: &str, default: &str) -> String {
     std::env::var(key).ok().filter(|v| !v.trim().is_empty()).unwrap_or_else(|| default.to_string())
 }
 
+/// Datenverzeichnis aus `DATA_DIR` (Standard `./data`)
+pub fn data_dir_from_env() -> PathBuf {
+    PathBuf::from(env_or("DATA_DIR", "./data"))
+}
+
 impl Config {
     pub fn from_env() -> anyhow::Result<Self> {
         let bind = env_or("BIND_ADDR", "0.0.0.0:8080").parse().context("BIND_ADDR ungültig")?;
-        let data_dir = PathBuf::from(env_or("DATA_DIR", "./data"));
+        let data_dir = data_dir_from_env();
         std::fs::create_dir_all(&data_dir).context("DATA_DIR kann nicht angelegt werden")?;
         let static_dir = PathBuf::from(env_or("STATIC_DIR", "./static"));
         let token_ttl_days = env_or("TOKEN_TTL_DAYS", "30").parse().context("TOKEN_TTL_DAYS ungültig")?;
@@ -37,6 +44,12 @@ impl Config {
             .filter(|s| !s.is_empty())
             .collect();
 
+        let admin_emails = env_or("ADMIN_EMAILS", "")
+            .split(',')
+            .map(|s| s.trim().to_lowercase())
+            .filter(|s| !s.is_empty())
+            .collect();
+
         let vapid_subject = env_or("VAPID_SUBJECT", "mailto:synchaven@example.org");
 
         let jwt_secret = match std::env::var("JWT_SECRET").ok().filter(|s| s.len() >= 32) {
@@ -44,7 +57,11 @@ impl Config {
             None => load_or_create_secret(&data_dir)?,
         };
 
-        Ok(Self { bind, data_dir, static_dir, jwt_secret, token_ttl_days, allow_registration, cors_origins, vapid_subject })
+        Ok(Self { bind, data_dir, static_dir, jwt_secret, token_ttl_days, allow_registration, cors_origins, vapid_subject, admin_emails })
+    }
+
+    pub fn is_admin(&self, email: &str) -> bool {
+        self.admin_emails.iter().any(|a| a.eq_ignore_ascii_case(email.trim()))
     }
 
     pub fn db_path(&self) -> PathBuf {

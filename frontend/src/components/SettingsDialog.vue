@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import { SEED_COLORS } from '@/plugins/theme'
 import type { ViewMode } from '@/api/types'
+import AdminSection from '@/components/AdminSection.vue'
 import { useAuthStore } from '@/stores/auth'
 import { useNotifyStore } from '@/stores/notify'
 import { useSettingsStore } from '@/stores/settings'
@@ -123,6 +124,8 @@ const hours = Array.from({ length: 13 }, (_, h) => ({ title: `${String(h).padSta
         >
           Testbenachrichtigung senden
         </v-btn>
+
+        <AdminSection v-if="auth.user?.is_admin" />
       </v-card-text>
       <template #actions>
         <v-spacer />

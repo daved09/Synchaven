@@ -1,6 +1,6 @@
 import type {
   AddressBook, AddressBookInput, AuthResponse, CalEvent, Calendar, CalendarInput, Contact, ContactImportResult,
-  ContactInput, EventInput, ImportResult, Occurrence, PushSubscriptionInput, ServerInfo, User, ViewMode,
+  ContactInput, DbImportReport, EventInput, ImportResult, Occurrence, PushSubscriptionInput, ServerInfo, User, ViewMode,
 } from './types'
 
 const BASE = '/api'
@@ -125,4 +125,10 @@ export const api = {
   createContact: (data: ContactInput) => request<Contact>('POST', '/contacts', { body: data }),
   updateContact: (id: string, data: ContactInput) => request<Contact>('PUT', `/contacts/${id}`, { body: data }),
   deleteContact: (id: string) => request<void>('DELETE', `/contacts/${id}`),
+
+  adminExport: () => request<string>('GET', '/admin/export', { asText: true }),
+  adminImport: (json: string) =>
+    request<DbImportReport>('POST', '/admin/import', {
+      rawBody: json, contentType: 'application/json', query: { replace: 'true' },
+    }),
 }

@@ -26,6 +26,8 @@ pub struct User {
     /// Standardansicht des Kalenders: `month`, `week`, `day` oder `list`
     pub default_view: String,
     pub created_at: DateTime<Utc>,
+    /// Darf die ganze Datenbank exportieren und importieren (`ADMIN_EMAILS`)
+    pub is_admin: bool,
 }
 
 impl From<UserRow> for User {
@@ -36,6 +38,7 @@ impl From<UserRow> for User {
             name: r.name,
             default_view: r.default_view,
             created_at: from_db(&r.created_at),
+            is_admin: false,
         }
     }
 }

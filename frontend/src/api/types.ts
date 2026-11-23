@@ -7,6 +7,16 @@ export interface User {
   /** Standardansicht des Kalenders */
   default_view: ViewMode
   created_at: string
+  /** Darf die ganze Datenbank exportieren und importieren (ADMIN_EMAILS) */
+  is_admin: boolean
+}
+
+/** Ergebnis von POST /api/admin/import */
+export interface DbImportReport {
+  /** Übernommene Einträge je Tabelle, z. B. "events: 12" */
+  summary: string[]
+  /** Übersprungene Tabellen und Spalten */
+  warnings: string[]
 }
 
 export interface AuthResponse {

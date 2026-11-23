@@ -1,4 +1,5 @@
 mod auth;
+mod backup;
 mod birthdays;
 mod config;
 mod contacts;
@@ -42,8 +43,14 @@ pub struct AppState {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    if std::env::args().nth(1).as_deref() == Some("healthcheck") {
-        return healthcheck().await;
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    if let Some(cmd) = args.first() {
+        if cmd == "healthcheck" {
+            return healthcheck().await;
+        }
+        if let Some(result) = backup::run_cli(cmd, &args[1..]).await {
+            return result;
+        }
     }
     tracing_subscriber::fmt()
         .with_env_filter(

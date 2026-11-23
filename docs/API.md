@@ -62,12 +62,13 @@ Antwort (auch bei Login):
   "token": "eyJ…",
   "token_type": "Bearer",
   "expires_at": "2026-12-22T18:56:04Z",
-  "user": { "id": "…", "email": "anna@example.com", "name": "Anna", "default_view": "month", "created_at": "…" }
+  "user": { "id": "…", "email": "anna@example.com", "name": "Anna", "default_view": "month", "created_at": "…", "is_admin": false }
 }
 ```
 `default_view` ist die Standardansicht des Kalenders (`month`, `week`, `day` oder `list`). Weboberfläche und App
-speichern dort die zuletzt gewählte Ansicht.
-Für neue Konten wird automatisch der Kalender „Persönlich“ angelegt.
+speichern dort die zuletzt gewählte Ansicht. `is_admin` ist `true` für Adressen aus `ADMIN_EMAILS`.
+Für neue Konten wird automatisch der Kalender „Persönlich“ angelegt. Bei `ALLOW_REGISTRATION=false` lässt sich nur
+das erste Konto einer leeren Datenbank registrieren (`allow_registration` in `/info` zeigt, ob es gerade geht).
 
 ### `POST /auth/login`
 ```json
@@ -307,6 +308,25 @@ ist es `null`), bleibt das Foto unverändert.
 ändert sich mit jeder Änderung des Kontakts (auch des Fotos oder per CardDAV) und eignet sich zum Abgleich.
 
 ### `DELETE /contacts/{id}` → `204`
+
+## Verwaltung (nur `ADMIN_EMAILS`, sonst `403`)
+
+### `GET /admin/export` → `application/json`
+Die ganze Datenbank (alle Benutzer inkl. Passwort-Hashes) als Datei `synchaven-export-<Datum>.json`. Termine im
+Geburtstagskalender sind nicht enthalten, der Import erzeugt sie aus den Kontakten neu. Gleiches
+Format wie `synchaven export` auf der Kommandozeile:
+```json
+{ "format": "synchaven-export", "format_version": 1, "app_version": "1.0.0", "exported_at": "…", "migration": 2,
+  "tables": { "users": [ { "id": "…", "email": "…", … } ], "calendars": [ … ], … } }
+```
+
+### `POST /admin/import?replace=true` (Body: Export, `Content-Type: application/json`, max. 512 MB)
+Ersetzt in einer Transaktion **alle** Daten aller Benutzer. Ohne `replace=true` → `409`, solange die Datenbank
+Daten enthält; ungültige Datei oder unstimmige Daten → `400`, die Datenbank bleibt dann unverändert. Tabellen und
+Spalten, die es nicht mehr gibt, werden übersprungen. Tokens bleiben gültig, solange es den Benutzer danach noch gibt.
+```json
+{ "summary": ["users: 2", "calendars: 3", "events: 120", …, "Geburtstage: 35"], "warnings": ["Spalten von users gibt es nicht mehr, …"] }
+```
 
 ## CardDAV (DAVx⁵, Thunderbird, iOS)
 

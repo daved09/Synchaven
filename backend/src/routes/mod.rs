@@ -1,4 +1,5 @@
 use axum::{
+    extract::DefaultBodyLimit,
     routing::{get, post, put},
     Json, Router,
 };
@@ -6,6 +7,7 @@ use serde_json::{json, Value};
 
 use crate::{error::AppError, AppState};
 
+mod admin;
 mod auth;
 mod calendars;
 mod contacts;
@@ -40,14 +42,17 @@ pub fn api_router() -> Router<AppState> {
         .route("/push/public-key", get(push::public_key))
         .route("/push/subscriptions", post(push::subscribe).delete(push::unsubscribe))
         .route("/push/test", post(push::test))
+        .route("/admin/export", get(admin::export))
+        // Exporte mit vielen Kontaktfotos sind deutlich größer als das allgemeine Limit
+        .route("/admin/import", post(admin::import).layer(DefaultBodyLimit::max(512 * 1024 * 1024)))
         .fallback(|| async { AppError::NotFound })
 }
 
-async fn info(axum::extract::State(state): axum::extract::State<AppState>) -> Json<Value> {
-    Json(json!({
+async fn info(axum::extract::State(state): axum::extract::State<AppState>) -> Result<Json<Value>, AppError> {
+    Ok(Json(json!({
         "name": "Synchaven",
         "version": env!("SYNCHAVEN_VERSION"),
         "api_version": 1,
-        "allow_registration": state.config.allow_registration,
-    }))
+        "allow_registration": auth::registration_open(&state).await?,
+    })))
 }

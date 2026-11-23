@@ -84,6 +84,7 @@ docker run -d --name synchaven -p 8080:8080 -v synchaven-data:/data ghcr.io/dave
 | `TOKEN_TTL_DAYS`     | `30`              | Gültigkeit der Anmeldung |
 | `JWT_SECRET`         | *(automatisch)*   | Eigenes Secret (≥ 32 Zeichen) |
 | `CORS_ORIGINS`       | `*`               | Erlaubte Browser-Origins, kommagetrennt |
+| `ADMIN_EMAILS`       | *(leer)*          | Administratoren, kommagetrennt: dürfen die ganze Datenbank exportieren/importieren |
 | `VAPID_SUBJECT`      | `mailto:synchaven@example.org` | Kontaktadresse für Push-Dienste (`mailto:` oder `https:`) |
 | `RUST_LOG`           | `synchaven=info`  | Log-Level |
 | `PUID` / `PGID`      | `10001`           | Benutzer-/Gruppen-ID für Programm und `/data` (nur Docker) |
@@ -120,6 +121,43 @@ jeder Anfrage mitgesendet wird, gehört der Server für den Zugriff über das In
 docker run --rm -v synchaven-data:/data -v "$PWD":/backup debian:bookworm-slim \
   tar czf /backup/synchaven-backup.tgz -C /data .
 ```
+
+#### Export und Import als JSON
+
+Zusätzlich lässt sich die gesamte Datenbank (alle Benutzer, Kalender, Termine, Adressbücher, Kontakte,
+Push-Abonnements) als JSON exportieren – gedacht vor allem als Rückfallebene vor einem Update, falls eine
+Migration fehlschlägt. Die Termine im Geburtstagskalender fehlen darin; sie werden beim Import aus den Kontakten neu
+erzeugt.
+
+**In der Weboberfläche:** Die eigene Adresse in `ADMIN_EMAILS` eintragen; dann gibt es unter
+*Konto → Einstellungen → Verwaltung* die Knöpfe *Datenbank exportieren* und *Datenbank importieren*. Der Import
+ersetzt alle Daten aller Benutzer. Nach einer fehlgeschlagenen Migration: alte Datenbank zur Seite legen (siehe
+unten), Server starten, mit der Admin-Adresse ein Konto registrieren (das erste Konto geht auch bei
+`ALLOW_REGISTRATION=false`) und den Export importieren – das vorläufige Konto wird dabei ersetzt.
+
+**Auf der Kommandozeile** – der Export geht auch bei laufendem Server:
+
+```bash
+docker exec synchaven synchaven export > synchaven-export.json
+```
+
+Der Import legt eine leere Datenbank mit dem Schema der aktuellen Version an und übernimmt die Daten. Spalten oder
+Tabellen, die es nicht mehr gibt, werden mit einer Warnung übersprungen, neue Spalten erhalten ihren Standardwert.
+Der Server muss dafür gestoppt sein. Vorgehen nach einer fehlgeschlagenen Migration:
+
+```bash
+docker compose stop
+# Alte Datenbank zur Seite legen (synchaven.db, synchaven.db-wal, synchaven.db-shm)
+docker compose run --rm --no-deps --entrypoint sh Synchaven \
+  -c 'mkdir -p /data/alt && mv /data/synchaven.db* /data/alt/'
+docker compose run --rm --no-deps -v "$PWD":/backup Synchaven import /backup/synchaven-export.json
+docker compose up -d
+```
+
+Enthält die Datenbank schon Daten, bricht der Import ab; `import --replace …` löscht sie vorher. JWT-Secret und
+VAPID-Schlüssel liegen als Dateien in `/data` und sind nicht im Export – bleiben sie erhalten, bleiben auch
+Anmeldungen und Push-Abonnements gültig. Ohne Docker: `DATA_DIR=./data synchaven export datei.json` bzw.
+`synchaven import datei.json`.
 
 ## REST API
 

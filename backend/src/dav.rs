@@ -52,6 +52,13 @@ const MAX_VCARD: usize = 5 * 1024 * 1024;
 #[derive(Default)]
 pub struct AuthCache(Mutex<HashMap<String, Instant>>);
 
+impl AuthCache {
+    /// Alle zwischengespeicherten Anmeldungen verwerfen (z. B. nach einem Datenbank-Import)
+    pub fn clear(&self) {
+        self.0.lock().unwrap_or_else(|e| e.into_inner()).clear();
+    }
+}
+
 const AUTH_TTL: Duration = Duration::from_secs(15 * 60);
 
 struct DavUser {

@@ -8,6 +8,8 @@ services:
     environment:
       # Neue Konten erlauben (nach dem Anlegen der eigenen Konten auf "false" setzen)
       ALLOW_REGISTRATION: "true"
+      # Administratoren (kommagetrennt): Export/Import der ganzen Datenbank unter Einstellungen → Verwaltung
+      # ADMIN_EMAILS: "ich@example.org"
       # Gültigkeit der Anmelde-Tokens in Tagen
       TOKEN_TTL_DAYS: "30"
       # Erlaubte Origins für Browser-Zugriffe von fremden Domains (kommagetrennt, "*" = alle)

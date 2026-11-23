@@ -7,6 +7,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useCalendarsStore } from '@/stores/calendars'
 import { useContactsStore } from '@/stores/contacts'
 import { useEventsStore } from '@/stores/events'
+import { useTasksStore } from '@/stores/tasks'
 import { disablePush } from '@/utils/push'
 
 const router = useRouter()
@@ -14,6 +15,7 @@ const auth = useAuthStore()
 const calendars = useCalendarsStore()
 const events = useEventsStore()
 const contacts = useContactsStore()
+const tasks = useTasksStore()
 
 const profileOpen = ref(false)
 const settingsOpen = ref(false)
@@ -29,6 +31,7 @@ async function logout() {
   calendars.reset()
   events.reset()
   contacts.reset()
+  tasks.reset()
   router.replace({ name: 'login' })
 }
 

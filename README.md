@@ -16,6 +16,9 @@ Material-3-Design** (Vuetify), einer **REST API** für eigene Clients wie eine A
   Browser – auch bei geschlossenem Tab – und als Android-Benachrichtigung in der App
 * iCalendar-Import und -Export (.ics) – kompatibel mit Google Kalender, Outlook, Thunderbird, Apple
 * Ansichten: Monat, Woche, Tag, Terminliste mit Suche
+* **Aufgaben** wie im Google Kalender: mehrere farbige Aufgabenlisten, Aufgaben mit Fälligkeit (ganztägig oder mit
+  Uhrzeit) erscheinen im Kalender und lassen sich dort abhaken und per Drag & Drop verschieben; Aufgabenbereich mit
+  Schnelleingabe, auch für Aufgaben ohne Datum
 * **Kontakte:** mehrere Adressbücher, Suche, Telefon/E-Mail/Adressen/Websites mit Typen und eigenen Bezeichnungen,
   Geburtstag (auch ohne Jahr), Notizen, Kategorien (zum Filtern, umbenennbar; in DAVx⁵ als Kontaktgruppen), Fotos aus importierten oder synchronisierten Kontakten
 * **Geburtstagskalender:** Geburtstage aller Kontakte erscheinen automatisch als jährliche Termine im eigenen
@@ -24,7 +27,7 @@ Material-3-Design** (Vuetify), einer **REST API** für eigene Clients wie eine A
   Google Kontakte, Outlook, Thunderbird; erneuter Import erzeugt keine Duplikate
 * **Synchronisierung per CardDAV** mit DAVx⁵ (Android), Thunderbird und iOS – in beide Richtungen
 * Material 3 mit dynamischem Farbschema aus frei wählbarer Grundfarbe, Hell/Dunkel/System
-* Tastenkürzel: `M` `W` `T` `L` (Ansicht), `H` (heute), `←`/`→` (blättern), `C` (neuer Termin), `/` (Suche)
+* Tastenkürzel: `M` `W` `T` `L` (Ansicht), `H` (heute), `←`/`→` (blättern), `C` (neuer Termin), `A` (neue Aufgabe), `/` (Suche)
 
 ## Start mit Docker
 
@@ -168,6 +171,7 @@ Die vollständige API-Referenz steht in [docs/API.md](docs/API.md). Kurzüberbli
 | Konto     | `POST /api/auth/register`, `POST /api/auth/login`, `POST /api/auth/refresh`, `GET/PUT /api/auth/me` |
 | Kalender  | `GET/POST /api/calendars`, `GET/PUT/DELETE /api/calendars/{id}`, `GET …/export`, `POST …/import` |
 | Termine   | `GET /api/events?start&end`, `POST /api/events`, `GET/PUT/DELETE /api/events/{id}`, `POST /api/events/{id}/exdates` |
+| Aufgaben  | `GET/POST /api/task-lists`, `PUT/DELETE /api/task-lists/{id}`, `GET/POST /api/tasks`, `GET/PUT/DELETE /api/tasks/{id}`, `PUT /api/tasks/{id}/completed` |
 | Adressbücher | `GET/POST /api/addressbooks`, `PUT/DELETE /api/addressbooks/{id}`, `GET …/export`, `POST …/import` |
 | Kontakte  | `GET /api/contacts[?addressbook_id&q]`, `POST /api/contacts`, `GET/PUT/DELETE /api/contacts/{id}` |
 | CardDAV   | `/dav/` (Basic-Auth, siehe [docs/API.md](docs/API.md#carddav-davx-thunderbird-ios)) |
@@ -181,6 +185,13 @@ Unter `Android/` liegt eine native App (Kotlin, Jetpack Compose, Material 3) mit
 Weboberfläche: Anmeldung/Registrierung, Monats-, Wochen-, Tages- und Listenansicht, Termine anlegen, bearbeiten,
 löschen (auch einzelne Vorkommen) und per langem Drücken verschieben, Wiederholungen, Suche, Kalender verwalten,
 .ics-Import/-Export, Kontakte mit Adressbüchern und .vcf-Import/-Export.
+
+**Aufgaben:** Aufgaben mit Fälligkeit erscheinen in Monat, Woche/Tag und Terminliste mit Abhak-Symbol (erledigte
+durchgestrichen); Antippen öffnet die Details mit *Als erledigt markieren*, in der Terminliste hakt das Symbol direkt
+ab, im Zeitraster lassen sie sich per langem Drücken verschieben. Aufgabenlisten werden in der Seitenleiste ein- und
+ausgeblendet, bearbeitet und angelegt; *Alle Aufgaben* öffnet den Aufgabenbereich mit Schnelleingabe und Erledigt-
+Bereich, und der Erstellen-Button bietet *Termin* oder *Aufgabe*. Auch im lokalen Modus
+verfügbar.
 
 **Synchronisierung mit Android (ersetzt DAVx⁵):** Die App legt ein Android-Konto „Synchaven“ an und trägt Kalender
 und Kontakte selbst in den Android-Kalender und die Systemkontakte ein – über eigene SyncAdapter und die REST API,
@@ -209,22 +220,24 @@ einem lokalen Cache auf dem Gerät; Kontaktfotos werden beim Öffnen eines Konta
 erreichbar (unterwegs, Server aus), zeigt die App die gespeicherten Daten – Vorkommen von Serien und das Alter im
 Geburtstagskalender berechnet sie dann selbst – und ein Hinweis über der Navigationsleiste macht den Offline-Zustand
 sichtbar. Termine und Kontakte lassen sich auch offline anlegen, bearbeiten, verschieben und löschen, Kalender ein- und
-ausblenden und die Standardansicht wechseln. Diese Änderungen landen in einer Warteschlange und werden in Reihenfolge
+ausblenden und die Standardansicht wechseln; ebenso Aufgaben anlegen, bearbeiten, abhaken und löschen und
+Aufgabenlisten ein-/ausblenden. Diese Änderungen landen in einer Warteschlange und werden in Reihenfolge
 übertragen, sobald der Server wieder erreichbar ist (bei Netzwechsel, beim Öffnen der App, jede Minute im Vordergrund
 oder über *Einstellungen → Offline-Daten → Jetzt abgleichen*); danach lädt die App alles neu. Lehnt der Server eine
 Änderung ab (z. B. weil der Termin inzwischen gelöscht wurde), wird sie verworfen und das angezeigt. Nur online gehen:
-Kalender und Adressbücher anlegen/löschen, Import/Export, Profil. Beim Abmelden wird der Cache gelöscht; läuft nur das
+Kalender, Adressbücher und Aufgabenlisten anlegen/löschen, Import/Export, Profil. Beim Abmelden wird der Cache gelöscht; läuft nur das
 Token ab, bleibt er erhalten und ausstehende Änderungen werden nach der erneuten Anmeldung übertragen.
 
 **Ohne Server (lokaler Modus):** Mit *Ohne Server verwenden* auf dem Anmeldebildschirm funktioniert die App ganz
-ohne Weboberfläche. Kalender, Termine, Adressbücher und Kontakte liegen dann nur auf dem Gerät (`filesDir/local/`,
-damit in den Android-Sicherungen enthalten) – mit allen Funktionen: Kalender und Adressbücher verwalten, Serien,
+ohne Weboberfläche. Kalender, Termine, Aufgaben, Adressbücher und Kontakte liegen dann nur auf dem Gerät (`filesDir/local/`,
+damit in den Android-Sicherungen enthalten) – mit allen Funktionen: Kalender, Aufgabenlisten und Adressbücher verwalten, Serien,
 Geburtstagskalender aus den Kontakten, .ics- und .vcf-Import/-Export und die Synchronisierung mit dem Android-Kalender
 und den Systemkontakten (Konto „Synchaven (lokal)“). Technisch ersetzt `data/local/LocalApi.kt` die REST API: Sie
 speichert im selben lokalen Speicher wie der Offline-Cache und prüft Eingaben wie der Server; iCalendar, vCard und
 Geburtstage sind Portierungen aus `backend/src`. Beim vCard-Import bleiben nur die Felder erhalten, die die App kennt.
 *Einstellungen → Mit Server verbinden* wechselt zur Anmeldung; die lokalen Daten bleiben auf dem Gerät und sind beim
-nächsten *Ohne Server verwenden* wieder da – auf einen Server übertragen werden sie nicht (dafür: Export und Import).
+nächsten *Ohne Server verwenden* wieder da – auf einen Server übertragen werden sie nicht (dafür: Export und Import; Aufgaben sind darin nicht
+enthalten).
 
 Beim ersten Start die Adresse des Servers eintragen (z. B. `http://homeserver.local:8080`) oder *Ohne Server verwenden*
 wählen. Unverschlüsseltes HTTP ist für Server im Heimnetz erlaubt; selbst installierte Zertifizierungsstellen werden

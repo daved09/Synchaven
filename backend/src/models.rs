@@ -233,3 +233,113 @@ pub struct Occurrence {
     /// Erinnerungen des Termins in Minuten vor Beginn; `None` = Standard des Kalenders
     pub reminders: Option<Vec<i32>>,
 }
+
+// ---------- Aufgaben ----------
+
+#[derive(Debug, Clone, FromRow)]
+pub struct TaskListRow {
+    pub id: String,
+    #[allow(dead_code)]
+    pub user_id: String,
+    pub name: String,
+    pub color: String,
+    pub visible: bool,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct TaskList {
+    pub id: String,
+    pub name: String,
+    pub color: String,
+    /// Aufgaben dieser Liste im Kalender anzeigen
+    pub visible: bool,
+    /// Anzahl offener Aufgaben
+    pub open_count: i64,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+impl TaskList {
+    pub fn from_row(r: TaskListRow, open_count: i64) -> Self {
+        Self {
+            id: r.id,
+            name: r.name,
+            color: r.color,
+            visible: r.visible,
+            open_count,
+            created_at: from_db(&r.created_at),
+            updated_at: from_db(&r.updated_at),
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct TaskListInput {
+    pub name: String,
+    pub color: Option<String>,
+    pub visible: Option<bool>,
+}
+
+#[derive(Debug, Clone, FromRow)]
+pub struct TaskRow {
+    pub id: String,
+    pub list_id: String,
+    pub title: String,
+    pub notes: String,
+    pub due_at: Option<String>,
+    pub all_day: bool,
+    pub completed_at: Option<String>,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct Task {
+    pub id: String,
+    pub list_id: String,
+    pub title: String,
+    pub notes: String,
+    /// Fälligkeit; ganztägig als Mitternacht UTC. `null` = ohne Datum
+    pub due: Option<DateTime<Utc>>,
+    pub all_day: bool,
+    pub completed: bool,
+    pub completed_at: Option<DateTime<Utc>>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+impl From<TaskRow> for Task {
+    fn from(r: TaskRow) -> Self {
+        Self {
+            id: r.id,
+            list_id: r.list_id,
+            title: r.title,
+            notes: r.notes,
+            due: r.due_at.as_deref().map(from_db),
+            all_day: r.all_day,
+            completed: r.completed_at.is_some(),
+            completed_at: r.completed_at.as_deref().map(from_db),
+            created_at: from_db(&r.created_at),
+            updated_at: from_db(&r.updated_at),
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct TaskInput {
+    pub list_id: String,
+    pub title: String,
+    #[serde(default)]
+    pub notes: String,
+    pub due: Option<DateTime<Utc>>,
+    #[serde(default = "default_true")]
+    pub all_day: bool,
+    /// Fehlt das Feld, bleibt der Status erhalten (neue Aufgaben: offen).
+    pub completed: Option<bool>,
+}
+
+fn default_true() -> bool {
+    true
+}

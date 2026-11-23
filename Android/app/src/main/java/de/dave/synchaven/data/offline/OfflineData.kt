@@ -7,6 +7,9 @@ import de.dave.synchaven.data.model.Contact
 import de.dave.synchaven.data.model.ContactInput
 import de.dave.synchaven.data.model.EventInput
 import de.dave.synchaven.data.model.Occurrence
+import de.dave.synchaven.data.model.Task
+import de.dave.synchaven.data.model.TaskInput
+import de.dave.synchaven.data.model.TaskList
 import de.dave.synchaven.util.RRuleExpander
 import de.dave.synchaven.util.Reminders
 import de.dave.synchaven.util.applyReminders
@@ -28,6 +31,10 @@ data class OfflineData(
     val addressBooks: List<AddressBook>? = null,
     /** Kontakte ohne Fotos (die liegen getrennt im [OfflineStore]) */
     val contacts: List<Contact>? = null,
+    /** Aufgabenlisten; bleibt `null` im lokalen Modus und bei Servern ohne Aufgaben */
+    val taskLists: List<TaskList>? = null,
+    /** Alle Aufgaben aller Listen */
+    val tasks: List<Task>? = null,
     val outbox: List<PendingOp> = emptyList(),
     /** Vorläufige ID → Server-ID bereits übertragener Anlagen (für noch geöffnete Bildschirme) */
     val idMap: Map<String, String> = emptyMap(),
@@ -85,21 +92,47 @@ data class OfflineData(
                 defaultReminders = op.input.defaultReminders ?: c.defaultReminders,
                 defaultAllDayReminders = op.input.defaultAllDayReminders ?: c.defaultAllDayReminders) else c
         })
+        is PendingOp.CreateTask -> withTasks { list ->
+            val t = op.input.toLocalTask(op.localId, createdAt = op.createdAt)
+            if (list.any { it.id == op.localId }) list.map { if (it.id == op.localId) t else it } else list + t
+        }
+        is PendingOp.UpdateTask -> withTasks { list ->
+            list.map { if (it.id == op.id) op.input.toLocalTask(it.id, base = it) else it }
+        }
+        is PendingOp.SetTaskCompleted -> withTasks { list ->
+            list.map { if (it.id == op.id) it.withCompleted(op.completed, op.at) else it }
+        }
+        is PendingOp.DeleteTask -> withTasks { list -> list.filterNot { it.id == op.id } }
+        is PendingOp.UpdateTaskList -> copy(taskLists = taskLists?.map { l ->
+            if (l.id == op.id) l.copy(name = op.input.name, color = op.input.color ?: l.color, visible = op.input.visible ?: l.visible)
+            else l
+        })
         is PendingOp.SetDefaultView -> this
     }
 
     /** Rechnet alle ausstehenden Änderungen ein, z. B. nachdem Daten vom Server neu geladen wurden. */
     fun withPending(): OfflineData = outbox.fold(this) { d, op -> d.apply(op) }.recount()
 
-    /** Anzahl der Kontakte je Adressbuch aus der Kontaktliste – stimmt so auch nach Offline-Änderungen */
+    /**
+     * Anzahl der Kontakte je Adressbuch und der offenen Aufgaben je Liste aus den Einträgen – stimmt so auch nach
+     * Offline-Änderungen
+     */
     fun recount(): OfflineData {
-        val list = contacts ?: return this
-        val counts = list.groupingBy { it.addressBookId }.eachCount()
-        return copy(addressBooks = addressBooks?.map { it.copy(contactCount = counts[it.id] ?: 0) })
+        var d = this
+        contacts?.let { list ->
+            val counts = list.groupingBy { it.addressBookId }.eachCount()
+            d = d.copy(addressBooks = d.addressBooks?.map { it.copy(contactCount = counts[it.id] ?: 0) })
+        }
+        tasks?.let { list ->
+            val open = list.filterNot { it.completed }.groupingBy { it.listId }.eachCount()
+            d = d.copy(taskLists = d.taskLists?.map { it.copy(openCount = open[it.id] ?: 0) })
+        }
+        return d
     }
 
     private fun withEvents(f: (List<CalEvent>) -> List<CalEvent>) = copy(events = f(events.orEmpty()))
     private fun withContacts(f: (List<Contact>) -> List<Contact>) = copy(contacts = f(contacts.orEmpty()))
+    private fun withTasks(f: (List<Task>) -> List<Task>) = copy(tasks = f(tasks.orEmpty()))
 
     /**
      * Vorkommen im Zeitraum [from, to), wie sie `GET /events` liefern würde. Geburtstage erhalten das Alter aus dem
@@ -175,6 +208,37 @@ fun EventInput.toLocalEvent(id: String, base: CalEvent? = null) = CalEvent(
     reminders = applyReminders(base?.reminders),
     contactId = base?.contactId,
     readOnly = base?.readOnly ?: false,
+)
+
+/**
+ * Aufgabe, wie sie der Server nach dem Speichern liefern würde: ohne Datum immer ganztägig, ganztägig auf Mitternacht
+ * UTC des Tages. Fehlt `completed` in der Eingabe, bleibt der Status von [base] erhalten.
+ */
+fun TaskInput.toLocalTask(id: String, base: Task? = null, createdAt: String = ""): Task {
+    val allDay = allDay || due == null
+    val dueAt = due?.let { d ->
+        if (!allDay) d
+        else parseOrNull(d)?.atOffset(ZoneOffset.UTC)?.toLocalDate()?.let { "${it}T00:00:00Z" } ?: d
+    }
+    val done = completed ?: base?.completed ?: false
+    return Task(
+        id = id,
+        listId = listId,
+        title = title.trim(),
+        notes = notes.trimEnd(),
+        due = dueAt,
+        allDay = allDay,
+        completed = done,
+        completedAt = if (done) base?.completedAt?.takeIf { base.completed } ?: createdAt.ifEmpty { null } else null,
+        createdAt = base?.createdAt ?: createdAt,
+        updatedAt = base?.updatedAt ?: createdAt,
+    )
+}
+
+/** Abgehakt bzw. wieder geöffnet; der Erledigungszeitpunkt bleibt erhalten, solange die Aufgabe erledigt bleibt. */
+fun Task.withCompleted(done: Boolean, at: String): Task = copy(
+    completed = done,
+    completedAt = if (!done) null else completedAt?.takeIf { completed } ?: at.ifEmpty { null },
 )
 
 /** Kontakt (ohne Foto), wie ihn der Server nach dem Speichern liefern würde */

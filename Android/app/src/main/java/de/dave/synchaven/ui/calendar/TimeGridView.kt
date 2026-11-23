@@ -246,24 +246,33 @@ private fun AllDayRow(
                 }
             }
             for (item in items) {
-                val color = parseHexColor(item.ev.color)
-                Text(
-                    item.ev.title,
+                val ev = item.ev
+                val color = parseHexColor(ev.color)
+                Row(
                     Modifier
                         .offset(x = colWidth * item.start, y = ALL_DAY_LANE * item.lane + 2.dp)
                         .width(colWidth * (item.end - item.start))
                         .height(ALL_DAY_LANE - 2.dp)
                         .padding(horizontal = 1.dp)
                         .clip(RoundedCornerShape(4.dp))
-                        .background(color)
-                        .clickable { onEventClick(item.ev) }
-                        .padding(horizontal = 6.dp)
-                        .wrapContentSize(Alignment.CenterStart),
-                    color = onColor(color),
-                    style = MaterialTheme.typography.labelMedium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                        .background(if (ev.completed) color.copy(alpha = 0.55f) else color)
+                        .clickable { onEventClick(ev) }
+                        .padding(horizontal = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    if (ev.isTask) {
+                        TaskCheckIcon(ev.completed, onColor(color), size = 14.dp)
+                        Spacer(Modifier.width(4.dp))
+                    }
+                    Text(
+                        ev.title,
+                        color = onColor(color),
+                        style = MaterialTheme.typography.labelMedium,
+                        textDecoration = taskDecoration(ev.completed),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
         }
     }
@@ -296,7 +305,7 @@ private fun TimedEvent(
             }
             .then(if (drag != null) Modifier.shadow(6.dp, RoundedCornerShape(6.dp)) else Modifier)
             .clip(RoundedCornerShape(6.dp))
-            .background(color)
+            .background(if (ev.completed) color.copy(alpha = 0.55f) else color)
             .then(if (drag != null) Modifier.border(2.dp, textColor, RoundedCornerShape(6.dp)) else Modifier)
             .pointerInput(ev.id) {
                 if (ev.occ.readOnly) return@pointerInput
@@ -327,7 +336,18 @@ private fun TimedEvent(
         } else ev.start.toLocalTime()
         val duration = Duration.between(ev.start, ev.end).toMinutes()
         val timeText = stringResource(R.string.time_range, startTime.format(FMT_TIME), startTime.plusMinutes(duration).format(FMT_TIME))
-        if (duration < 45) {
+        if (ev.isTask) {
+            // Aufgaben: Abhak-Symbol, Titel und Fälligkeit in einer Zeile
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                TaskCheckIcon(ev.completed, textColor, size = 14.dp)
+                Spacer(Modifier.width(4.dp))
+                Text(
+                    stringResource(R.string.event_title_time, ev.title, startTime.format(FMT_TIME)), color = textColor,
+                    style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Medium,
+                    textDecoration = taskDecoration(ev.completed), maxLines = 1, overflow = TextOverflow.Ellipsis,
+                )
+            }
+        } else if (duration < 45) {
             // Kurze Termine: Titel und Uhrzeit in einer Zeile
             Text(
                 stringResource(R.string.event_title_time, ev.title, startTime.format(FMT_TIME)), color = textColor,

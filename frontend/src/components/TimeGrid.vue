@@ -6,6 +6,7 @@ import { isBarEvent, lastDay, layoutDay, layoutRow } from '@/utils/layout'
 import { indexAtX, trackDrag } from '@/utils/drag'
 import { onColor } from '@/plugins/theme'
 import { isDraft } from '@/utils/draft'
+import { taskIcon } from '@/stores/tasks'
 
 const props = defineProps<{
   events: ViewEvent[]
@@ -17,6 +18,8 @@ const emit = defineEmits<{
   create: [start: Date, allDay: boolean]
   openDay: [day: Date]
   move: [ev: ViewEvent, newStart: Date]
+  /** Aufgabe abhaken oder wieder öffnen */
+  toggle: [ev: ViewEvent]
 }>()
 
 const HOUR = 48
@@ -172,7 +175,7 @@ const today = new Date()
           v-for="it in barItems"
           :key="it.ev.id"
           class="bar"
-          :class="{ 'cont-before': it.contBefore, 'cont-after': it.contAfter, dragging: drag?.ev.id === it.ev.id, draft: isDraft(it.ev) }"
+          :class="{ 'cont-before': it.contBefore, 'cont-after': it.contAfter, dragging: drag?.ev.id === it.ev.id, draft: isDraft(it.ev), done: it.ev.task?.completed }"
           :style="{
             left: `calc(${(it.start / days.length) * 100}% + 2px)`,
             width: `calc(${((it.end - it.start) / days.length) * 100}% - 4px)`,
@@ -186,7 +189,12 @@ const today = new Date()
           @click.stop="emit('select', it.ev, $event.currentTarget as HTMLElement)"
           @keydown.enter="emit('select', it.ev, $event.currentTarget as HTMLElement)"
         >
-          {{ it.ev.title }}
+          <span
+            v-if="it.ev.task" class="task-check" role="button"
+            :title="it.ev.task.completed ? 'Als offen markieren' : 'Als erledigt markieren'"
+            @click.stop="emit('toggle', it.ev)"
+          ><v-icon :icon="taskIcon(it.ev.task)" size="14" /></span>
+          <span class="bar-title">{{ it.ev.title }}</span>
         </div>
         <div
           v-if="barGhost"
@@ -224,7 +232,7 @@ const today = new Date()
             v-for="it in col.items"
             :key="it.ev.id"
             class="ev"
-            :class="{ short: it.height < 55, 'cont-before': it.contBefore, 'cont-after': it.contAfter, dragging: drag?.ev.id === it.ev.id, draft: isDraft(it.ev) }"
+            :class="{ short: it.height < 55, 'cont-before': it.contBefore, 'cont-after': it.contAfter, dragging: drag?.ev.id === it.ev.id, draft: isDraft(it.ev), done: it.ev.task?.completed }"
             :style="{
               top: `${it.top * PX_PER_MIN}px`,
               height: `${it.height * PX_PER_MIN - 2}px`,
@@ -239,8 +247,15 @@ const today = new Date()
             @click.stop="emit('select', it.ev, $event.currentTarget as HTMLElement)"
             @keydown.enter="emit('select', it.ev, $event.currentTarget as HTMLElement)"
           >
-            <div class="ev-title">{{ it.ev.title }}<span v-if="it.height < 55" class="ev-time">, {{ fmtTime(it.ev.startDate) }}</span></div>
-            <div v-if="it.height >= 55" class="ev-time">
+            <div class="ev-title">
+              <span
+                v-if="it.ev.task" class="task-check" role="button"
+                :title="it.ev.task.completed ? 'Als offen markieren' : 'Als erledigt markieren'"
+                @click.stop="emit('toggle', it.ev)"
+              ><v-icon :icon="taskIcon(it.ev.task)" size="14" /></span>
+              <span class="ev-name">{{ it.ev.title }}</span><span v-if="it.height < 55" class="ev-time">, {{ fmtTime(it.ev.startDate) }}</span>
+            </div>
+            <div v-if="it.height >= 55 && !it.ev.task" class="ev-time">
               {{ fmtTime(it.ev.startDate) }} – {{ fmtTime(it.ev.endDate) }}
             </div>
             <div v-if="it.height >= 75 && it.ev.location" class="ev-time ev-loc">{{ it.ev.location }}</div>
@@ -329,6 +344,11 @@ const today = new Date()
 .ev.cont-before { border-top-left-radius: 0; border-top-right-radius: 0; }
 .ev.cont-after { border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
 .ev-title { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Aufgaben: Abhak-Symbol vor dem Titel, erledigte durchgestrichen */
+.task-check { display: inline-flex; vertical-align: -2px; margin-right: 4px; border-radius: 50%; }
+.task-check:hover { background: rgba(0, 0, 0, .15); }
+.ev.done, .bar.done { opacity: .6; }
+.ev.done .ev-name, .bar.done .bar-title { text-decoration: line-through; }
 .ev-time { opacity: .9; font-weight: 400; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ev-loc { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 @media (max-width: 600px) {

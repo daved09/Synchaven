@@ -489,4 +489,60 @@
     <string name="settings_reminders_denied">Benachrichtigungen sind für Synchaven in den Android-Einstellungen ausgeschaltet.</string>
     <string name="settings_reminders_open_settings">Einstellungen öffnen</string>
     <string name="settings_reminders_exact">Für pünktliche Erinnerungen „Wecker und Erinnerungen“ erlauben.</string>
+
+    <!-- Aufgaben -->
+    <string name="tasks_title">Aufgaben</string>
+    <string name="tasks_show_all">Alle Aufgaben</string>
+    <string name="tasks_add_hint">Aufgabe hinzufügen</string>
+    <string name="tasks_empty">Keine offenen Aufgaben</string>
+    <string name="tasks_no_lists">Noch keine Aufgabenlisten geladen</string>
+    <string name="tasks_completed_section">Erledigt (%1$d)</string>
+    <string name="tasks_clear_completed">Erledigte Aufgaben löschen</string>
+    <string name="tasks_select_list">Liste wählen</string>
+    <string name="task_new">Neue Aufgabe</string>
+    <string name="task_edit">Aufgabe bearbeiten</string>
+    <string name="task_title">Titel</string>
+    <string name="task_notes">Notizen</string>
+    <string name="task_list">Liste</string>
+    <string name="task_add_date">Datum hinzufügen</string>
+    <string name="task_remove_date">Datum entfernen</string>
+    <string name="task_add_time">Uhrzeit hinzufügen</string>
+    <string name="task_remove_time">Uhrzeit entfernen</string>
+    <string name="task_no_date">Ohne Datum</string>
+    <string name="task_due_today">Heute</string>
+    <string name="task_due_tomorrow">Morgen</string>
+    <string name="task_due_yesterday">Gestern</string>
+    <string name="task_due_with_time">%1$s, %2$s</string>
+    <string name="task_due_long_time">%1$s · %2$s</string>
+    <string name="task_completed_at">Erledigt am %1$s</string>
+    <string name="task_mark_done">Als erledigt markieren</string>
+    <string name="task_mark_open">Als offen markieren</string>
+    <string name="task_lists_header">Aufgaben</string>
+    <string name="task_list_new">Neue Aufgabenliste</string>
+    <string name="task_list_edit">Aufgabenliste bearbeiten</string>
+    <string name="task_list_menu">Listen-Menü</string>
+    <string name="fab_new_event">Termin</string>
+    <string name="fab_new_task">Aufgabe</string>
+    <string name="calendar_create">Erstellen</string>
+    <string name="dialog_delete_task_title">Aufgabe löschen?</string>
+    <string name="dialog_delete_task_text">„%1$s“ wird endgültig gelöscht.</string>
+    <string name="dialog_delete_task_list_title">Aufgabenliste löschen?</string>
+    <string name="dialog_delete_task_list_text">„%1$s“ wird mit allen Aufgaben endgültig gelöscht.</string>
+    <string name="msg_task_created">Aufgabe angelegt</string>
+    <string name="msg_task_saved">Aufgabe gespeichert</string>
+    <string name="msg_task_deleted">Aufgabe gelöscht</string>
+    <string name="msg_task_done">Aufgabe erledigt</string>
+    <string name="msg_task_reopened">Aufgabe wieder offen</string>
+    <string name="msg_task_moved">Aufgabe verschoben</string>
+    <string name="msg_task_list_created">Aufgabenliste angelegt</string>
+    <string name="msg_task_list_saved">Aufgabenliste gespeichert</string>
+    <string name="msg_task_list_deleted">Aufgabenliste „%1$s“ gelöscht</string>
+    <plurals name="msg_tasks_clear_confirm">
+        <item quantity="one">%1$d erledigte Aufgabe dieser Liste wird endgültig gelöscht.</item>
+        <item quantity="other">%1$d erledigte Aufgaben dieser Liste werden endgültig gelöscht.</item>
+    </plurals>
+    <plurals name="msg_tasks_cleared">
+        <item quantity="one">%1$d erledigte Aufgabe gelöscht</item>
+        <item quantity="other">%1$d erledigte Aufgaben gelöscht</item>
+    </plurals>
 </resources>

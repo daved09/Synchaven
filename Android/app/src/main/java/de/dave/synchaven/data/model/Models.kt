@@ -264,3 +264,66 @@ data class ContactImportResult(
     val unchanged: Int = 0,
     val skipped: List<String> = emptyList(),
 )
+
+// ---------- Aufgaben ----------
+
+@Serializable
+data class TaskList(
+    val id: String,
+    val name: String,
+    val color: String = "#1A73E8",
+    /** Aufgaben dieser Liste im Kalender anzeigen */
+    val visible: Boolean = true,
+    /** Anzahl offener Aufgaben */
+    @SerialName("open_count") val openCount: Int = 0,
+    @SerialName("created_at") val createdAt: String = "",
+    @SerialName("updated_at") val updatedAt: String = "",
+) {
+    fun toInput() = TaskListInput(name, color, visible)
+}
+
+/** `color` und `visible` sind optional; beim Bearbeiten bleiben fehlende Werte erhalten. */
+@Serializable
+data class TaskListInput(
+    val name: String,
+    val color: String? = null,
+    val visible: Boolean? = null,
+)
+
+/**
+ * Aufgabe. [due] folgt dem Zeitmodell der Termine: ganztägig als Mitternacht UTC des Tages, sonst ein Zeitpunkt in
+ * UTC; `null` = ohne Datum (dann ist [allDay] immer `true`).
+ */
+@Serializable
+data class Task(
+    val id: String,
+    @SerialName("list_id") val listId: String,
+    val title: String,
+    val notes: String = "",
+    val due: String? = null,
+    @SerialName("all_day") val allDay: Boolean = true,
+    val completed: Boolean = false,
+    @SerialName("completed_at") val completedAt: String? = null,
+    @SerialName("created_at") val createdAt: String = "",
+    @SerialName("updated_at") val updatedAt: String = "",
+) {
+    /** Eingabe zum Speichern mit unverändertem Status (`completed` fehlt) */
+    fun toInput() = TaskInput(listId, title, notes, due, allDay)
+}
+
+@Serializable
+data class TaskInput(
+    @SerialName("list_id") val listId: String,
+    val title: String,
+    val notes: String = "",
+    val due: String? = null,
+    @SerialName("all_day") val allDay: Boolean = true,
+    /** `null` lässt den Status unverändert (neue Aufgaben sind offen) */
+    val completed: Boolean? = null,
+)
+
+@Serializable
+data class CompletedRequest(val completed: Boolean)
+
+@Serializable
+data class ClearCompletedResult(val deleted: Int = 0)

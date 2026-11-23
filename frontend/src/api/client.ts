@@ -1,6 +1,7 @@
 import type {
   AddressBook, AddressBookInput, AuthResponse, CalEvent, Calendar, CalendarInput, Contact, ContactImportResult,
-  ContactInput, DbImportReport, EventInput, ImportResult, Occurrence, PushSubscriptionInput, ServerInfo, User, ViewMode,
+  ContactInput, DbImportReport, EventInput, ImportResult, Occurrence, PushSubscriptionInput, ServerInfo, Task, TaskInput,
+  TaskList, TaskListInput, User, ViewMode,
 } from './types'
 
 const BASE = '/api'
@@ -104,6 +105,18 @@ export const api = {
   deleteEvent: (id: string) => request<void>('DELETE', `/events/${id}`),
   addExdate: (id: string, occurrenceStart: string) =>
     request<CalEvent>('POST', `/events/${id}/exdates`, { body: { occurrence_start: occurrenceStart } }),
+
+  taskLists: () => request<TaskList[]>('GET', '/task-lists'),
+  createTaskList: (data: TaskListInput) => request<TaskList>('POST', '/task-lists', { body: data }),
+  updateTaskList: (id: string, data: TaskListInput) => request<TaskList>('PUT', `/task-lists/${id}`, { body: data }),
+  deleteTaskList: (id: string) => request<void>('DELETE', `/task-lists/${id}`),
+  clearCompletedTasks: (id: string) => request<{ deleted: number }>('POST', `/task-lists/${id}/clear-completed`),
+  tasks: () => request<Task[]>('GET', '/tasks'),
+  createTask: (data: TaskInput) => request<Task>('POST', '/tasks', { body: data }),
+  updateTask: (id: string, data: TaskInput) => request<Task>('PUT', `/tasks/${id}`, { body: data }),
+  setTaskCompleted: (id: string, completed: boolean) =>
+    request<Task>('PUT', `/tasks/${id}/completed`, { body: { completed } }),
+  deleteTask: (id: string) => request<void>('DELETE', `/tasks/${id}`),
 
   pushPublicKey: () => request<{ public_key: string }>('GET', '/push/public-key'),
   pushSubscribe: (data: PushSubscriptionInput) => request<void>('POST', '/push/subscriptions', { body: data }),

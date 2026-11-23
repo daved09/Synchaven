@@ -2,11 +2,14 @@ package de.dave.synchaven.data.api
 
 import de.dave.synchaven.data.model.AddressBookInput
 import de.dave.synchaven.data.model.CalendarInput
+import de.dave.synchaven.data.model.CompletedRequest
 import de.dave.synchaven.data.model.ContactInput
 import de.dave.synchaven.data.model.EventInput
 import de.dave.synchaven.data.model.ExdateRequest
 import de.dave.synchaven.data.model.LoginRequest
 import de.dave.synchaven.data.model.RegisterRequest
+import de.dave.synchaven.data.model.TaskInput
+import de.dave.synchaven.data.model.TaskListInput
 import de.dave.synchaven.data.model.UpdateMeRequest
 import okhttp3.RequestBody
 
@@ -43,6 +46,18 @@ class SessionApi(
     override suspend fun updateEvent(id: String, body: EventInput) = api.updateEvent(id, body)
     override suspend fun deleteEvent(id: String) = api.deleteEvent(id)
     override suspend fun addExdate(id: String, body: ExdateRequest) = api.addExdate(id, body)
+
+    override suspend fun taskLists() = api.taskLists()
+    override suspend fun createTaskList(body: TaskListInput) = api.createTaskList(body)
+    override suspend fun updateTaskList(id: String, body: TaskListInput) = api.updateTaskList(id, body)
+    override suspend fun deleteTaskList(id: String) = api.deleteTaskList(id)
+    override suspend fun clearCompletedTasks(id: String) = api.clearCompletedTasks(id)
+    override suspend fun tasks(listId: String?) = api.tasks(listId)
+    override suspend fun task(id: String) = api.task(id)
+    override suspend fun createTask(body: TaskInput) = api.createTask(body)
+    override suspend fun updateTask(id: String, body: TaskInput) = api.updateTask(id, body)
+    override suspend fun setTaskCompleted(id: String, body: CompletedRequest) = api.setTaskCompleted(id, body)
+    override suspend fun deleteTask(id: String) = api.deleteTask(id)
 
     override suspend fun addressBooks() = api.addressBooks()
     override suspend fun createAddressBook(body: AddressBookInput) = api.createAddressBook(body)

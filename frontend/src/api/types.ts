@@ -106,7 +106,8 @@ export interface Occurrence {
   rrule: string | null
   contact_id: string | null
   /** Automatisch erzeugte Termine (Geburtstage) können nicht bearbeitet werden */
-  read_only: boolean  /** Erinnerungen des Termins; `null` = Standard des Kalenders */
+  read_only: boolean
+  /** Erinnerungen des Termins; `null` = Standard des Kalenders */
   reminders: number[] | null
 }
 
@@ -116,6 +117,52 @@ export interface ViewEvent extends Occurrence {
   /** exklusives Ende */
   endDate: Date
   color: string
+  /** Gesetzt, wenn der Eintrag eine Aufgabe ist (`calendar_id` ist dann die Aufgabenliste) */
+  task?: Task
+}
+
+// ---------- Aufgaben ----------
+
+export interface TaskList {
+  id: string
+  name: string
+  color: string
+  /** Aufgaben dieser Liste im Kalender anzeigen */
+  visible: boolean
+  /** Anzahl offener Aufgaben */
+  open_count: number
+  created_at: string
+  updated_at: string
+}
+
+export interface TaskListInput {
+  name: string
+  color?: string
+  visible?: boolean
+}
+
+export interface Task {
+  id: string
+  list_id: string
+  title: string
+  notes: string
+  /** Fälligkeit; ganztägig als Mitternacht UTC, `null` = ohne Datum */
+  due: string | null
+  all_day: boolean
+  completed: boolean
+  completed_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface TaskInput {
+  list_id: string
+  title: string
+  notes: string
+  due: string | null
+  all_day: boolean
+  /** Fehlt das Feld, bleibt der Status erhalten */
+  completed?: boolean
 }
 
 export interface ServerInfo {

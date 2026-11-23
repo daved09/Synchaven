@@ -47,14 +47,18 @@ fn validate(input: &CalendarInput) -> AppResult<(String, Option<String>)> {
     if name.is_empty() || name.chars().count() > 100 {
         return Err(AppError::BadRequest("Der Name muss 1–100 Zeichen lang sein".into()));
     }
-    let color = match input.color.as_deref().map(str::trim) {
-        None | Some("") => None,
+    Ok((name.to_string(), parse_color(input.color.as_deref())?))
+}
+
+/// Farbe im Format `#RRGGBB` (Großbuchstaben); `None` bei fehlender oder leerer Angabe.
+pub fn parse_color(color: Option<&str>) -> AppResult<Option<String>> {
+    match color.map(str::trim) {
+        None | Some("") => Ok(None),
         Some(c) if c.len() == 7 && c.starts_with('#') && c[1..].chars().all(|ch| ch.is_ascii_hexdigit()) => {
-            Some(c.to_uppercase())
+            Ok(Some(c.to_uppercase()))
         }
-        Some(_) => return Err(AppError::BadRequest("Farbe muss im Format #RRGGBB angegeben werden".into())),
-    };
-    Ok((name.to_string(), color))
+        Some(_) => Err(AppError::BadRequest("Farbe muss im Format #RRGGBB angegeben werden".into())),
+    }
 }
 
 pub async fn list(State(state): State<AppState>, auth: AuthUser) -> AppResult<Json<Vec<Calendar>>> {

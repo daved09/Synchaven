@@ -7,6 +7,7 @@ import de.dave.synchaven.data.AuthRepository
 import de.dave.synchaven.data.CalendarRepository
 import de.dave.synchaven.data.ContactRepository
 import de.dave.synchaven.data.FileTransfer
+import de.dave.synchaven.data.TaskRepository
 import de.dave.synchaven.data.api.NetworkFactory
 import de.dave.synchaven.data.api.SessionApi
 import de.dave.synchaven.data.local.LOCAL_ACCOUNT
@@ -61,6 +62,8 @@ class AppContainer(context: Context) {
         calendarRepository.birthdaysChanged()
         syncController.requestSync(SyncKind.CONTACTS)
     })
+    /** Aufgabenlisten und Aufgaben (nur mit Server, nicht im lokalen Modus) */
+    val taskRepository = TaskRepository(api, offlineStore, offlineSync, appScope)
     val fileTransfer = FileTransfer(context)
 
     init {

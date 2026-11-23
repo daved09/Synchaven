@@ -11,6 +11,9 @@ import de.dave.synchaven.data.api.NoServerConfiguredException
 import de.dave.synchaven.data.api.SyncHavenApi
 import de.dave.synchaven.data.api.apiCall
 import de.dave.synchaven.data.model.CalEvent
+import de.dave.synchaven.data.model.CompletedRequest
+import de.dave.synchaven.data.model.Task
+import de.dave.synchaven.data.model.TaskList
 import de.dave.synchaven.data.model.ExdateRequest
 import de.dave.synchaven.data.model.UpdateMeRequest
 import de.dave.synchaven.data.store.SessionStore
@@ -285,7 +288,9 @@ class OfflineSync(
                     result.events = true
                 }
                 is PendingOp.UpdateCalendar -> result.events = true
-                is PendingOp.SetDefaultView -> Unit
+                // Aufgaben zeigen die Ansichten direkt aus dem Store – nichts weiter anzustoßen
+                is PendingOp.CreateTask, is PendingOp.UpdateTask, is PendingOp.SetTaskCompleted,
+                is PendingOp.DeleteTask, is PendingOp.UpdateTaskList, is PendingOp.SetDefaultView -> Unit
             }
             if (token != store.token) return result.also { it.complete = false }
         }
@@ -348,6 +353,29 @@ class OfflineSync(
             val f: (OfflineData) -> OfflineData = { d -> d.copy(calendars = d.calendars?.map { if (it.id == cal.id) cal else it }) }
             f
         }
+        is PendingOp.CreateTask -> {
+            val t = apiCall { api.createTask(op.input) }
+            val f: (OfflineData) -> OfflineData = { d ->
+                d.copy(
+                    tasks = d.tasks.orEmpty().filterNot { it.id == op.localId } + t,
+                    outbox = d.outbox.remap(op.localId, t.id),
+                    idMap = d.idMap + (op.localId to t.id),
+                )
+            }
+            f
+        }
+        is PendingOp.UpdateTask -> replaceTask(apiCall { api.updateTask(op.id, op.input) })
+        is PendingOp.SetTaskCompleted -> replaceTask(apiCall { api.setTaskCompleted(op.id, CompletedRequest(op.completed)) })
+        is PendingOp.DeleteTask -> {
+            ignoreNotFound { apiCall { api.deleteTask(op.id) } }
+            val f: (OfflineData) -> OfflineData = { d -> d.copy(tasks = d.tasks?.filterNot { it.id == op.id }) }
+            f
+        }
+        is PendingOp.UpdateTaskList -> {
+            val list = apiCall { api.updateTaskList(op.id, op.input) }
+            val f: (OfflineData) -> OfflineData = { d -> d.copy(taskLists = d.taskLists?.map { if (it.id == list.id) list else it }) }
+            f
+        }
         is PendingOp.SetDefaultView -> {
             val user = apiCall { api.updateMe(UpdateMeRequest(defaultView = op.view)) }
             sessionStore.updateUser(user)
@@ -358,6 +386,10 @@ class OfflineSync(
 
     private fun replaceEvent(ev: CalEvent): (OfflineData) -> OfflineData = { d ->
         d.copy(events = d.events?.map { if (it.id == ev.id) ev else it })
+    }
+
+    private fun replaceTask(t: Task): (OfflineData) -> OfflineData = { d ->
+        d.copy(tasks = d.tasks?.map { if (it.id == t.id) t else it })
     }
 
     private suspend fun ignoreNotFound(block: suspend () -> Unit) {
@@ -383,15 +415,19 @@ class OfflineSync(
             }
             val booksJob = async { apiCall { api.addressBooks() } }
             val contactsJob = async { apiCall { api.contacts() } }
+            val tasksJob = async { fetchTasks(api) }
             val events = eventsJob.await()
             val books = booksJob.await()
             val contacts = contactsJob.await()
+            val tasks = tasksJob.await()
             store.updateIf(token) { d ->
                 d.copy(
                     calendars = calendars,
                     events = events ?: d.events,
                     addressBooks = books,
                     contacts = contacts,
+                    taskLists = tasks?.first ?: d.taskLists,
+                    tasks = tasks?.second ?: d.tasks,
                     lastSync = Instant.now().toString(),
                 ).withPending()
             }
@@ -408,6 +444,17 @@ class OfflineSync(
     private companion object {
         const val TAG = "OfflineSync"
     }
+}
+
+/**
+ * Aufgabenlisten und alle Aufgaben vom Server; `null` bei einem älteren Server ohne Aufgaben (404).
+ * Die Listen zuerst: `GET /task-lists` legt bei Bedarf „Meine Aufgaben“ an.
+ */
+suspend fun fetchTasks(api: SyncHavenApi): Pair<List<TaskList>, List<Task>>? = try {
+    val lists = apiCall { api.taskLists() }
+    lists to apiCall { api.tasks() }
+} catch (e: ApiException) {
+    if (e.status == 404) null else throw e
 }
 
 /** Ersetzt bereits übertragene vorläufige IDs durch die des Servers. */

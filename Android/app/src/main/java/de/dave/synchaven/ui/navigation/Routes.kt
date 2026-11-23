@@ -14,6 +14,10 @@ data object ContactsRoute
 @Serializable
 data object SettingsRoute
 
+/** Aufgabenlisten mit Schnelleingabe */
+@Serializable
+data object TasksRoute
+
 /** Neuer Termin (ohne [eventId]) ab [startEpochSecond] oder Bearbeiten eines vorhandenen Termins/einer Serie. */
 @Serializable
 data class EventEditRoute(

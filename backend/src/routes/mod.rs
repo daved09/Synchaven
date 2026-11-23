@@ -14,6 +14,7 @@ mod contacts;
 mod events;
 mod ical;
 mod push;
+mod tasks;
 
 pub fn api_router() -> Router<AppState> {
     Router::new()
@@ -41,6 +42,12 @@ pub fn api_router() -> Router<AppState> {
         .route("/contacts/{id}", get(contacts::get).put(contacts::update).delete(contacts::delete))
         .route("/contact-categories/rename", post(contacts::rename_category))
         .route("/contact-categories/delete", post(contacts::delete_category))
+        .route("/task-lists", get(tasks::list_lists).post(tasks::create_list))
+        .route("/task-lists/{id}", put(tasks::update_list).delete(tasks::delete_list))
+        .route("/task-lists/{id}/clear-completed", post(tasks::clear_completed))
+        .route("/tasks", get(tasks::list).post(tasks::create))
+        .route("/tasks/{id}", get(tasks::get).put(tasks::update).delete(tasks::delete))
+        .route("/tasks/{id}/completed", put(tasks::set_completed))
         .route("/push/public-key", get(push::public_key))
         .route("/push/subscriptions", post(push::subscribe).delete(push::unsubscribe))
         .route("/push/test", post(push::test))

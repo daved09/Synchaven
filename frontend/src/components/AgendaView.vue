@@ -2,9 +2,10 @@
 import { computed } from 'vue'
 import type { ViewEvent } from '@/api/types'
 import { addDays, fmt, fmtTime, isSameDay, startOfDay } from '@/utils/date'
+import { taskIcon } from '@/stores/tasks'
 
 const props = defineProps<{ events: ViewEvent[]; start: Date; days: number; search: string }>()
-const emit = defineEmits<{ select: [ev: ViewEvent, el: HTMLElement]; openDay: [day: Date] }>()
+const emit = defineEmits<{ select: [ev: ViewEvent, el: HTMLElement]; openDay: [day: Date]; toggle: [ev: ViewEvent] }>()
 
 const filtered = computed(() => {
   const q = props.search.trim().toLowerCase()
@@ -26,6 +27,7 @@ const groups = computed(() => {
 })
 
 function timeText(e: ViewEvent, day: Date) {
+  if (e.task) return e.all_day ? 'Aufgabe' : fmtTime(e.startDate)
   if (e.all_day) return 'Ganztägig'
   const startsToday = isSameDay(e.startDate, day)
   const endsToday = e.endDate <= addDays(startOfDay(day), 1)
@@ -61,9 +63,14 @@ const today = new Date()
           @click="emit('select', e, $event.currentTarget as HTMLElement)"
           @keydown.enter="emit('select', e, $event.currentTarget as HTMLElement)"
         >
-          <span class="dot" :style="{ background: e.color }" />
+          <span
+            v-if="e.task" class="task-check" role="button" :style="{ color: e.color }"
+            :title="e.task.completed ? 'Als offen markieren' : 'Als erledigt markieren'"
+            @click.stop="emit('toggle', e)"
+          ><v-icon :icon="taskIcon(e.task)" size="18" /></span>
+          <span v-else class="dot" :style="{ background: e.color }" />
           <span class="time text-body-medium">{{ timeText(e, g.day) }}</span>
-          <span class="title text-body-large">
+          <span class="title text-body-large" :class="{ done: e.task?.completed }">
             {{ e.title }}
             <v-icon v-if="e.recurring" icon="mdi-repeat" size="14" class="ml-1 text-medium-emphasis" />
             <span v-if="e.location" class="loc text-body-medium"> · {{ e.location }}</span>
@@ -97,6 +104,9 @@ const today = new Date()
 .row:hover { background: rgba(var(--v-theme-on-surface), .06); }
 .row:focus-visible { outline: 2px solid rgb(var(--v-theme-primary)); }
 .dot { width: 12px; height: 12px; border-radius: 6px; flex: 0 0 12px; }
+.task-check { display: inline-flex; flex: 0 0 12px; justify-content: center; width: 12px; border-radius: 50%; }
+.task-check:hover { background: rgba(var(--v-theme-on-surface), .08); }
+.title.done { text-decoration: line-through; opacity: .6; }
 .time { width: 120px; flex: 0 0 120px; color: rgb(var(--v-theme-on-m3-surface-variant)); }
 .title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .loc { color: rgb(var(--v-theme-on-m3-surface-variant)); }

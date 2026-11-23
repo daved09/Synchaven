@@ -2,19 +2,25 @@ package de.dave.synchaven.util
 
 import de.dave.synchaven.data.model.Calendar
 import de.dave.synchaven.data.model.Occurrence
+import de.dave.synchaven.data.model.Task
 import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
 
-/** Vorkommen mit lokal berechneten Zeiten für die Darstellung */
+/** Vorkommen mit lokal berechneten Zeiten für die Darstellung – oder eine Aufgabe mit Fälligkeit ([task]) */
 data class ViewEvent(
     val occ: Occurrence,
     val start: LocalDateTime,
     /** exklusives Ende */
     val end: LocalDateTime,
     val color: String,
+    /** Aufgabe statt Termin: mit Abhak-Symbol, erledigt durchgestrichen */
+    val task: Task? = null,
 ) {
+    val isTask get() = task != null
+    val completed get() = task?.completed == true
+
     val id get() = occ.id
     val title get() = occ.title
     val allDay get() = occ.allDay

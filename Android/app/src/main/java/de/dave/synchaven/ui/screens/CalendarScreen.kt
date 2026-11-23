@@ -24,6 +24,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.ArrowDropDown
+import androidx.compose.material.icons.outlined.Checklist
+import androidx.compose.material.icons.outlined.Event
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Menu
 import androidx.compose.material.icons.outlined.MoreVert
@@ -72,6 +74,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import de.dave.synchaven.R
 import de.dave.synchaven.UiText
 import de.dave.synchaven.data.model.Calendar
+import de.dave.synchaven.data.model.Task
+import de.dave.synchaven.data.model.TaskList
 import de.dave.synchaven.data.store.ViewMode
 import de.dave.synchaven.ui.common.CollectMessages
 import de.dave.synchaven.ui.common.ConfirmDialog
@@ -92,6 +96,10 @@ import de.dave.synchaven.ui.calendar.CalendarDialog
 import de.dave.synchaven.ui.calendar.CalendarDrawer
 import de.dave.synchaven.ui.calendar.EventDetailsSheet
 import de.dave.synchaven.ui.calendar.MonthView
+import de.dave.synchaven.ui.calendar.TaskDetailsSheet
+import de.dave.synchaven.ui.calendar.TaskEditDialog
+import de.dave.synchaven.ui.calendar.TaskListAction
+import de.dave.synchaven.ui.calendar.TaskListDialog
 import de.dave.synchaven.ui.calendar.TimeGridView
 import de.dave.synchaven.ui.calendar.icon
 import de.dave.synchaven.ui.calendar.rememberTimeGridScroll
@@ -111,8 +119,12 @@ fun CalendarScreen(
     onNewEvent: (Long, Boolean) -> Unit,
     onEditEvent: (String) -> Unit,
     onOpenContact: (String) -> Unit,
+    /** Aufgaben-Bildschirm öffnen */
+    onOpenTasks: () -> Unit,
 ) {
-    val vm = appViewModel { CalendarViewModel(it.calendarRepository, it.settingsStore, it.sessionStore, it.authRepository, it.fileTransfer) }
+    val vm = appViewModel {
+        CalendarViewModel(it.calendarRepository, it.taskRepository, it.settingsStore, it.sessionStore, it.authRepository, it.fileTransfer)
+    }
     val s by vm.state.collectAsStateWithLifecycle()
     val search by vm.search.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
@@ -127,6 +139,25 @@ fun CalendarScreen(
     var calendarDialog by remember { mutableStateOf<Calendar?>(null) }
     var newCalendarDialog by remember { mutableStateOf(false) }
     var deleteCalendar by remember { mutableStateOf<Calendar?>(null) }
+
+    // Aufgaben: Details (live aus dem Stand, z. B. nach dem Abhaken), Bearbeiten/Anlegen und Listen
+    var selectedTaskId by rememberSaveable { mutableStateOf<String?>(null) }
+    val selectedTask = selectedTaskId?.let { id -> s.tasks.firstOrNull { it.id == id } }
+    var taskEdit by remember { mutableStateOf<TaskEdit?>(null) }
+    var taskListDialog by remember { mutableStateOf<TaskList?>(null) }
+    var newTaskListDialog by remember { mutableStateOf(false) }
+    var deleteTaskList by remember { mutableStateOf<TaskList?>(null) }
+    val tasksAvailable = s.taskLists.isNotEmpty()
+    fun openEvent(ev: ViewEvent) {
+        val task = ev.task
+        if (task != null) selectedTaskId = task.id else selectedId = ev.id
+    }
+    fun newTask() {
+        // Im Monat/Tag am gewählten Tag fällig, in der Woche heute (wie neue Termine)
+        val day = if (s.mode == ViewMode.WEEK || s.mode == ViewMode.LIST) LocalDate.now() else s.date
+        val listId = s.taskLists.firstOrNull { it.visible }?.id ?: s.taskLists.firstOrNull()?.id
+        taskEdit = TaskEdit(null, day, listId)
+    }
 
     // Import/Export: der Kalender, für den die Dateiauswahl geöffnet wurde
     var fileCalendarId by rememberSaveable { mutableStateOf<String?>(null) }
@@ -144,7 +175,9 @@ fun CalendarScreen(
         newEventAt(if (day == now.toLocalDate()) now.plusHours(1).truncatedTo(ChronoUnit.HOURS) else day.atTime(9, 0), false)
     }
     fun requestMove(ev: ViewEvent, start: LocalDateTime) {
-        if (ev.occ.recurring) pendingMove = ev to start else vm.moveEvent(ev, start)
+        val task = ev.task
+        if (task != null) vm.moveTask(task, start)
+        else if (ev.occ.recurring) pendingMove = ev to start else vm.moveEvent(ev, start)
     }
 
     BackHandler(enabled = drawerState.isOpen) { scope.launch { drawerState.close() } }
@@ -173,6 +206,16 @@ fun CalendarScreen(
                     }
                 },
                 onNewCalendar = { newCalendarDialog = true },
+                taskLists = s.taskLists,
+                onOpenTasks = { scope.launch { drawerState.close() }; onOpenTasks() },
+                onToggleTaskList = vm::toggleTaskList,
+                onTaskListAction = { list, action ->
+                    when (action) {
+                        TaskListAction.EDIT -> taskListDialog = list
+                        TaskListAction.DELETE -> deleteTaskList = list
+                    }
+                },
+                onNewTaskList = { newTaskListDialog = true },
             )
         },
     ) {
@@ -196,9 +239,11 @@ fun CalendarScreen(
             bottomBar = { MainBottomBar(MainTab.CALENDAR, onSelectTab) },
             floatingActionButton = {
                 if (!search.active) {
-                    FloatingActionButton(onClick = { newEventOn(if (s.mode == ViewMode.WEEK) LocalDate.now() else s.date) }) {
-                        Icon(Icons.Outlined.Add, stringResource(R.string.calendar_new_event))
-                    }
+                    CreateButton(
+                        withTask = tasksAvailable,
+                        onNewEvent = { newEventOn(if (s.mode == ViewMode.WEEK) LocalDate.now() else s.date) },
+                        onNewTask = ::newTask,
+                    )
                 }
             },
             snackbarHost = { SnackbarHost(snackbar) },
@@ -211,7 +256,7 @@ fun CalendarScreen(
                         emptyText = stringResource(
                             if (search.query.isBlank()) R.string.calendar_search_empty_query else R.string.calendar_search_no_results
                         ),
-                        onEventClick = { selectedId = it.id },
+                        onEventClick = ::openEvent,
                     )
                     s.error != null && s.events.isEmpty() && s.calendars.isEmpty() ->
                         ErrorBox(s.error!!, onRetry = vm::refresh)
@@ -221,8 +266,9 @@ fun CalendarScreen(
                         onDayClick = { vm.goto(it, ViewMode.DAY) },
                         onNewEventOn = ::newEventOn,
                         onNewEventAt = ::newEventAt,
-                        onEventClick = { selectedId = it.id },
+                        onEventClick = ::openEvent,
                         onEventMove = ::requestMove,
+                        onTaskToggle = { ev -> ev.task?.let { vm.setTaskCompleted(it, !it.completed) } },
                     )
                 }
             }
@@ -237,6 +283,40 @@ fun CalendarScreen(
             onDelete = { scope -> selectedId = null; vm.deleteEvent(ev, scope) },
             onOpenContact = { id -> selectedId = null; onOpenContact(id) },
             onDismiss = { selectedId = null },
+        )
+    }
+    selectedTask?.let { task ->
+        TaskDetailsSheet(
+            task = task,
+            list = s.taskLists.firstOrNull { it.id == task.listId },
+            onToggle = { vm.setTaskCompleted(task, !task.completed) },
+            onEdit = { selectedTaskId = null; taskEdit = TaskEdit(task, null, task.listId) },
+            onDelete = { selectedTaskId = null; vm.deleteTask(task) },
+            onDismiss = { selectedTaskId = null },
+        )
+    }
+    taskEdit?.let { edit ->
+        TaskEditDialog(
+            task = edit.task,
+            lists = s.taskLists,
+            defaultListId = edit.listId,
+            defaultDate = edit.date,
+            onSave = { vm.saveTask(edit.task?.id, it) },
+            onDismiss = { taskEdit = null },
+        )
+    }
+    if (newTaskListDialog) {
+        TaskListDialog(null, onSave = { vm.saveTaskList(null, it) }, onDismiss = { newTaskListDialog = false })
+    }
+    taskListDialog?.let { list ->
+        TaskListDialog(list, onSave = { vm.saveTaskList(list.id, it) }, onDismiss = { taskListDialog = null })
+    }
+    deleteTaskList?.let { list ->
+        ConfirmDialog(
+            title = stringResource(R.string.dialog_delete_task_list_title),
+            text = stringResource(R.string.dialog_delete_task_list_text, list.name),
+            onConfirm = { vm.deleteTaskList(list) },
+            onDismiss = { deleteTaskList = null },
         )
     }
     if (pickDate) DatePickerModal(s.date, onPick = { vm.goto(it) }, onDismiss = { pickDate = false })
@@ -283,6 +363,7 @@ private fun CalendarContent(
     onNewEventAt: (LocalDateTime, Boolean) -> Unit,
     onEventClick: (ViewEvent) -> Unit,
     onEventMove: (ViewEvent, LocalDateTime) -> Unit,
+    onTaskToggle: (ViewEvent) -> Unit,
 ) {
     // Gemeinsame Scrollposition aller Wochen-/Tagesseiten
     val gridScroll = rememberTimeGridScroll(s.settings.dayStartHour)
@@ -332,8 +413,35 @@ private fun CalendarContent(
                     days = range.days, events = s.events,
                     emptyText = pluralStringResource(R.plurals.calendar_list_empty, LIST_DAYS.toInt(), LIST_DAYS),
                     onEventClick = onEventClick,
+                    onTaskToggle = onTaskToggle,
                 )
             }
+        }
+    }
+}
+
+/** Neue Aufgabe aus dem Kalender: [task] = null legt an, [date] ist die vorgeschlagene Fälligkeit */
+private data class TaskEdit(val task: Task?, val date: LocalDate?, val listId: String?)
+
+/** Erstellen-Button: mit Aufgaben fragt er „Termin“ oder „Aufgabe“, sonst legt er direkt einen Termin an. */
+@Composable
+private fun CreateButton(withTask: Boolean, onNewEvent: () -> Unit, onNewTask: () -> Unit) {
+    var menu by remember { mutableStateOf(false) }
+    Box {
+        FloatingActionButton(onClick = { if (withTask) menu = true else onNewEvent() }) {
+            Icon(Icons.Outlined.Add, stringResource(if (withTask) R.string.calendar_create else R.string.calendar_new_event))
+        }
+        DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.fab_new_event)) },
+                leadingIcon = { Icon(Icons.Outlined.Event, null) },
+                onClick = { menu = false; onNewEvent() },
+            )
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.fab_new_task)) },
+                leadingIcon = { Icon(Icons.Outlined.Checklist, null) },
+                onClick = { menu = false; onNewTask() },
+            )
         }
     }
 }

@@ -199,33 +199,50 @@ private fun EventChip(item: RowItem, modifier: Modifier, onClick: () -> Unit) {
         topStart = if (item.contBefore) 0.dp else 4.dp, bottomStart = if (item.contBefore) 0.dp else 4.dp,
         topEnd = if (item.contAfter) 0.dp else 4.dp, bottomEnd = if (item.contAfter) 0.dp else 4.dp,
     )
-    if (item.ev.isBar) {
-        Text(
-            item.ev.title,
+    val ev = item.ev
+    if (ev.isBar) {
+        // Erledigte Aufgaben blasser und durchgestrichen
+        val bg = if (ev.completed) color.copy(alpha = 0.55f) else color
+        Row(
             modifier
                 .clip(shape)
-                .background(color)
+                .background(bg)
                 .combinedClickable(onClick = onClick)
-                .padding(horizontal = 4.dp)
-                .wrapContentSize(Alignment.CenterStart),
-            color = onColor(color),
-            style = MaterialTheme.typography.labelSmall,
-            maxLines = 1,
-            overflow = TextOverflow.Clip,
-        )
+                .padding(horizontal = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (ev.isTask) {
+                TaskCheckIcon(ev.completed, onColor(color), size = 11.dp)
+                Spacer(Modifier.width(2.dp))
+            }
+            Text(
+                ev.title,
+                color = onColor(color),
+                style = MaterialTheme.typography.labelSmall,
+                textDecoration = taskDecoration(ev.completed),
+                maxLines = 1,
+                overflow = TextOverflow.Clip,
+            )
+        }
     } else {
         Row(
             modifier.clip(RoundedCornerShape(4.dp)).combinedClickable(onClick = onClick).padding(horizontal = 2.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Box(Modifier.size(6.dp).background(color, CircleShape))
-            Spacer(Modifier.width(3.dp))
+            if (ev.isTask) {
+                TaskCheckIcon(ev.completed, color, size = 10.dp)
+                Spacer(Modifier.width(2.dp))
+            } else {
+                Box(Modifier.size(6.dp).background(color, CircleShape))
+                Spacer(Modifier.width(3.dp))
+            }
             Text(
-                stringResource(R.string.event_time_title, item.ev.start.format(FMT_TIME), item.ev.title),
+                stringResource(R.string.event_time_title, ev.start.format(FMT_TIME), ev.title),
                 style = MaterialTheme.typography.labelSmall,
+                textDecoration = taskDecoration(ev.completed),
                 maxLines = 1,
                 overflow = TextOverflow.Clip,
-                color = MaterialTheme.colorScheme.onSurface,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = if (ev.completed) 0.6f else 1f),
             )
         }
     }

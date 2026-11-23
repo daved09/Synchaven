@@ -139,6 +139,7 @@ pub async fn register(
         .bind(&now)
         .execute(&mut *tx)
         .await?;
+    super::tasks::ensure_list(&mut tx, &id).await?;
     tx.commit().await?;
 
     let user = load_user(&state, &id).await?;

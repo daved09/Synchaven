@@ -13,6 +13,8 @@ import de.dave.synchaven.data.model.AuthResponse
 import de.dave.synchaven.data.model.CalEvent
 import de.dave.synchaven.data.model.Calendar
 import de.dave.synchaven.data.model.CalendarInput
+import de.dave.synchaven.data.model.ClearCompletedResult
+import de.dave.synchaven.data.model.CompletedRequest
 import de.dave.synchaven.data.model.Contact
 import de.dave.synchaven.data.model.ContactImportResult
 import de.dave.synchaven.data.model.ContactInput
@@ -23,10 +25,16 @@ import de.dave.synchaven.data.model.LoginRequest
 import de.dave.synchaven.data.model.Occurrence
 import de.dave.synchaven.data.model.RegisterRequest
 import de.dave.synchaven.data.model.ServerInfo
+import de.dave.synchaven.data.model.Task
+import de.dave.synchaven.data.model.TaskInput
+import de.dave.synchaven.data.model.TaskList
+import de.dave.synchaven.data.model.TaskListInput
 import de.dave.synchaven.data.model.UpdateMeRequest
 import de.dave.synchaven.data.model.User
 import de.dave.synchaven.data.offline.OfflineData
 import de.dave.synchaven.data.offline.OfflineStore
+import de.dave.synchaven.data.offline.toLocalTask
+import de.dave.synchaven.data.offline.withCompleted
 import de.dave.synchaven.util.RRuleExpander
 import java.security.MessageDigest
 import java.time.Duration
@@ -47,6 +55,15 @@ import okio.Buffer
 
 /** Schlüssel des [OfflineStore] für die Daten des lokalen Modus */
 const val LOCAL_ACCOUNT = "local"
+
+/** Standardliste wie beim Server („Meine Aufgaben“) */
+private const val DEFAULT_TASK_LIST = "Meine Aufgaben"
+private const val DEFAULT_TASK_COLOR = "#1A73E8"
+
+/** Legt die Standard-Aufgabenliste an, falls es noch keine gibt. */
+private fun OfflineData.withDefaultTaskList(ts: String): OfflineData =
+    if (!taskLists.isNullOrEmpty()) this
+    else copy(taskLists = listOf(TaskList(LocalApi.newId(), DEFAULT_TASK_LIST, DEFAULT_TASK_COLOR, createdAt = ts, updatedAt = ts)))
 
 /**
  * „Server“ des lokalen Modus: dieselbe Schnittstelle wie die REST API, aber gespeichert im [OfflineStore] unter
@@ -84,7 +101,8 @@ class LocalApi(
                 events = d.events ?: emptyList(),
                 addressBooks = d.addressBooks?.takeIf { it.isNotEmpty() } ?: listOf(AddressBook(newId(), DEFAULT_BOOK)),
                 contacts = d.contacts ?: emptyList(),
-            ).migrateLocal().let { Birthdays.sync(it, ::newId, ts) }.recount()
+                tasks = d.tasks ?: emptyList(),
+            ).withDefaultTaskList(ts).migrateLocal().let { Birthdays.sync(it, ::newId, ts) }.recount()
         }
     }
 
@@ -104,6 +122,117 @@ class LocalApi(
     }
 
     private fun localInfo() = ServerInfo(name = "Synchaven (lokal)")
+
+    // ---------- Aufgaben ----------
+    // Wie backend/src/routes/tasks.rs: mindestens eine Liste, die letzte ist nicht löschbar.
+
+    override suspend fun taskLists(): List<TaskList> {
+        if (data().taskLists.isNullOrEmpty()) edit { it.withDefaultTaskList(now()) }
+        return data().taskLists.orEmpty()
+    }
+
+    override suspend fun createTaskList(body: TaskListInput): TaskList {
+        val (name, color) = validateTaskList(body)
+        val ts = now()
+        val list = TaskList(newId(), name, color ?: DEFAULT_TASK_COLOR, body.visible ?: true, createdAt = ts, updatedAt = ts)
+        edit { d -> d.copy(taskLists = d.taskLists.orEmpty() + list).recount() }
+        return data().taskLists.orEmpty().first { it.id == list.id }
+    }
+
+    override suspend fun updateTaskList(id: String, body: TaskListInput): TaskList {
+        val (name, color) = validateTaskList(body)
+        edit { d ->
+            val old = taskList(d, id)
+            val list = old.copy(name = name, color = color ?: old.color, visible = body.visible ?: old.visible, updatedAt = now())
+            d.copy(taskLists = d.taskLists.orEmpty().map { if (it.id == id) list else it })
+        }
+        return taskList(data(), id)
+    }
+
+    override suspend fun deleteTaskList(id: String) {
+        edit { d ->
+            taskList(d, id)
+            if (d.taskLists.orEmpty().size <= 1) bad("Die letzte Aufgabenliste kann nicht gelöscht werden")
+            d.copy(taskLists = d.taskLists.orEmpty().filterNot { it.id == id }, tasks = d.tasks.orEmpty().filterNot { it.listId == id })
+        }
+    }
+
+    override suspend fun clearCompletedTasks(id: String): ClearCompletedResult {
+        var deleted = 0
+        edit { d ->
+            taskList(d, id)
+            val all = d.tasks.orEmpty()
+            val keep = all.filterNot { it.listId == id && it.completed }
+            deleted = all.size - keep.size
+            d.copy(tasks = keep).recount()
+        }
+        return ClearCompletedResult(deleted)
+    }
+
+    /** Offene vor erledigten, dann nach Fälligkeit (ohne Datum zuletzt) – wie `GET /tasks`. */
+    override suspend fun tasks(listId: String?): List<Task> = data().tasks.orEmpty()
+        .filter { listId == null || it.listId == listId }
+        .sortedWith(compareBy<Task>({ it.completed }, { it.due == null }, { it.due?.let(::parse) }, { it.createdAt }, { it.id }))
+
+    override suspend fun task(id: String): Task = task(data(), id)
+
+    override suspend fun createTask(body: TaskInput): Task {
+        validateTask(body)
+        val ts = now()
+        val t = body.toLocalTask(newId(), createdAt = ts)
+        edit { d ->
+            taskList(d, t.listId)
+            d.copy(tasks = d.tasks.orEmpty() + t).recount()
+        }
+        return task(data(), t.id)
+    }
+
+    override suspend fun updateTask(id: String, body: TaskInput): Task {
+        validateTask(body)
+        edit { d ->
+            val old = task(d, id)
+            taskList(d, body.listId)
+            val ts = now()
+            val t = body.toLocalTask(id, base = old, createdAt = ts).copy(updatedAt = ts)
+            d.copy(tasks = d.tasks.orEmpty().map { if (it.id == id) t else it }).recount()
+        }
+        return task(data(), id)
+    }
+
+    override suspend fun setTaskCompleted(id: String, body: CompletedRequest): Task {
+        edit { d ->
+            val ts = now()
+            val t = task(d, id).withCompleted(body.completed, ts).copy(updatedAt = ts)
+            d.copy(tasks = d.tasks.orEmpty().map { if (it.id == id) t else it }).recount()
+        }
+        return task(data(), id)
+    }
+
+    override suspend fun deleteTask(id: String) {
+        edit { d ->
+            task(d, id)
+            d.copy(tasks = d.tasks.orEmpty().filterNot { it.id == id }).recount()
+        }
+    }
+
+    private fun taskList(d: OfflineData, id: String) = d.taskLists.orEmpty().firstOrNull { it.id == id } ?: notFound()
+    private fun task(d: OfflineData, id: String) = d.tasks.orEmpty().firstOrNull { it.id == id } ?: notFound()
+
+    private fun validateTaskList(input: TaskListInput): Pair<String, String?> {
+        val name = input.name.trim()
+        if (name.isEmpty() || name.length > 100) bad("Der Name muss 1–100 Zeichen lang sein")
+        val color = input.color?.trim()?.takeIf { it.isNotEmpty() }?.let {
+            if (!Regex("#[0-9A-Fa-f]{6}").matches(it)) bad("Farbe muss im Format #RRGGBB angegeben werden")
+            it.uppercase()
+        }
+        return name to color
+    }
+
+    private fun validateTask(input: TaskInput) {
+        val title = input.title.trim()
+        if (title.isEmpty() || title.length > 500) bad("Der Titel muss 1–500 Zeichen lang sein")
+        if (input.due != null && parse(input.due) == null) bad("Ungültige Fälligkeit")
+    }
 
     // ---------- Kalender ----------
 

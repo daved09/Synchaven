@@ -13,9 +13,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -49,6 +51,8 @@ fun AgendaView(
     onEventClick: (ViewEvent) -> Unit,
     modifier: Modifier = Modifier,
     multiDay: Boolean = true,
+    /** Abhak-Symbol einer Aufgabe angetippt */
+    onTaskToggle: ((ViewEvent) -> Unit)? = null,
 ) {
     val groups = remember(days, events, multiDay) {
         if (multiDay && days != null) {
@@ -79,15 +83,17 @@ fun AgendaView(
                     fontWeight = FontWeight.SemiBold,
                 )
             }
-            items(list, key = { "$day/${it.id}" }) { ev -> AgendaItem(ev, day, onEventClick) }
+            items(list, key = { "$day/${it.id}" }) { ev -> AgendaItem(ev, day, onEventClick, onTaskToggle) }
             item(key = "s$day") { Spacer(Modifier.height(8.dp)) }
         }
     }
 }
 
 @Composable
-private fun AgendaItem(ev: ViewEvent, day: LocalDate, onClick: (ViewEvent) -> Unit) {
+private fun AgendaItem(ev: ViewEvent, day: LocalDate, onClick: (ViewEvent) -> Unit, onTaskToggle: ((ViewEvent) -> Unit)?) {
     val time = when {
+        ev.isTask && ev.allDay -> stringResource(R.string.all_day)
+        ev.isTask -> ev.start.format(FMT_TIME)
         ev.allDay -> stringResource(R.string.all_day)
         ev.start.toLocalDate() < day && ev.lastDay > day -> stringResource(R.string.all_day)
         ev.start.toLocalDate() < day -> stringResource(R.string.agenda_until, ev.end.format(FMT_TIME))
@@ -104,15 +110,30 @@ private fun AgendaItem(ev: ViewEvent, day: LocalDate, onClick: (ViewEvent) -> Un
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Box(
-            Modifier
-                .width(4.dp)
-                .height(36.dp)
-                .clip(RoundedCornerShape(2.dp))
-                .background(parseHexColor(ev.color))
-        )
+        if (ev.isTask) {
+            // Aufgabe: Abhak-Symbol in der Farbe der Liste, direkt antippbar
+            Box(
+                Modifier
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .then(if (onTaskToggle != null) Modifier.clickable { onTaskToggle(ev) } else Modifier),
+                contentAlignment = Alignment.Center,
+            ) { TaskCheckIcon(ev.completed, parseHexColor(ev.color)) }
+        } else {
+            Box(
+                Modifier
+                    .width(4.dp)
+                    .height(36.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(parseHexColor(ev.color))
+            )
+        }
         Column(Modifier.weight(1f)) {
-            Text(ev.title, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(
+                ev.title, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                textDecoration = taskDecoration(ev.completed),
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = if (ev.completed) 0.6f else 1f),
+            )
             val sub = if (ev.occ.location.isBlank()) time else stringResource(R.string.agenda_subtitle, time, ev.occ.location)
             Text(
                 sub, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,

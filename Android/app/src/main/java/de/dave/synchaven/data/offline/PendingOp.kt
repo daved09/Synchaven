@@ -3,11 +3,13 @@ package de.dave.synchaven.data.offline
 import de.dave.synchaven.data.model.CalendarInput
 import de.dave.synchaven.data.model.ContactInput
 import de.dave.synchaven.data.model.EventInput
+import de.dave.synchaven.data.model.TaskInput
+import de.dave.synchaven.data.model.TaskListInput
 import java.util.UUID
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
-/** Präfix vorläufiger IDs von Terminen und Kontakten, die offline angelegt und noch nicht übertragen wurden. */
+/** Präfix vorläufiger IDs von Terminen, Kontakten und Aufgaben, die offline angelegt und noch nicht übertragen wurden. */
 const val LOCAL_ID_PREFIX = "local-"
 
 fun newLocalId(): String = LOCAL_ID_PREFIX + UUID.randomUUID()
@@ -65,6 +67,34 @@ sealed interface PendingOp {
         override val targetId get() = id
     }
 
+    /** [createdAt]: Zeitpunkt der Anlage, damit die Aufgabe bis zur Übertragung richtig einsortiert wird */
+    @Serializable @SerialName("task_create")
+    data class CreateTask(val localId: String, val input: TaskInput, val createdAt: String = "") : PendingOp {
+        override val targetId get() = localId
+    }
+
+    @Serializable @SerialName("task_update")
+    data class UpdateTask(val id: String, val input: TaskInput) : PendingOp {
+        override val targetId get() = id
+    }
+
+    /** Abhaken oder wieder öffnen; [at] ist der Zeitpunkt des Abhakens (bis der Server seinen liefert) */
+    @Serializable @SerialName("task_completed")
+    data class SetTaskCompleted(val id: String, val completed: Boolean, val at: String = "") : PendingOp {
+        override val targetId get() = id
+    }
+
+    @Serializable @SerialName("task_delete")
+    data class DeleteTask(val id: String) : PendingOp {
+        override val targetId get() = id
+    }
+
+    /** Name, Farbe oder Sichtbarkeit einer Aufgabenliste */
+    @Serializable @SerialName("task_list_update")
+    data class UpdateTaskList(val id: String, val input: TaskListInput) : PendingOp {
+        override val targetId get() = id
+    }
+
     /** Standardansicht des Kalenders im Benutzerkonto */
     @Serializable @SerialName("default_view")
     data class SetDefaultView(val view: String) : PendingOp {
@@ -78,8 +108,11 @@ private fun PendingOp.isEventOp() =
 private fun PendingOp.isContactOp() =
     this is PendingOp.CreateContact || this is PendingOp.UpdateContact || this is PendingOp.DeleteContact
 
+private fun PendingOp.isTaskOp() =
+    this is PendingOp.CreateTask || this is PendingOp.UpdateTask || this is PendingOp.SetTaskCompleted || this is PendingOp.DeleteTask
+
 private fun PendingOp.sameTarget(other: PendingOp) = targetId == other.targetId &&
-    ((isEventOp() && other.isEventOp()) || (isContactOp() && other.isContactOp()))
+    ((isEventOp() && other.isEventOp()) || (isContactOp() && other.isContactOp()) || (isTaskOp() && other.isTaskOp()))
 
 /**
  * Hängt [op] an die Warteschlange an und fasst sie mit früheren Änderungen am selben Objekt zusammen:
@@ -93,7 +126,7 @@ fun List<PendingOp>.enqueue(op: PendingOp, frozen: Int = 0): List<PendingOp> {
 }
 
 private fun List<PendingOp>.merge(op: PendingOp): List<PendingOp> = when (op) {
-    is PendingOp.CreateEvent, is PendingOp.CreateContact -> this + op
+    is PendingOp.CreateEvent, is PendingOp.CreateContact, is PendingOp.CreateTask -> this + op
 
     is PendingOp.UpdateEvent -> {
         val create = firstOrNull { it is PendingOp.CreateEvent && it.localId == op.id }
@@ -127,16 +160,32 @@ private fun List<PendingOp>.merge(op: PendingOp): List<PendingOp> = when (op) {
         }
     }
 
-    is PendingOp.DeleteEvent, is PendingOp.DeleteContact -> {
+    is PendingOp.UpdateTask -> {
+        val create = firstOrNull { it is PendingOp.CreateTask && it.localId == op.id } as PendingOp.CreateTask?
+        // Ein bereits eingereihtes Abhaken bleibt erhalten, wenn die Bearbeitung den Status nicht setzt
+        if (create != null) map { if (it === create) create.copy(input = op.input.copy(completed = op.input.completed ?: create.input.completed)) else it }
+        else filterNot { it is PendingOp.UpdateTask && it.id == op.id } + op
+    }
+
+    is PendingOp.SetTaskCompleted -> {
+        val create = firstOrNull { it is PendingOp.CreateTask && it.localId == op.id } as PendingOp.CreateTask?
+        if (create != null) map { if (it === create) create.copy(input = create.input.copy(completed = op.completed)) else it }
+        else filterNot { it is PendingOp.SetTaskCompleted && it.id == op.id } + op
+    }
+
+    is PendingOp.DeleteEvent, is PendingOp.DeleteContact, is PendingOp.DeleteTask -> {
         val createdOffline = any {
             (it is PendingOp.CreateEvent && op is PendingOp.DeleteEvent && it.localId == op.targetId) ||
-                (it is PendingOp.CreateContact && op is PendingOp.DeleteContact && it.localId == op.targetId)
+                (it is PendingOp.CreateContact && op is PendingOp.DeleteContact && it.localId == op.targetId) ||
+                (it is PendingOp.CreateTask && op is PendingOp.DeleteTask && it.localId == op.targetId)
         }
         val rest = filterNot { it.sameTarget(op) }
         if (createdOffline) rest else rest + op
     }
 
     is PendingOp.UpdateCalendar -> filterNot { it is PendingOp.UpdateCalendar && it.id == op.id } + op
+
+    is PendingOp.UpdateTaskList -> filterNot { it is PendingOp.UpdateTaskList && it.id == op.id } + op
 
     is PendingOp.SetDefaultView -> filterNot { it is PendingOp.SetDefaultView } + op
 }
@@ -150,6 +199,9 @@ fun List<PendingOp>.remap(localId: String, serverId: String): List<PendingOp> = 
         op is PendingOp.AddExdate -> op.copy(id = serverId)
         op is PendingOp.UpdateContact -> op.copy(id = serverId)
         op is PendingOp.DeleteContact -> op.copy(id = serverId)
+        op is PendingOp.UpdateTask -> op.copy(id = serverId)
+        op is PendingOp.SetTaskCompleted -> op.copy(id = serverId)
+        op is PendingOp.DeleteTask -> op.copy(id = serverId)
         else -> op
     }
 }

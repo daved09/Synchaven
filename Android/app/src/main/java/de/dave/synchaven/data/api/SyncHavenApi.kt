@@ -6,6 +6,8 @@ import de.dave.synchaven.data.model.AuthResponse
 import de.dave.synchaven.data.model.CalEvent
 import de.dave.synchaven.data.model.Calendar
 import de.dave.synchaven.data.model.CalendarInput
+import de.dave.synchaven.data.model.ClearCompletedResult
+import de.dave.synchaven.data.model.CompletedRequest
 import de.dave.synchaven.data.model.Contact
 import de.dave.synchaven.data.model.ContactImportResult
 import de.dave.synchaven.data.model.ContactInput
@@ -16,6 +18,10 @@ import de.dave.synchaven.data.model.LoginRequest
 import de.dave.synchaven.data.model.Occurrence
 import de.dave.synchaven.data.model.RegisterRequest
 import de.dave.synchaven.data.model.ServerInfo
+import de.dave.synchaven.data.model.Task
+import de.dave.synchaven.data.model.TaskInput
+import de.dave.synchaven.data.model.TaskList
+import de.dave.synchaven.data.model.TaskListInput
 import de.dave.synchaven.data.model.UpdateMeRequest
 import de.dave.synchaven.data.model.User
 import okhttp3.RequestBody
@@ -108,6 +114,43 @@ interface SyncHavenApi {
 
     @POST("events/{id}/exdates")
     suspend fun addExdate(@Path("id") id: String, @Body body: ExdateRequest): CalEvent
+
+    // ---------- Aufgaben ----------
+
+    /** Legt bei Bedarf die Liste „Meine Aufgaben“ an */
+    @GET("task-lists")
+    suspend fun taskLists(): List<TaskList>
+
+    @POST("task-lists")
+    suspend fun createTaskList(@Body body: TaskListInput): TaskList
+
+    @PUT("task-lists/{id}")
+    suspend fun updateTaskList(@Path("id") id: String, @Body body: TaskListInput): TaskList
+
+    /** Löscht alle enthaltenen Aufgaben; die letzte Liste ist nicht löschbar (400) */
+    @DELETE("task-lists/{id}")
+    suspend fun deleteTaskList(@Path("id") id: String)
+
+    @POST("task-lists/{id}/clear-completed")
+    suspend fun clearCompletedTasks(@Path("id") id: String): ClearCompletedResult
+
+    @GET("tasks")
+    suspend fun tasks(@Query("list_id") listId: String? = null): List<Task>
+
+    @GET("tasks/{id}")
+    suspend fun task(@Path("id") id: String): Task
+
+    @POST("tasks")
+    suspend fun createTask(@Body body: TaskInput): Task
+
+    @PUT("tasks/{id}")
+    suspend fun updateTask(@Path("id") id: String, @Body body: TaskInput): Task
+
+    @PUT("tasks/{id}/completed")
+    suspend fun setTaskCompleted(@Path("id") id: String, @Body body: CompletedRequest): Task
+
+    @DELETE("tasks/{id}")
+    suspend fun deleteTask(@Path("id") id: String)
 
     // ---------- Adressbücher & Kontakte ----------
 

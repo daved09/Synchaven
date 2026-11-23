@@ -242,6 +242,51 @@ Abgelaufene Abonnements (Antwort `404`/`410` des Push-Dienstes) werden automatis
 
 ---
 
+## Aufgaben
+
+Aufgaben gehören zu Aufgabenlisten. Aufgaben mit Fälligkeit zeigen die Clients im Kalender an, Aufgaben ohne
+Datum nur in der Aufgabenliste. Jeder Benutzer hat mindestens eine Liste: Fehlt sie, legt `GET /task-lists` die
+Liste „Meine Aufgaben“ an; die letzte Liste kann nicht gelöscht werden.
+
+### `GET /task-lists` → `TaskList[]`
+```json
+[{ "id": "…", "name": "Meine Aufgaben", "color": "#1A73E8", "visible": true, "open_count": 3,
+   "created_at": "…", "updated_at": "…" }]
+```
+`visible`: Aufgaben dieser Liste im Kalender anzeigen. `open_count`: Anzahl offener Aufgaben.
+
+### `POST /task-lists` → `201 TaskList`  ·  `PUT /task-lists/{id}` → `TaskList`
+Body `{ "name": "Einkauf", "color": "#0B57D0", "visible": true }`. `color` und `visible` sind optional; beim
+Bearbeiten bleiben fehlende Werte erhalten.
+
+### `DELETE /task-lists/{id}` → `204`  (löscht alle enthaltenen Aufgaben; `400` bei der letzten Liste)
+
+### `POST /task-lists/{id}/clear-completed` → `{ "deleted": 4 }`
+Löscht alle erledigten Aufgaben der Liste.
+
+### `GET /tasks[?list_id=…]` → `Task[]`
+Alle Aufgaben des Benutzers: offene vor erledigten, dann nach Fälligkeit (ohne Datum zuletzt).
+```json
+[{ "id": "…", "list_id": "…", "title": "Steuer abgeben", "notes": "", "due": "2026-11-25T00:00:00Z",
+   "all_day": true, "completed": false, "completed_at": null, "created_at": "…", "updated_at": "…" }]
+```
+`due` folgt dem Zeitmodell der Termine: ganztägig als Mitternacht UTC des Tages, sonst ein Zeitpunkt in UTC;
+`null` = ohne Datum (dann ist `all_day` immer `true`).
+
+### `POST /tasks` → `201 Task`  ·  `PUT /tasks/{id}` → `Task`
+```json
+{ "list_id": "…", "title": "Zahnarzt anrufen", "notes": "Termin vereinbaren",
+  "due": "2026-11-24T08:30:00Z", "all_day": false, "completed": false }
+```
+Pflicht sind `list_id` und `title` (1–500 Zeichen). `all_day` ist standardmäßig `true`. Fehlt `completed`, bleibt
+der Status erhalten (neue Aufgaben sind offen). Mit `list_id` lässt sich eine Aufgabe in eine andere Liste verschieben.
+
+### `PUT /tasks/{id}/completed` → `Task`
+Body `{ "completed": true }` – abhaken oder wieder öffnen. `completed_at` bleibt erhalten, solange die Aufgabe
+erledigt bleibt.
+
+### `GET /tasks/{id}` → `Task`  ·  `DELETE /tasks/{id}` → `204`
+
 ## Adressbücher
 
 ### `GET /addressbooks` → `AddressBook[]`

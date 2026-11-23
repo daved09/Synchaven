@@ -8,9 +8,14 @@ import de.dave.synchaven.UiText
 import de.dave.synchaven.data.AuthRepository
 import de.dave.synchaven.data.CalendarRepository
 import de.dave.synchaven.data.FileTransfer
+import de.dave.synchaven.data.TaskRepository
 import de.dave.synchaven.data.model.Calendar
 import de.dave.synchaven.data.model.CalendarInput
 import de.dave.synchaven.data.model.Occurrence
+import de.dave.synchaven.data.model.Task
+import de.dave.synchaven.data.model.TaskInput
+import de.dave.synchaven.data.model.TaskList
+import de.dave.synchaven.data.model.TaskListInput
 import de.dave.synchaven.data.store.AppSettings
 import de.dave.synchaven.data.store.SessionState
 import de.dave.synchaven.data.store.SessionStore
@@ -23,10 +28,12 @@ import de.dave.synchaven.uiText
 import de.dave.synchaven.util.DateRange
 import de.dave.synchaven.util.FMT_DATE_SHORT
 import de.dave.synchaven.util.ViewEvent
+import de.dave.synchaven.util.calendarTasks
 import de.dave.synchaven.util.deviceZone
 import de.dave.synchaven.util.localToAllDay
 import de.dave.synchaven.util.startInstant
 import de.dave.synchaven.util.stepDate
+import de.dave.synchaven.util.toInstant
 import de.dave.synchaven.util.toOffsetString
 import de.dave.synchaven.util.toViewEvent
 import de.dave.synchaven.util.viewRange
@@ -68,8 +75,10 @@ data class CalendarUiState(
     val title: UiText = UiText.Plain(""),
     val settings: AppSettings = AppSettings(),
     val calendars: List<Calendar> = emptyList(),
-    /** Termine der sichtbaren Kalender im Zeitraum samt vorigem und nächstem (für das Wischen) */
+    /** Termine der sichtbaren Kalender im Zeitraum samt vorigem und nächstem (für das Wischen) und fällige Aufgaben */
     val events: List<ViewEvent> = emptyList(),
+    val taskLists: List<TaskList> = emptyList(),
+    val tasks: List<Task> = emptyList(),
     val loading: Boolean = false,
     val error: UiText? = null,
 )
@@ -86,6 +95,7 @@ enum class DeleteScope { OCCURRENCE, ALL }
 @OptIn(FlowPreview::class)
 class CalendarViewModel(
     private val repo: CalendarRepository,
+    private val taskRepo: TaskRepository,
     settingsStore: SettingsStore,
     private val sessionStore: SessionStore,
     private val auth: AuthRepository,
@@ -102,19 +112,26 @@ class CalendarViewModel(
     private val loading = MutableStateFlow(false)
     private val error = MutableStateFlow<UiText?>(null)
 
+    private data class TaskData(val lists: List<TaskList>, val tasks: List<Task>)
+
+    private val taskData = combine(taskRepo.lists, taskRepo.tasks) { lists, tasks -> TaskData(lists.orEmpty(), tasks.orEmpty()) }
+
     val state: StateFlow<CalendarUiState> = combine(
-        position, settingsStore.settings, repo.calendars, raw, combine(loading, error, ::Pair),
-    ) { pos, settings, calendars, occurrences, (isLoading, err) ->
+        position, settingsStore.settings, repo.calendars, raw, combine(loading, error, taskData, ::Triple),
+    ) { pos, settings, calendars, occurrences, (isLoading, err, td) ->
         val range = viewRange(pos.mode, pos.date, settings.weekStart)
         val cals = calendars.orEmpty()
         val byId = cals.associateBy { it.id }
         val visible = cals.filter { it.visible }.map { it.id }.toSet()
+        val events = occurrences.filter { it.calendarId in visible }.map { it.toViewEvent(byId) } +
+            calendarTasks(td.lists, td.tasks)
         CalendarUiState(
             mode = pos.mode, date = pos.date, range = range, anchor = pos.anchor,
             title = viewTitle(pos.mode, pos.date, range),
             settings = settings, calendars = cals,
-            events = occurrences.filter { it.calendarId in visible }.map { it.toViewEvent(byId) }
-                .sortedWith(compareBy({ !it.allDay }, { it.start })),
+            // Aufgaben nach den Terminen desselben Zeitpunkts
+            events = events.sortedWith(compareBy({ !it.allDay }, { it.start }, { it.isTask })),
+            taskLists = td.lists, tasks = td.tasks,
             loading = isLoading, error = err,
         )
     }.stateIn(viewModelScope, SharingStarted.Eagerly, CalendarUiState())
@@ -132,6 +149,7 @@ class CalendarViewModel(
         viewModelScope.launch {
             runCatching { repo.loadCalendars() }.onFailure { error.value = it.userMessage() }
         }
+        viewModelScope.launch { runCatching { taskRepo.load() } }
         // Termine für den sichtbaren Zeitraum und seine Nachbarn laden – neu bei Zeitraumwechsel und nach jeder Änderung
         viewModelScope.launch {
             combine(position, settingsStore.settings.map { it.weekStart }.distinctUntilChanged(), repo.eventsVersion) { pos, ws, _ ->
@@ -164,6 +182,7 @@ class CalendarViewModel(
         repo.syncNow()
         viewModelScope.launch {
             runCatching { repo.loadCalendars() }.onFailure { messages.send(it.userMessage()) }
+            runCatching { taskRepo.load() }.onFailure { messages.send(it.userMessage()) }
             val s = state.value
             loadRange(loadWindow(s.mode, s.date, s.settings.weekStart))
         }
@@ -284,6 +303,43 @@ class CalendarViewModel(
             if (ev.occ.recurring) uiText(R.string.msg_event_moved_series, ev.start.format(FMT_DATE_SHORT))
             else uiText(R.string.msg_event_moved)
         )
+    }
+
+    // ---------- Aufgaben ----------
+
+    fun toggleTaskList(list: TaskList) = launchAction { taskRepo.toggleVisible(list) }
+
+    fun saveTaskList(id: String?, input: TaskListInput) = launchAction {
+        if (id == null) taskRepo.createList(input) else taskRepo.updateList(id, input)
+        messages.send(uiText(if (id == null) R.string.msg_task_list_created else R.string.msg_task_list_saved))
+    }
+
+    fun deleteTaskList(list: TaskList) = launchAction {
+        taskRepo.deleteList(list.id)
+        messages.send(uiText(R.string.msg_task_list_deleted, list.name))
+    }
+
+    fun saveTask(id: String?, input: TaskInput) = launchAction {
+        if (id == null) taskRepo.createTask(input) else taskRepo.updateTask(id, input)
+        messages.send(uiText(if (id == null) R.string.msg_task_created else R.string.msg_task_saved))
+    }
+
+    fun setTaskCompleted(task: Task, completed: Boolean) = launchAction {
+        taskRepo.setCompleted(task, completed)
+        messages.send(uiText(if (completed) R.string.msg_task_done else R.string.msg_task_reopened))
+    }
+
+    fun deleteTask(task: Task) = launchAction {
+        taskRepo.deleteTask(task.id)
+        messages.send(uiText(R.string.msg_task_deleted))
+    }
+
+    /** Verschiebt die Fälligkeit einer Aufgabe (Drag & Drop im Zeitraster); die Uhrzeit wandert mit. */
+    fun moveTask(task: Task, newStart: LocalDateTime) = launchAction {
+        val due = if (task.allDay) localToAllDay(newStart.toLocalDate()) else newStart.toInstant().toString()
+        if (due == task.due) return@launchAction
+        taskRepo.updateTask(task.id, task.toInput().copy(due = due))
+        messages.send(uiText(R.string.msg_task_moved))
     }
 
     private fun launchAction(block: suspend () -> Unit) {

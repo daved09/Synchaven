@@ -16,6 +16,7 @@ import de.dave.synchaven.ui.screens.ContactsScreen
 import de.dave.synchaven.ui.screens.EventEditScreen
 import de.dave.synchaven.ui.screens.LoginScreen
 import de.dave.synchaven.ui.screens.SettingsScreen
+import de.dave.synchaven.ui.screens.TasksScreen
 
 @Composable
 fun SyncHavenNavGraph(navController: NavHostController, startLoggedIn: Boolean) {
@@ -48,7 +49,11 @@ fun SyncHavenNavGraph(navController: NavHostController, startLoggedIn: Boolean) 
                 },
                 onEditEvent = { id -> navController.navigate(EventEditRoute(eventId = id)) },
                 onOpenContact = { id -> navController.navigate(ContactDetailRoute(id)) },
+                onOpenTasks = { navController.navigate(TasksRoute) { launchSingleTop = true } },
             )
+        }
+        composable<TasksRoute> {
+            TasksScreen(onBack = { navController.popBackStack() })
         }
         composable<ContactsRoute>(enterTransition = { EnterTransition.None }, exitTransition = { ExitTransition.None }) {
             ContactsScreen(

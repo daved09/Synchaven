@@ -6,6 +6,7 @@ import { clampRow, isBarEvent, lastDay, layoutRow } from '@/utils/layout'
 import { indexAtY, trackDrag } from '@/utils/drag'
 import { onColor } from '@/plugins/theme'
 import { isDraft } from '@/utils/draft'
+import { taskIcon } from '@/stores/tasks'
 
 const props = defineProps<{
   events: ViewEvent[]
@@ -20,6 +21,8 @@ const emit = defineEmits<{
   create: [day: Date]
   openDay: [day: Date]
   move: [ev: ViewEvent, newStart: Date]
+  /** Aufgabe abhaken oder wieder öffnen */
+  toggle: [ev: ViewEvent]
 }>()
 
 const HEAD = 30
@@ -126,7 +129,7 @@ function barStyle(ev: ViewEvent) {
             v-for="it in row.items"
             :key="it.ev.id"
             class="item"
-            :class="{ bar: barStyle(it.ev), 'cont-before': it.contBefore, 'cont-after': it.contAfter, dragging: drag?.ev.id === it.ev.id, draft: isDraft(it.ev) }"
+            :class="{ bar: barStyle(it.ev), 'cont-before': it.contBefore, 'cont-after': it.contAfter, dragging: drag?.ev.id === it.ev.id, draft: isDraft(it.ev), task: !!it.ev.task, done: it.ev.task?.completed }"
             :style="{
               left: `calc(${(it.start / 7) * 100}% + 3px)`,
               width: `calc(${((it.end - it.start) / 7) * 100}% - 6px)`,
@@ -141,11 +144,20 @@ function barStyle(ev: ViewEvent) {
             @keydown.enter="emit('select', it.ev, $event.currentTarget as HTMLElement)"
           >
             <template v-if="barStyle(it.ev)">
+              <span
+                v-if="it.ev.task" class="task-check" role="button" :title="it.ev.task.completed ? 'Als offen markieren' : 'Als erledigt markieren'"
+                @click.stop="emit('toggle', it.ev)"
+              ><v-icon :icon="taskIcon(it.ev.task)" size="14" /></span>
               <span v-if="!it.ev.all_day && !it.contBefore" class="time">{{ fmtTime(it.ev.startDate) }}</span>
-              {{ it.ev.title }}
+              <span class="title">{{ it.ev.title }}</span>
             </template>
             <template v-else>
-              <span class="dot" :style="{ background: it.ev.color }" />
+              <span
+                v-if="it.ev.task" class="task-check" role="button" :style="{ color: it.ev.color }"
+                :title="it.ev.task.completed ? 'Als offen markieren' : 'Als erledigt markieren'"
+                @click.stop="emit('toggle', it.ev)"
+              ><v-icon :icon="taskIcon(it.ev.task)" size="14" /></span>
+              <span v-else class="dot" :style="{ background: it.ev.color }" />
               <span class="time">{{ fmtTime(it.ev.startDate) }}</span>
               <span class="title">{{ it.ev.title }}</span>
             </template>
@@ -212,6 +224,12 @@ function barStyle(ev: ViewEvent) {
   box-shadow: inset 0 0 0 2px rgba(var(--v-theme-primary), .5);
 }
 .item.bar { font-weight: 500; display: block; }
+/* Aufgaben: Abhak-Symbol vor dem Titel, erledigte durchgestrichen */
+.item.bar.task { display: flex; }
+.item.done .title { text-decoration: line-through; }
+.item.done { opacity: .6; }
+.task-check { display: inline-flex; flex: 0 0 auto; border-radius: 50%; }
+.task-check:hover { background: rgba(var(--v-theme-on-surface), .12); }
 .item.draft { z-index: 1; box-shadow: 0 4px 12px rgba(0, 0, 0, .3); cursor: default; }
 .item.bar:hover { filter: brightness(1.08); }
 .item.cont-before { border-top-left-radius: 0; border-bottom-left-radius: 0; }

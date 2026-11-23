@@ -7,86 +7,164 @@ import de.dave.synchaven.data.model.AddressBookInput
 import de.dave.synchaven.data.model.Contact
 import de.dave.synchaven.data.model.ContactImportResult
 import de.dave.synchaven.data.model.ContactInput
-import kotlinx.coroutines.flow.MutableStateFlow
+import de.dave.synchaven.data.offline.OfflineStore
+import de.dave.synchaven.data.offline.OfflineSync
+import de.dave.synchaven.data.offline.PendingOp
+import de.dave.synchaven.data.offline.isLocalId
+import de.dave.synchaven.data.offline.newLocalId
+import de.dave.synchaven.data.offline.toLocalContact
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
 
 /**
- * Adressbücher und Kontakte. Die Kontaktliste (ohne Fotos) wird zwischengespeichert, damit Liste,
- * Detail- und Bearbeitungsansicht nach Änderungen sofort übereinstimmen.
- * [onContactsChanged] wird nach jeder Kontaktänderung aufgerufen, weil der Server daraus den
+ * Adressbücher und Kontakte. Die Kontaktliste (ohne Fotos) liegt im [OfflineStore], Fotos werden beim Öffnen
+ * eines Kontakts zwischengespeichert. Ohne Verbindung landen Änderungen in der Warteschlange von [OfflineSync].
+ * [onContactsChanged] wird nach jeder Kontaktänderung auf dem Server aufgerufen, weil der Server daraus den
  * Geburtstagskalender ableitet.
  */
 class ContactRepository(
     private val api: SyncHavenApi,
+    private val store: OfflineStore,
+    private val sync: OfflineSync,
+    scope: CoroutineScope,
     private val onContactsChanged: () -> Unit = {},
 ) {
-    private val _addressBooks = MutableStateFlow<List<AddressBook>?>(null)
-    val addressBooks: StateFlow<List<AddressBook>?> = _addressBooks.asStateFlow()
+    val addressBooks: StateFlow<List<AddressBook>?> =
+        store.data.map { it.addressBooks }.stateIn(scope, SharingStarted.Eagerly, null)
 
-    private val _contacts = MutableStateFlow<List<Contact>?>(null)
-    val contacts: StateFlow<List<Contact>?> = _contacts.asStateFlow()
+    val contacts: StateFlow<List<Contact>?> =
+        store.data.map { it.contacts }.stateIn(scope, SharingStarted.Eagerly, null)
 
+    /** Lädt Adressbücher und Kontakte; ohne Verbindung genügt der Cache. */
     suspend fun loadAll() {
-        _addressBooks.value = apiCall { api.addressBooks() }
-        _contacts.value = apiCall { api.contacts() }
+        sync.read(cached = { d -> Unit.takeIf { d.addressBooks != null && d.contacts != null } }) {
+            val books = apiCall { api.addressBooks() }
+            val list = apiCall { api.contacts() }
+            sync.mergeServer { it.copy(addressBooks = books, contacts = list) }
+        }
+        sync.syncIfNeeded()
     }
 
-    suspend fun ensureAddressBooks(): List<AddressBook> =
-        _addressBooks.value ?: apiCall { api.addressBooks() }.also { _addressBooks.value = it }
+    suspend fun ensureAddressBooks(): List<AddressBook> {
+        store.awaitReady()
+        return store.data.value.addressBooks ?: sync.read(cached = { it.addressBooks }) {
+            val books = apiCall { api.addressBooks() }
+            sync.mergeServer { it.copy(addressBooks = books) }
+            store.data.value.addressBooks ?: books
+        }
+    }
 
     private suspend fun reloadAddressBooks() {
-        _addressBooks.value = apiCall { api.addressBooks() }
+        val books = apiCall { api.addressBooks() }
+        sync.mergeServer { it.copy(addressBooks = books) }
     }
 
-    suspend fun contact(id: String): Contact = apiCall { api.contact(id) }
+    /** Kontakt mit Foto – vom Server oder (ohne Verbindung bzw. mit ausstehenden Änderungen) aus dem Cache. */
+    suspend fun contact(id: String): Contact {
+        store.awaitReady()
+        val rid = store.data.value.resolve(id)
+        val c = sync.read(
+            preferCache = isLocalId(rid) || sync.hasPending(rid),
+            cached = { d -> d.contacts?.firstOrNull { it.id == rid } },
+        ) {
+            apiCall { api.contact(rid) }.also { c ->
+                if (c.photo != null || !c.hasPhoto) store.savePhoto(c.id, c.etag, c.photo)
+                patchContact(c)
+            }
+        }
+        return if (c.photo != null) c else c.copy(photo = cachedPhoto(c))
+    }
+
+    /** Foto aus einer noch nicht übertragenen Änderung, sonst das zwischengespeicherte zum aktuellen Stand */
+    private suspend fun cachedPhoto(c: Contact): String? {
+        val pending = store.data.value.outbox.lastOrNull { op ->
+            (op is PendingOp.CreateContact && op.localId == c.id && op.input.photo != null) ||
+                (op is PendingOp.UpdateContact && op.id == c.id && op.input.photo != null)
+        }
+        val pendingPhoto = when (pending) {
+            is PendingOp.CreateContact -> pending.input.photo
+            is PendingOp.UpdateContact -> pending.input.photo
+            else -> null
+        }
+        if (pendingPhoto != null) return pendingPhoto.ifEmpty { null }
+        return if (c.hasPhoto) store.photo(c.id, c.etag) else null
+    }
 
     suspend fun createContact(input: ContactInput): Contact {
-        val c = apiCall { api.createContact(input) }
-        _contacts.update { (it ?: emptyList()) + c.copy(photo = null) }
-        onContactsChanged()
-        reloadAddressBooks()
-        return c
+        val localId = newLocalId()
+        return sync.write(
+            PendingOp.CreateContact(localId, input),
+            online = {
+                apiCall { api.createContact(input) }.also { c ->
+                    store.savePhoto(c.id, c.etag, c.photo ?: input.photo)
+                    patchContact(c)
+                    onContactsChanged()
+                }
+            },
+            offline = { d -> d.contacts?.firstOrNull { it.id == localId } ?: input.toLocalContact(localId) },
+        )
     }
 
-    suspend fun updateContact(id: String, input: ContactInput): Contact {
-        val c = apiCall { api.updateContact(id, input) }
-        _contacts.update { list -> list?.map { if (it.id == id) c.copy(photo = null) else it } }
-        onContactsChanged()
-        reloadAddressBooks()
-        return c
-    }
+    suspend fun updateContact(id: String, input: ContactInput): Contact = sync.write(
+        PendingOp.UpdateContact(id, input),
+        online = {
+            apiCall { api.updateContact(id, input) }.also { c ->
+                if (c.photo != null || input.photo != null) store.savePhoto(c.id, c.etag, c.photo ?: input.photo)
+                patchContact(c)
+                onContactsChanged()
+            }
+        },
+        offline = { d -> d.contacts?.firstOrNull { it.id == d.resolve(id) } ?: input.toLocalContact(d.resolve(id)) },
+    )
 
     suspend fun deleteContact(id: String) {
-        apiCall { api.deleteContact(id) }
-        _contacts.update { list -> list?.filterNot { it.id == id } }
-        onContactsChanged()
-        reloadAddressBooks()
+        sync.write(
+            PendingOp.DeleteContact(id),
+            online = {
+                apiCall { api.deleteContact(id) }
+                store.savePhoto(id, "", null)
+                sync.mergeServer { d -> d.copy(contacts = d.contacts?.filterNot { it.id == id }) }
+                onContactsChanged()
+            },
+            offline = { },
+        )
     }
+
+    // ---------- Adressbücher (nur mit Verbindung zum Server) ----------
 
     suspend fun createAddressBook(input: AddressBookInput): AddressBook =
-        apiCall { api.createAddressBook(input) }.also { reloadAddressBooks() }
+        sync.online { apiCall { api.createAddressBook(input) } }.also { runCatching { reloadAddressBooks() } }
 
     suspend fun updateAddressBook(id: String, input: AddressBookInput): AddressBook =
-        apiCall { api.updateAddressBook(id, input) }.also { reloadAddressBooks() }
+        sync.online { apiCall { api.updateAddressBook(id, input) } }.also { runCatching { reloadAddressBooks() } }
 
     suspend fun deleteAddressBook(id: String) {
-        apiCall { api.deleteAddressBook(id) }
+        sync.online { apiCall { api.deleteAddressBook(id) } }
+        sync.mergeServer { d ->
+            d.copy(addressBooks = d.addressBooks?.filterNot { it.id == id }, contacts = d.contacts?.filterNot { it.addressBookId == id })
+        }
         onContactsChanged()
-        loadAll()
+        runCatching { loadAll() }
     }
 
-    suspend fun exportAddressBook(id: String): String = apiCall { api.exportAddressBook(id).string() }
+    suspend fun exportAddressBook(id: String): String = sync.online { apiCall { api.exportAddressBook(id).string() } }
 
     suspend fun importAddressBook(id: String, vcf: String): ContactImportResult =
-        apiCall { api.importAddressBook(id, vcf.toRequestBody("text/vcard; charset=utf-8".toMediaType())) }
-            .also { onContactsChanged(); loadAll() }
+        sync.online { apiCall { api.importAddressBook(id, vcf.toRequestBody("text/vcard; charset=utf-8".toMediaType())) } }
+            .also { onContactsChanged(); runCatching { loadAll() } }
 
-    fun reset() {
-        _addressBooks.value = null
-        _contacts.value = null
+    /** Übernimmt einen vom Server gelieferten Kontakt (ohne Foto) in den Cache. */
+    private suspend fun patchContact(c: Contact) {
+        val plain = c.copy(photo = null)
+        sync.mergeServer { d ->
+            d.copy(contacts = d.contacts?.let { list ->
+                if (list.any { it.id == c.id }) list.map { if (it.id == c.id) plain else it } else list + plain
+            })
+        }
     }
 }

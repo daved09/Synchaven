@@ -171,6 +171,8 @@ data class Contact(
     val id: String = "",
     @SerialName("addressbook_id") val addressBookId: String = "",
     val uid: String = "",
+    /** Ändert sich mit jeder Änderung des Kontakts (auch des Fotos) – für die Synchronisierung */
+    val etag: String = "",
     @SerialName("full_name") val fullName: String = "",
     val prefix: String = "",
     @SerialName("given_name") val givenName: String = "",
@@ -219,6 +221,8 @@ data class ContactInput(
     val urls: List<TypedValue>,
     val birthday: String,
     val note: String,
+    /** Neues Foto als data:-URL, `""` entfernt es, `null` lässt es unverändert */
+    val photo: String? = null,
 )
 
 @Serializable

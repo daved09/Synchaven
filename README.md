@@ -110,22 +110,50 @@ Die vollständige API-Referenz steht in [docs/API.md](docs/API.md). Kurzüberbli
 
 | Bereich   | Endpunkte |
 |-----------|-----------|
-| Konto     | `POST /api/auth/register`, `POST /api/auth/login`, `GET/PUT /api/auth/me` |
+| Konto     | `POST /api/auth/register`, `POST /api/auth/login`, `POST /api/auth/refresh`, `GET/PUT /api/auth/me` |
 | Kalender  | `GET/POST /api/calendars`, `GET/PUT/DELETE /api/calendars/{id}`, `GET …/export`, `POST …/import` |
 | Termine   | `GET /api/events?start&end`, `POST /api/events`, `GET/PUT/DELETE /api/events/{id}`, `POST /api/events/{id}/exdates` |
 | Adressbücher | `GET/POST /api/addressbooks`, `PUT/DELETE /api/addressbooks/{id}`, `GET …/export`, `POST …/import` |
 | Kontakte  | `GET /api/contacts[?addressbook_id&q]`, `POST /api/contacts`, `GET/PUT/DELETE /api/contacts/{id}` |
 | CardDAV   | `/dav/` (Basic-Auth, siehe [docs/API.md](docs/API.md#carddav-davx-thunderbird-ios)) |
 
-Wiederkehrende Termine werden vom Server in Einzelvorkommen expandiert, sodass eine Android-App
-keine eigene RRULE-Logik benötigt.
+Wiederkehrende Termine werden vom Server in Einzelvorkommen expandiert, sodass Clients online keine eigene
+RRULE-Logik benötigen (die Android-App expandiert nur offline selbst, aus `GET /calendars/{id}/events`).
 
 ## Android-App
 
 Unter `Android/` liegt eine native App (Kotlin, Jetpack Compose, Material 3) mit denselben Funktionen wie die
 Weboberfläche: Anmeldung/Registrierung, Monats-, Wochen-, Tages- und Listenansicht, Termine anlegen, bearbeiten,
 löschen (auch einzelne Vorkommen) und per langem Drücken verschieben, Wiederholungen, Suche, Kalender verwalten,
-.ics-Import/-Export, Kontakte mit Adressbüchern, .vcf-Import/-Export und eine Anleitung für DAVx⁵.
+.ics-Import/-Export, Kontakte mit Adressbüchern und .vcf-Import/-Export.
+
+**Synchronisierung mit Android (ersetzt DAVx⁵):** Die App legt ein Android-Konto „Synchaven“ an und trägt Kalender
+und Kontakte selbst in den Android-Kalender und die Systemkontakte ein – über eigene SyncAdapter und die REST API,
+in beide Richtungen. Änderungen in der Kalender- oder Kontakte-App von Android werden hochgeladen, Änderungen auf
+dem Server periodisch (einstellbar, Standard stündlich) und nach jeder Änderung in der App übernommen. Einschalten
+unter *Einstellungen → Mit Android synchronisieren*, getrennt für Kalender und Kontakte. Das Passwort liegt dafür im
+Android-Konto, damit sich die Synchronisierung nach Ablauf des Tokens selbst neu anmelden kann.
+
+* Serien werden mit RRULE/EXDATE übertragen; ein auf dem Gerät geändertes oder abgesagtes Einzelvorkommen wird auf
+  dem Server zu einem eigenen Termin bzw. einer EXDATE der Serie (wie beim .ics-Import).
+* Der Geburtstagskalender ist auf dem Gerät schreibgeschützt.
+* Kontakte aller Adressbücher landen im Konto; auf dem Gerät neu angelegte Kontakte kommen ins erste Adressbuch.
+  Übertragen werden Name, Spitzname, Firma, Telefon, E-Mail, Adressen, Websites, Geburtstag, Notiz und Foto –
+  die Kontakte-App bietet für Synchaven-Kontakte nur diese Felder an.
+* Wer bisher DAVx⁵ für dieselben Adressbücher genutzt hat, sollte dort das Konto entfernen, sonst erscheinen
+  Kontakte doppelt.
+
+**Offline-Betrieb:** Kalender, alle Termine (Serien mit RRULE/EXDATE), Adressbücher und Kontakte liegen zusätzlich in
+einem lokalen Cache auf dem Gerät; Kontaktfotos werden beim Öffnen eines Kontakts gespeichert. Ist der Server nicht
+erreichbar (unterwegs, Server aus), zeigt die App die gespeicherten Daten – Vorkommen von Serien und das Alter im
+Geburtstagskalender berechnet sie dann selbst – und ein Hinweis über der Navigationsleiste macht den Offline-Zustand
+sichtbar. Termine und Kontakte lassen sich auch offline anlegen, bearbeiten, verschieben und löschen, Kalender ein- und
+ausblenden und die Standardansicht wechseln. Diese Änderungen landen in einer Warteschlange und werden in Reihenfolge
+übertragen, sobald der Server wieder erreichbar ist (bei Netzwechsel, beim Öffnen der App, jede Minute im Vordergrund
+oder über *Einstellungen → Offline-Daten → Jetzt abgleichen*); danach lädt die App alles neu. Lehnt der Server eine
+Änderung ab (z. B. weil der Termin inzwischen gelöscht wurde), wird sie verworfen und das angezeigt. Nur online gehen:
+Kalender und Adressbücher anlegen/löschen, Import/Export, Profil. Beim Abmelden wird der Cache gelöscht; läuft nur das
+Token ab, bleibt er erhalten und ausstehende Änderungen werden nach der erneuten Anmeldung übertragen.
 
 Beim ersten Start die Adresse des Servers eintragen (z. B. `http://homeserver.local:8080`). Unverschlüsseltes HTTP ist
 für Server im Heimnetz erlaubt; selbst installierte Zertifizierungsstellen werden akzeptiert.
@@ -133,11 +161,13 @@ für Server im Heimnetz erlaubt; selbst installierte Zertifizierungsstellen werd
 ```bash
 cd Android
 ./gradlew assembleRelease          # → app/build/outputs/apk/release/SyncHaven.apk
-./gradlew testDebugUnitTest        # Unit-Tests der Datums-, Wiederholungs- und Kontaktlogik
+./gradlew testDebugUnitTest        # Unit-Tests der Datums-, Wiederholungs-, Kontakt-, Sync- und Offline-Logik
 ```
 
-Aufbau: `data/` (Retrofit-API, Repositories, DataStore für Sitzung und Einstellungen), `ui/<bereich>/`
-(Compose-Bildschirme mit je einem ViewModel), `util/` (Portierung der Hilfslogik aus `frontend/src/utils`).
+Aufbau: `data/` (Retrofit-API, Repositories, DataStore für Sitzung und Einstellungen), `data/offline/` (lokaler
+Cache je Konto, Warteschlange offline gemachter Änderungen, Abgleich mit dem Server), `ui/<bereich>/`
+(Compose-Bildschirme mit je einem ViewModel), `util/` (Portierung der Hilfslogik aus `frontend/src/utils`),
+`sync/` (Android-Konto, SyncAdapter für CalendarContract und ContactsContract).
 
 ## Entwicklung
 

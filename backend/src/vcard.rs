@@ -599,6 +599,36 @@ pub fn photo(card: &Card) -> Option<String> {
     None
 }
 
+/// Setzt oder entfernt das Foto. `data_url` ist eine data:-URL (`data:image/jpeg;base64,…`) oder leer
+/// zum Entfernen. Gibt `false` zurück, wenn die URL nicht verwendbar ist.
+pub fn set_photo(card: &mut Card, data_url: &str) -> bool {
+    let data_url = data_url.trim();
+    if data_url.is_empty() {
+        card.replace(&["PHOTO"], vec![]);
+        return true;
+    }
+    let Some((head, data)) = data_url.strip_prefix("data:").and_then(|r| r.split_once(',')) else {
+        return false;
+    };
+    let Some(mime) = head.strip_suffix(";base64") else { return false };
+    let ty = mime.trim().trim_start_matches("image/").to_uppercase();
+    if ty.is_empty() || !ty.chars().all(|c| c.is_ascii_alphanumeric() || c == '+' || c == '-') {
+        return false;
+    }
+    let data: String = data.chars().filter(|c| !c.is_whitespace()).collect();
+    let valid = !data.is_empty() && data.chars().all(|c| c.is_ascii_alphanumeric() || "+/=".contains(c));
+    if !valid {
+        return false;
+    }
+    let line = if card.version().starts_with('4') {
+        Line::new("PHOTO", format!("data:{};base64,{data}", mime.trim()))
+    } else {
+        Line { params: vec![("ENCODING".into(), "b".into()), ("TYPE".into(), ty)], ..Line::new("PHOTO", data) }
+    };
+    card.replace(&["PHOTO"], vec![line]);
+    true
+}
+
 /// Text für die Suche (kleingeschrieben).
 pub fn search_text(d: &ContactData) -> String {
     let mut parts = vec![
@@ -893,6 +923,20 @@ mod tests {
         assert!(text.contains("PHOTO;ENCODING=b;TYPE=JPEG:/9j/4AAQSkZJRg=="));
         let back = extract(&parse_cards(&text)[0]);
         assert_eq!(back, new);
+    }
+
+    #[test]
+    fn photo_set_and_remove() {
+        let mut card = parse_cards(V3).remove(0);
+        assert!(set_photo(&mut card, "data:image/png;base64,iVBO Rw0K"));
+        let text = card.serialize();
+        assert!(text.contains("PHOTO;ENCODING=b;TYPE=PNG:iVBORw0K"), "{text}");
+        assert_eq!(text.matches("PHOTO").count(), 1);
+        assert_eq!(photo(&parse_cards(&text)[0]).unwrap(), "data:image/png;base64,iVBORw0K");
+        assert!(!set_photo(&mut card, "https://example.org/a.jpg"));
+        assert!(set_photo(&mut card, ""));
+        assert!(photo(&card).is_none());
+        assert!(card.serialize().contains("X-CUSTOM:bleibt"));
     }
 
     #[test]

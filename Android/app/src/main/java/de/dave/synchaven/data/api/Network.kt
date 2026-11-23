@@ -5,6 +5,7 @@ import de.dave.synchaven.data.store.SessionStore
 import java.io.IOException
 import java.util.concurrent.TimeUnit
 import kotlinx.serialization.json.Json
+import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.Interceptor
 import okhttp3.MediaType.Companion.toMediaType
@@ -61,10 +62,7 @@ class ServerInterceptor(
         val server = explicitServer ?: session?.serverUrl ?: throw NoServerConfiguredException()
         val base = server.toHttpUrlOrNull() ?: throw InvalidServerUrlException(server)
 
-        val url = base.newBuilder()
-            .encodedPath(base.encodedPath.trimEnd('/') + original.url.encodedPath)
-            .encodedQuery(original.url.encodedQuery)
-            .build()
+        val url = rebaseUrl(base, original.url)
         val request = original.newBuilder()
             .url(url)
             .removeHeader(SyncHavenApi.SERVER_HEADER)
@@ -80,10 +78,16 @@ class ServerInterceptor(
     }
 }
 
+/** Setzt den Pfad einer Retrofit-URL (relativ zum Platzhalter) unter die Adresse des Servers. */
+fun rebaseUrl(server: HttpUrl, requestUrl: HttpUrl): HttpUrl = server.newBuilder()
+    .encodedPath(server.encodedPath.trimEnd('/') + requestUrl.encodedPath)
+    .encodedQuery(requestUrl.encodedQuery)
+    .build()
+
 object NetworkFactory {
     fun okHttp(sessionStore: SessionStore, debug: Boolean, onUnauthorized: () -> Unit): OkHttpClient =
         OkHttpClient.Builder()
-            .connectTimeout(20, TimeUnit.SECONDS)
+            .connectTimeout(10, TimeUnit.SECONDS) // kurz, damit ohne Server schnell der Offline-Cache greift
             .readTimeout(60, TimeUnit.SECONDS)
             .addInterceptor(ServerInterceptor(sessionStore, onUnauthorized))
             .apply {

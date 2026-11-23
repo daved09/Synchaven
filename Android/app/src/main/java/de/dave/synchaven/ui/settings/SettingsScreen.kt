@@ -14,7 +14,6 @@ import androidx.compose.material.icons.automirrored.outlined.Logout
 import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material.icons.outlined.Dns
 import androidx.compose.material.icons.outlined.Info
-import androidx.compose.material.icons.outlined.Sync
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -41,10 +40,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import de.dave.synchaven.BuildConfig
 import de.dave.synchaven.R
@@ -56,8 +57,6 @@ import de.dave.synchaven.ui.common.ConfirmDialog
 import de.dave.synchaven.ui.common.MainBottomBar
 import de.dave.synchaven.ui.common.MainTab
 import de.dave.synchaven.ui.common.appViewModel
-import de.dave.synchaven.ui.contacts.DavInfo
-import de.dave.synchaven.ui.contacts.DavSetupDialog
 import de.dave.synchaven.ui.theme.SEED_COLORS
 import de.dave.synchaven.ui.theme.supportsDynamicColor
 import de.dave.synchaven.util.LOCALE
@@ -67,15 +66,22 @@ import java.time.format.TextStyle
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(onSelectTab: (MainTab) -> Unit) {
-    val vm = appViewModel { SettingsViewModel(it.settingsStore, it.sessionStore, it.authRepository) }
+    val vm = appViewModel { SettingsViewModel(it.settingsStore, it.sessionStore, it.authRepository, it.syncController, it.offlineSync) }
     val settings by vm.settings.collectAsStateWithLifecycle()
     val session by vm.session.collectAsStateWithLifecycle()
     val serverInfo by vm.serverInfo.collectAsStateWithLifecycle()
     val profile by vm.profile.collectAsStateWithLifecycle()
+    val sync by vm.sync.collectAsStateWithLifecycle()
+    val syncSetup by vm.syncSetup.collectAsStateWithLifecycle()
+    val offline by vm.offline.collectAsStateWithLifecycle()
+    // Konto kann in den Android-Einstellungen entfernt, Berechtigungen können entzogen worden sein
+    LifecycleResumeEffect(Unit) {
+        vm.refreshSync()
+        onPauseOrDispose { }
+    }
     val snackbar = remember { SnackbarHostState() }
     CollectMessages(vm.messages.flow, snackbar)
     var askLogout by remember { mutableStateOf(false) }
-    var davSetup by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = { TopAppBar(title = { Text(stringResource(R.string.tab_settings)) }) },
@@ -103,12 +109,6 @@ fun SettingsScreen(onSelectTab: (MainTab) -> Unit) {
                         )
                     },
                 )
-                ListItem(
-                    leadingContent = { Icon(Icons.Outlined.Sync, null) },
-                    headlineContent = { Text(stringResource(R.string.settings_dav_title)) },
-                    supportingContent = { Text(stringResource(R.string.settings_dav_subtitle)) },
-                    modifier = Modifier.clickable { davSetup = true },
-                )
             }
             ListItem(
                 leadingContent = { Icon(Icons.AutoMirrored.Outlined.Logout, null, tint = MaterialTheme.colorScheme.error) },
@@ -116,6 +116,26 @@ fun SettingsScreen(onSelectTab: (MainTab) -> Unit) {
                 modifier = Modifier.clickable { askLogout = true },
             )
             HorizontalDivider()
+
+            // ---------- Offline-Daten ----------
+            if (session != null) {
+                OfflineSection(offline, onSyncNow = vm::syncOfflineNow)
+                HorizontalDivider()
+            }
+
+            // ---------- Synchronisierung mit Android ----------
+            if (session != null) {
+                SyncSection(
+                    state = sync,
+                    onSetup = vm::openSyncSetup,
+                    onEnable = vm::enableSync,
+                    onDisable = vm::disableSync,
+                    onPermissionDenied = vm::syncPermissionDenied,
+                    onInterval = vm::setSyncInterval,
+                    onSyncNow = vm::syncNow,
+                )
+                HorizontalDivider()
+            }
 
             // ---------- Darstellung ----------
             SectionTitle(stringResource(R.string.settings_appearance))
@@ -233,19 +253,26 @@ fun SettingsScreen(onSelectTab: (MainTab) -> Unit) {
     if (askLogout) {
         ConfirmDialog(
             title = stringResource(R.string.dialog_logout_title),
-            text = stringResource(R.string.dialog_logout_text),
+            text = stringResource(R.string.dialog_logout_text) +
+                if (offline.pending > 0) "\n\n" + pluralStringResource(R.plurals.dialog_logout_pending, offline.pending, offline.pending) else "",
             confirmLabel = stringResource(R.string.settings_logout),
             onConfirm = vm::logout,
             onDismiss = { askLogout = false },
         )
     }
-    if (davSetup) {
-        DavSetupDialog(session?.let { DavInfo("${it.serverUrl}/dav/", it.email) }, onDismiss = { davSetup = false })
+    syncSetup?.let { form ->
+        SyncSetupDialog(
+            form = form,
+            email = session?.email.orEmpty(),
+            onPasswordChange = vm::editSyncPassword,
+            onSubmit = vm::submitSyncSetup,
+            onDismiss = vm::closeSyncSetup,
+        )
     }
 }
 
 @Composable
-private fun SectionTitle(text: String) {
+internal fun SectionTitle(text: String) {
     Text(
         text, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary,
         modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 4.dp),
@@ -253,9 +280,16 @@ private fun SectionTitle(text: String) {
 }
 
 @Composable
-private fun <T> ChoiceItem(title: String, value: String, options: List<Pair<T, String>>, onSelect: (T) -> Unit) {
+internal fun <T> ChoiceItem(
+    title: String,
+    value: String,
+    options: List<Pair<T, String>>,
+    onSelect: (T) -> Unit,
+    leadingIcon: (@Composable () -> Unit)? = null,
+) {
     var open by remember { mutableStateOf(false) }
     ListItem(
+        leadingContent = leadingIcon,
         headlineContent = { Text(title) },
         supportingContent = { Text(value) },
         trailingContent = {

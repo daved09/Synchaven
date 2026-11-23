@@ -50,6 +50,10 @@ interface SyncHavenApi {
     @GET("auth/me")
     suspend fun me(): User
 
+    /** Neues Token für die angemeldete Sitzung */
+    @POST("auth/refresh")
+    suspend fun refreshToken(): AuthResponse
+
     @PUT("auth/me")
     suspend fun updateMe(@Body body: UpdateMeRequest): User
 
@@ -66,6 +70,10 @@ interface SyncHavenApi {
 
     @DELETE("calendars/{id}")
     suspend fun deleteCalendar(@Path("id") id: String)
+
+    /** Alle Termine eines Kalenders ohne Expansion (Serien als ein Eintrag) – für die Synchronisierung */
+    @GET("calendars/{id}/events")
+    suspend fun calendarEvents(@Path("id") id: String): List<CalEvent>
 
     @GET("calendars/{id}/export")
     suspend fun exportCalendar(@Path("id") id: String): ResponseBody

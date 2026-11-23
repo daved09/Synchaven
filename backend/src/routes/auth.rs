@@ -74,6 +74,12 @@ fn respond(state: &AppState, user: UserRow) -> AppResult<Json<AuthResponse>> {
     Ok(Json(AuthResponse { token, token_type: "Bearer", expires_at, user: user.into() }))
 }
 
+/// Neues Token für die angemeldete Sitzung – damit Clients wie die Android-Synchronisierung angemeldet bleiben,
+/// ohne das Passwort zu speichern.
+pub async fn refresh(State(state): State<AppState>, auth: AuthUser) -> AppResult<Json<AuthResponse>> {
+    respond(&state, load_user(&state, &auth.id).await?)
+}
+
 pub async fn register(
     State(state): State<AppState>,
     Json(input): Json<RegisterInput>,

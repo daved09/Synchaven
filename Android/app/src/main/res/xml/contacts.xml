@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Felder, die die Kontakte-App für Synchaven-Kontakte zum Bearbeiten anbietet – genau die, die der Server
+    kennt (siehe ContactsSyncer). Andere Felder würden beim nächsten Abgleich nicht übertragen.
+-->
+<ContactsAccountType xmlns:android="http://schemas.android.com/apk/res/android">
+    <EditSchema>
+        <DataKind
+            kind="name"
+            maxOccurs="1"
+            supportsDisplayName="true"
+            supportsMiddleName="true"
+            supportsPhoneticFamilyName="false"
+            supportsPhoneticGivenName="false"
+            supportsPhoneticMiddleName="false"
+            supportsPrefix="true"
+            supportsSuffix="true" />
+        <DataKind kind="photo" maxOccurs="1" />
+        <DataKind kind="phone">
+            <Type type="mobile" />
+            <Type type="home" />
+            <Type type="work" />
+            <Type type="other_fax" />
+            <Type type="pager" />
+            <Type type="other" />
+            <Type type="custom" />
+        </DataKind>
+        <DataKind kind="email">
+            <Type type="home" />
+            <Type type="work" />
+            <Type type="other" />
+            <Type type="custom" />
+        </DataKind>
+        <DataKind kind="nickname" maxOccurs="1" />
+        <DataKind kind="postal" needsStructured="true">
+            <Type type="home" />
+            <Type type="work" />
+            <Type type="other" />
+            <Type type="custom" />
+        </DataKind>
+        <DataKind kind="organization" maxOccurs="1" />
+        <DataKind kind="website" />
+        <DataKind kind="event" dateWithTime="false">
+            <Type type="birthday" maxOccurs="1" yearOptional="true" />
+        </DataKind>
+        <DataKind kind="note" maxOccurs="1" />
+    </EditSchema>
+</ContactsAccountType>

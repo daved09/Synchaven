@@ -58,6 +58,8 @@ pub struct Contact {
     id: String,
     addressbook_id: String,
     uid: String,
+    /// Ändert sich mit jeder Änderung der vCard (auch des Fotos) – für die Synchronisierung
+    etag: String,
     #[serde(flatten)]
     data: ContactData,
     has_photo: bool,
@@ -76,6 +78,7 @@ impl Contact {
             id: r.id.clone(),
             addressbook_id: r.addressbook_id.clone(),
             uid: r.uid.clone(),
+            etag: r.etag.clone(),
             data: vcard::extract(&card),
             has_photo: photo.is_some(),
             photo: if with_photo { photo } else { None },
@@ -88,8 +91,21 @@ impl Contact {
 #[derive(Deserialize)]
 pub struct ContactInput {
     addressbook_id: String,
+    /// Neues Foto als data:-URL, `""` entfernt es, fehlt das Feld, bleibt das Foto unverändert.
+    #[serde(default)]
+    photo: Option<String>,
     #[serde(flatten)]
     data: ContactData,
+}
+
+fn apply_photo(card: &mut vcard::Card, photo: Option<&str>) -> AppResult<()> {
+    match photo {
+        Some(p) if p.len() > 5_000_000 => Err(AppError::BadRequest("Das Foto ist zu groß (max. 3,5 MB)".into())),
+        Some(p) if !vcard::set_photo(card, p) => {
+            Err(AppError::BadRequest("Das Foto muss als data:-URL (Base64) übergeben werden".into()))
+        }
+        _ => Ok(()),
+    }
 }
 
 // ---------- Adressbücher ----------
@@ -330,7 +346,8 @@ pub async fn create(
     contacts::owned_book(&state.db, &auth.id, &input.addressbook_id).await?;
     let data = validate_contact(input.data)?;
     let uid = contacts::new_uid();
-    let card = vcard::create(&uid, &data, time::now());
+    let mut card = vcard::create(&uid, &data, time::now());
+    apply_photo(&mut card, input.photo.as_deref())?;
     let text = card.serialize();
     let mut conn = state.db.acquire().await?;
     let id = contacts::insert(&mut conn, &input.addressbook_id, &contacts::href_for(&uid), &text, &contacts::index(&card, &uid))
@@ -350,6 +367,7 @@ pub async fn update(
     let mut card = vcard::parse_cards(&row.vcard).into_iter().next().unwrap_or_default();
     let old = vcard::extract(&card);
     vcard::apply(&mut card, &old, &new);
+    apply_photo(&mut card, input.photo.as_deref())?;
     card.lines.retain(|l| l.name != "REV");
     card.lines.push(vcard::Line::new("REV", vcard::rev_value(time::now())));
     let text = card.serialize();

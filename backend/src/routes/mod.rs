@@ -18,11 +18,13 @@ pub fn api_router() -> Router<AppState> {
         .route("/auth/register", post(auth::register))
         .route("/auth/login", post(auth::login))
         .route("/auth/me", get(auth::me).put(auth::update_me))
+        .route("/auth/refresh", post(auth::refresh))
         .route("/calendars", get(calendars::list).post(calendars::create))
         .route(
             "/calendars/{id}",
             get(calendars::get).put(calendars::update).delete(calendars::delete),
         )
+        .route("/calendars/{id}/events", get(events::list_series))
         .route("/calendars/{id}/export", get(ical::export))
         .route("/calendars/{id}/import", post(ical::import))
         .route("/events", get(events::list).post(events::create))

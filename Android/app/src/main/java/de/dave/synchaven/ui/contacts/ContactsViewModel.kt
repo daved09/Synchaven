@@ -10,7 +10,6 @@ import de.dave.synchaven.data.FileTransfer
 import de.dave.synchaven.data.model.AddressBook
 import de.dave.synchaven.data.model.AddressBookInput
 import de.dave.synchaven.data.model.Contact
-import de.dave.synchaven.data.store.SessionStore
 import de.dave.synchaven.data.userMessage
 import de.dave.synchaven.pluralText
 import de.dave.synchaven.ui.common.UiMessages
@@ -45,13 +44,9 @@ data class ContactsUiState(
     val selectedBook: AddressBook? get() = addressBooks.firstOrNull { it.id == selectedBookId }
 }
 
-/** Zugangsdaten für DAVx⁵ (CardDAV), angezeigt im Einrichtungsdialog */
-data class DavInfo(val url: String, val username: String)
-
 class ContactsViewModel(
     private val repo: ContactRepository,
     private val files: FileTransfer,
-    sessionStore: SessionStore,
 ) : ViewModel() {
     val messages = UiMessages()
     private val selectedBookId = MutableStateFlow<String?>(null)
@@ -59,8 +54,6 @@ class ContactsViewModel(
     private val loading = MutableStateFlow(true)
     private val error = MutableStateFlow<UiText?>(null)
     private val collator = Collator.getInstance(LOCALE).apply { strength = Collator.PRIMARY }
-
-    val davInfo: DavInfo? = sessionStore.current?.let { DavInfo("${it.serverUrl}/dav/", it.email) }
 
     val state: StateFlow<ContactsUiState> = combine(
         repo.addressBooks, repo.contacts, selectedBookId, query, combine(loading, error, ::Pair),

@@ -7,7 +7,6 @@
     <string name="action_save">Speichern</string>
     <string name="action_delete">Löschen</string>
     <string name="action_done">Fertig</string>
-    <string name="action_close">Schließen</string>
     <string name="action_retry">Erneut versuchen</string>
     <string name="action_edit">Bearbeiten</string>
     <string name="action_more">Mehr</string>
@@ -15,10 +14,10 @@
     <string name="action_refresh">Aktualisieren</string>
     <string name="action_search">Suchen</string>
     <string name="action_back">Zurück</string>
-    <string name="action_copy">Kopieren</string>
     <string name="action_remove">Entfernen</string>
     <string name="action_clear">Leeren</string>
     <string name="action_move">Verschieben</string>
+    <string name="action_close">Schließen</string>
     <string name="content_selected">Ausgewählt</string>
     <string name="label_name">Name</string>
     <string name="label_description">Beschreibung</string>
@@ -182,7 +181,7 @@
 
     <!-- Kontakte -->
     <string name="contacts_manage_books">Adressbücher verwalten</string>
-    <string name="contacts_dav_sync">Mit DAVx⁵ synchronisieren</string>
+    <string name="contacts_sync">Mit Android synchronisieren</string>
     <string name="contacts_search_hint">Name, Telefon, E-Mail, Ort …</string>
     <string name="contacts_empty">Noch keine Kontakte.\nNeue Kontakte mit + anlegen oder eine .vcf-Datei unter „Adressbücher verwalten“ importieren.</string>
     <string name="contacts_no_results">Keine Kontakte gefunden</string>
@@ -231,18 +230,10 @@
     <string name="book_edit">Adressbuch bearbeiten</string>
     <string name="dialog_delete_book_title">Adressbuch löschen?</string>
     <plurals name="dialog_delete_book_text">
-        <item quantity="one">„%2$s“ wird mit %1$d Kontakt endgültig gelöscht – auch auf allen per DAVx⁵ synchronisierten Geräten.</item>
-        <item quantity="other">„%2$s“ wird mit %1$d Kontakten endgültig gelöscht – auch auf allen per DAVx⁵ synchronisierten Geräten.</item>
+        <item quantity="one">„%2$s“ wird mit %1$d Kontakt endgültig gelöscht – auch auf allen synchronisierten Geräten.</item>
+        <item quantity="other">„%2$s“ wird mit %1$d Kontakten endgültig gelöscht – auch auf allen synchronisierten Geräten.</item>
     </plurals>
 
-    <!-- DAVx⁵ -->
-    <string name="dav_intro">Damit die Kontakte in der Telefon- und Kontakte-App von Android erscheinen, werden sie per CardDAV mit DAVx⁵ abgeglichen. Änderungen auf dem Handy erscheinen hier und in der Weboberfläche und umgekehrt.</string>
-    <string name="dav_base_url">Basis-URL</string>
-    <string name="dav_username">Benutzername</string>
-    <string name="dav_password">Passwort: Ihr Anmeldepasswort</string>
-    <string name="dav_insecure">Die Verbindung ist nicht verschlüsselt. Für die Synchronisierung über das Internet sollte ein Reverse-Proxy mit HTTPS vorgeschaltet werden.</string>
-    <string name="dav_steps">1. In DAVx⁵ auf + tippen\n2. „Mit URL und Benutzername anmelden“ wählen\n3. Basis-URL, Benutzername und Passwort eintragen\n4. Konto anlegen\n5. Im Reiter CardDAV die Adressbücher aktivieren</string>
-    <string name="dav_open">DAVx⁵ öffnen</string>
 
     <!-- Kontaktdetails -->
     <string name="contact_call">Anrufen</string>
@@ -254,7 +245,7 @@
     <string name="contact_address_book">Adressbuch</string>
     <string name="contact_not_found">Kontakt nicht gefunden</string>
     <string name="dialog_delete_contact_title">Kontakt löschen?</string>
-    <string name="dialog_delete_contact_text">„%1$s“ wird gelöscht – auch auf allen per DAVx⁵ synchronisierten Geräten.</string>
+    <string name="dialog_delete_contact_text">„%1$s“ wird gelöscht – auch auf allen synchronisierten Geräten.</string>
     <string name="address_po_box">Postfach %1$s</string>
     <plurals name="birthday_age">
         <item quantity="one">%1$s (%2$d Jahr)</item>
@@ -322,8 +313,6 @@
     <!-- Einstellungen -->
     <string name="settings_account">Konto</string>
     <string name="settings_server_value">%1$s · %2$s %3$s</string>
-    <string name="settings_dav_title">Kontakte mit Android synchronisieren</string>
-    <string name="settings_dav_subtitle">Einrichtung mit DAVx⁵ (CardDAV)</string>
     <string name="settings_logout">Abmelden</string>
     <string name="settings_appearance">Darstellung</string>
     <string name="theme_system">System</string>
@@ -344,11 +333,73 @@
     <string name="profile_current_password">Aktuelles Passwort</string>
     <string name="profile_current_password_hint">Nötig für neue E-Mail-Adresse oder neues Passwort</string>
     <string name="dialog_logout_title">Abmelden?</string>
-    <string name="dialog_logout_text">Die Anmeldung auf diesem Gerät wird entfernt. Die Daten bleiben auf dem Server.</string>
+    <string name="dialog_logout_text">Die Anmeldung und die mit Android synchronisierten Kalender und Kontakte werden von diesem Gerät entfernt. Die Daten bleiben auf dem Server.</string>
     <string name="msg_profile_saved">Profil gespeichert</string>
     <string name="error_email_required">Bitte eine E-Mail-Adresse eingeben</string>
     <string name="error_password_too_short">Das neue Passwort braucht mindestens 8 Zeichen</string>
     <string name="error_current_password_required">Zum Ändern von E-Mail-Adresse oder Passwort bitte das aktuelle Passwort eingeben</string>
+
+    <!-- Synchronisierung mit Android -->
+    <string name="sync_title">Mit Android synchronisieren</string>
+    <string name="sync_intro">Termine und Kontakte erscheinen im Kalender und in den Kontakten von Android – Änderungen dort werden auf den Server übertragen. DAVx⁵ wird dafür nicht mehr gebraucht.</string>
+    <string name="sync_setup">Synchronisierung einrichten</string>
+    <string name="sync_setup_hint">Die Synchronisierung für „%1$s“ konnte sich nicht mehr anmelden. Mit dem Passwort meldet sie sich neu an; es wird dafür im Android-Konto gespeichert.</string>
+    <string name="sync_reenter_password">Passwort erneut eingeben</string>
+    <string name="sync_calendar">Kalender</string>
+    <string name="sync_contacts">Kontakte</string>
+    <string name="sync_off">Aus</string>
+    <string name="sync_running">Wird synchronisiert …</string>
+    <string name="sync_pending">Noch nicht synchronisiert</string>
+    <string name="sync_last">Zuletzt: %1$s</string>
+    <string name="sync_now">Jetzt synchronisieren</string>
+    <string name="sync_interval">Automatisch synchronisieren</string>
+    <string name="sync_interval_manual">Nur bei Änderungen und von Hand</string>
+    <plurals name="sync_interval_minutes">
+        <item quantity="one">Jede Minute</item>
+        <item quantity="other">Alle %1$d Minuten</item>
+    </plurals>
+    <plurals name="sync_interval_hours">
+        <item quantity="one">Jede Stunde</item>
+        <item quantity="other">Alle %1$d Stunden</item>
+    </plurals>
+    <string name="sync_interval_daily">Einmal täglich</string>
+    <string name="sync_disable_title">%1$s vom Gerät entfernen?</string>
+    <string name="sync_disable_calendar_text">Die Synchronisierung wird ausgeschaltet und die Synchaven-Kalender verschwinden aus dem Android-Kalender. Die Termine bleiben auf dem Server.</string>
+    <string name="sync_disable_contacts_text">Die Synchronisierung wird ausgeschaltet und die Synchaven-Kontakte verschwinden aus den Android-Kontakten. Die Kontakte bleiben auf dem Server.</string>
+    <string name="sync_disable_confirm">Ausschalten</string>
+    <string name="sync_permission_denied">Ohne Berechtigung ist keine Synchronisierung möglich – bitte in den App-Einstellungen erlauben</string>
+    <string name="sync_untitled">(Ohne Titel)</string>
+    <string name="sync_error_auth">Anmeldung fehlgeschlagen – wurde das Passwort geändert? Bitte erneut eingeben.</string>
+    <string name="sync_error_permission">Berechtigung fehlt – bitte Zugriff auf Kalender bzw. Kontakte erlauben</string>
+    <plurals name="sync_items_skipped">
+        <item quantity="one">%1$d Eintrag nicht übertragen: %2$s</item>
+        <item quantity="other">%1$d Einträge nicht übertragen: %2$s</item>
+    </plurals>
+    <string name="msg_sync_set_up">Synchronisierung eingerichtet</string>
+
+    <!-- Offline-Betrieb -->
+    <string name="offline_title">Offline-Daten</string>
+    <string name="offline_hint">Kalender und Kontakte werden auf dem Gerät gespeichert. Ohne Verbindung zum Server bleiben sie lesbar und bearbeitbar; Änderungen werden übertragen, sobald der Server wieder erreichbar ist.</string>
+    <string name="offline_banner">Offline – gespeicherte Daten</string>
+    <plurals name="offline_pending">
+        <item quantity="one">%1$d Änderung ausstehend</item>
+        <item quantity="other">%1$d Änderungen ausstehend</item>
+    </plurals>
+    <plurals name="offline_uploading">
+        <item quantity="one">%1$d Änderung wird übertragen …</item>
+        <item quantity="other">%1$d Änderungen werden übertragen …</item>
+    </plurals>
+    <string name="offline_rejected">Änderung vom Server abgelehnt und verworfen: %1$s</string>
+    <string name="offline_last_sync">Zuletzt abgeglichen: %1$s</string>
+    <string name="offline_never">Noch nicht abgeglichen</string>
+    <string name="offline_unreachable">Server nicht erreichbar: %1$s</string>
+    <string name="offline_unreachable_plain">Server nicht erreichbar</string>
+    <string name="offline_syncing">Wird abgeglichen …</string>
+    <string name="offline_sync_now">Jetzt abgleichen</string>
+    <plurals name="dialog_logout_pending">
+        <item quantity="one">Achtung: %1$d Änderung wurde noch nicht zum Server übertragen und geht beim Abmelden verloren.</item>
+        <item quantity="other">Achtung: %1$d Änderungen wurden noch nicht zum Server übertragen und gehen beim Abmelden verloren.</item>
+    </plurals>
 
     <!-- Fehler -->
     <string name="error_server">Serverfehler (%1$d)</string>

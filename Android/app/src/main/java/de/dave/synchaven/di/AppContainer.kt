@@ -7,10 +7,14 @@ import de.dave.synchaven.data.CalendarRepository
 import de.dave.synchaven.data.ContactRepository
 import de.dave.synchaven.data.FileTransfer
 import de.dave.synchaven.data.api.NetworkFactory
+import de.dave.synchaven.data.offline.OfflineStore
+import de.dave.synchaven.data.offline.OfflineSync
 import de.dave.synchaven.data.store.AppDataStore
 import de.dave.synchaven.data.store.SessionState
 import de.dave.synchaven.data.store.SessionStore
 import de.dave.synchaven.data.store.SettingsStore
+import de.dave.synchaven.sync.SyncController
+import de.dave.synchaven.sync.SyncKind
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -22,6 +26,7 @@ class AppContainer(context: Context) {
     private val dataStore = AppDataStore(context, appScope)
     val sessionStore = SessionStore(dataStore)
     val settingsStore = SettingsStore(dataStore)
+    val syncController = SyncController(context)
 
     // Ein 401 bei angemeldeter Sitzung bedeutet: Token abgelaufen → zur Anmeldung zurück
     private val httpClient = NetworkFactory.okHttp(sessionStore, BuildConfig.DEBUG) {
@@ -29,21 +34,38 @@ class AppContainer(context: Context) {
     }
     private val api = NetworkFactory.api(httpClient)
 
-    val authRepository = AuthRepository(api, sessionStore)
-    val calendarRepository = CalendarRepository(api)
-    val contactRepository = ContactRepository(api, onContactsChanged = calendarRepository::eventsChanged)
+    /** Lokaler Cache aller Daten des angemeldeten Kontos, damit die App auch offline funktioniert */
+    val offlineStore = OfflineStore(context, appScope)
+    val offlineSync: OfflineSync = OfflineSync(
+        context, api, offlineStore, sessionStore, appScope,
+        // Nach dem Übertragen offline gemachter Änderungen
+        onEventsChanged = { calendarRepository.eventsChanged() },
+        onContactsChanged = { syncController.requestSync(SyncKind.CONTACTS) },
+    )
+
+    val authRepository = AuthRepository(api, sessionStore, syncController, offlineSync, offlineStore)
+    val calendarRepository: CalendarRepository = CalendarRepository(api, offlineStore, offlineSync, appScope,
+        onServerChanged = { syncController.requestSync(SyncKind.CALENDAR) })
+
+    // Kontaktänderungen ändern auch den Geburtstagskalender
+    val contactRepository = ContactRepository(api, offlineStore, offlineSync, appScope, onContactsChanged = {
+        calendarRepository.birthdaysChanged()
+        syncController.requestSync(SyncKind.CONTACTS)
+    })
     val fileTransfer = FileTransfer(context)
 
     init {
-        // Zwischengespeicherte Daten gehören zum angemeldeten Konto
+        // Der Cache gehört zum angemeldeten Konto
         appScope.launch {
-            var lastUser: String? = null
+            var lastUser: String? = "\u0000" // noch nichts geöffnet
             sessionStore.state.collect { state ->
                 val user = (state as? SessionState.LoggedIn)?.session?.let { it.serverUrl + "|" + it.userId }
                 if (state !is SessionState.Loading && user != lastUser) {
-                    calendarRepository.reset()
-                    contactRepository.reset()
+                    offlineStore.open(user)
+                    if (user != null) offlineSync.requestSync()
                     lastUser = user
+                    // Angemeldet, aber noch kein Android-Konto (z. B. nach einem Update): anlegen
+                    if (user != null) runCatching { authRepository.ensureSyncAccount() }
                 }
             }
         }

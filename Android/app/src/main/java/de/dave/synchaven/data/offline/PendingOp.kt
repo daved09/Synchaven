@@ -1,0 +1,155 @@
+package de.dave.synchaven.data.offline
+
+import de.dave.synchaven.data.model.CalendarInput
+import de.dave.synchaven.data.model.ContactInput
+import de.dave.synchaven.data.model.EventInput
+import java.util.UUID
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+
+/** Präfix vorläufiger IDs von Terminen und Kontakten, die offline angelegt und noch nicht übertragen wurden. */
+const val LOCAL_ID_PREFIX = "local-"
+
+fun newLocalId(): String = LOCAL_ID_PREFIX + UUID.randomUUID()
+
+fun isLocalId(id: String) = id.startsWith(LOCAL_ID_PREFIX)
+
+/**
+ * Offline vorgenommene Änderung, die beim nächsten Kontakt zum Server übertragen wird. Die Warteschlange
+ * wird in Reihenfolge abgearbeitet; [enqueue] fasst Änderungen am selben Objekt zusammen.
+ */
+@Serializable
+sealed interface PendingOp {
+    /** ID des betroffenen Termins, Kontakts oder Kalenders */
+    val targetId: String
+
+    @Serializable @SerialName("event_create")
+    data class CreateEvent(val localId: String, val input: EventInput) : PendingOp {
+        override val targetId get() = localId
+    }
+
+    @Serializable @SerialName("event_update")
+    data class UpdateEvent(val id: String, val input: EventInput) : PendingOp {
+        override val targetId get() = id
+    }
+
+    @Serializable @SerialName("event_delete")
+    data class DeleteEvent(val id: String) : PendingOp {
+        override val targetId get() = id
+    }
+
+    /** Ein Vorkommen einer Serie entfällt */
+    @Serializable @SerialName("event_exdate")
+    data class AddExdate(val id: String, val occurrenceStart: String) : PendingOp {
+        override val targetId get() = id
+    }
+
+    @Serializable @SerialName("contact_create")
+    data class CreateContact(val localId: String, val input: ContactInput) : PendingOp {
+        override val targetId get() = localId
+    }
+
+    @Serializable @SerialName("contact_update")
+    data class UpdateContact(val id: String, val input: ContactInput) : PendingOp {
+        override val targetId get() = id
+    }
+
+    @Serializable @SerialName("contact_delete")
+    data class DeleteContact(val id: String) : PendingOp {
+        override val targetId get() = id
+    }
+
+    /** Name, Farbe oder Sichtbarkeit eines Kalenders */
+    @Serializable @SerialName("calendar_update")
+    data class UpdateCalendar(val id: String, val input: CalendarInput) : PendingOp {
+        override val targetId get() = id
+    }
+
+    /** Standardansicht des Kalenders im Benutzerkonto */
+    @Serializable @SerialName("default_view")
+    data class SetDefaultView(val view: String) : PendingOp {
+        override val targetId get() = ""
+    }
+}
+
+private fun PendingOp.isEventOp() =
+    this is PendingOp.CreateEvent || this is PendingOp.UpdateEvent || this is PendingOp.DeleteEvent || this is PendingOp.AddExdate
+
+private fun PendingOp.isContactOp() =
+    this is PendingOp.CreateContact || this is PendingOp.UpdateContact || this is PendingOp.DeleteContact
+
+private fun PendingOp.sameTarget(other: PendingOp) = targetId == other.targetId &&
+    ((isEventOp() && other.isEventOp()) || (isContactOp() && other.isContactOp()))
+
+/**
+ * Hängt [op] an die Warteschlange an und fasst sie mit früheren Änderungen am selben Objekt zusammen:
+ * Bearbeiten eines offline angelegten Objekts ändert dessen Anlage, Löschen entfernt sie ganz, eine neuere
+ * Bearbeitung ersetzt die ältere. Die ersten [frozen] Einträge werden gerade übertragen und bleiben unverändert.
+ */
+fun List<PendingOp>.enqueue(op: PendingOp, frozen: Int = 0): List<PendingOp> {
+    val head = take(frozen)
+    val tail = drop(frozen)
+    return head + tail.merge(op)
+}
+
+private fun List<PendingOp>.merge(op: PendingOp): List<PendingOp> = when (op) {
+    is PendingOp.CreateEvent, is PendingOp.CreateContact -> this + op
+
+    is PendingOp.UpdateEvent -> {
+        val create = firstOrNull { it is PendingOp.CreateEvent && it.localId == op.id }
+        if (create != null) map { if (it === create) PendingOp.CreateEvent(op.id, op.input) else it }
+        else filterNot { it is PendingOp.UpdateEvent && it.id == op.id } + op
+    }
+
+    is PendingOp.AddExdate -> {
+        fun EventInput.withExdate() = if (op.occurrenceStart in exdates) this else copy(exdates = exdates + op.occurrenceStart)
+        val target = lastOrNull {
+            (it is PendingOp.CreateEvent && it.localId == op.id) || (it is PendingOp.UpdateEvent && it.id == op.id)
+        }
+        when (target) {
+            is PendingOp.CreateEvent -> map { if (it === target) target.copy(input = target.input.withExdate()) else it }
+            // Die Bearbeitung ersetzt beim Übertragen ohnehin alle EXDATEs
+            is PendingOp.UpdateEvent -> map { if (it === target) target.copy(input = target.input.withExdate()) else it }
+            else -> this + op
+        }
+    }
+
+    is PendingOp.UpdateContact -> {
+        val create = firstOrNull { it is PendingOp.CreateContact && it.localId == op.id } as PendingOp.CreateContact?
+        if (create != null) {
+            // Foto: `null` heißt „unverändert“ – das Foto der Anlage bleibt dann erhalten
+            val input = if (op.input.photo == null) op.input.copy(photo = create.input.photo) else op.input
+            map { if (it === create) PendingOp.CreateContact(op.id, input) else it }
+        } else {
+            val previous = lastOrNull { it is PendingOp.UpdateContact && it.id == op.id } as PendingOp.UpdateContact?
+            val input = if (op.input.photo == null && previous != null) op.input.copy(photo = previous.input.photo) else op.input
+            filterNot { it is PendingOp.UpdateContact && it.id == op.id } + PendingOp.UpdateContact(op.id, input)
+        }
+    }
+
+    is PendingOp.DeleteEvent, is PendingOp.DeleteContact -> {
+        val createdOffline = any {
+            (it is PendingOp.CreateEvent && op is PendingOp.DeleteEvent && it.localId == op.targetId) ||
+                (it is PendingOp.CreateContact && op is PendingOp.DeleteContact && it.localId == op.targetId)
+        }
+        val rest = filterNot { it.sameTarget(op) }
+        if (createdOffline) rest else rest + op
+    }
+
+    is PendingOp.UpdateCalendar -> filterNot { it is PendingOp.UpdateCalendar && it.id == op.id } + op
+
+    is PendingOp.SetDefaultView -> filterNot { it is PendingOp.SetDefaultView } + op
+}
+
+/** Ersetzt nach dem Übertragen einer Anlage die vorläufige ID in den übrigen Änderungen. */
+fun List<PendingOp>.remap(localId: String, serverId: String): List<PendingOp> = map { op ->
+    when {
+        op.targetId != localId -> op
+        op is PendingOp.UpdateEvent -> op.copy(id = serverId)
+        op is PendingOp.DeleteEvent -> op.copy(id = serverId)
+        op is PendingOp.AddExdate -> op.copy(id = serverId)
+        op is PendingOp.UpdateContact -> op.copy(id = serverId)
+        op is PendingOp.DeleteContact -> op.copy(id = serverId)
+        else -> op
+    }
+}

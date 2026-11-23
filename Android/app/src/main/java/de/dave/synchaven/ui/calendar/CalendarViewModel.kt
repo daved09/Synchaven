@@ -135,15 +135,24 @@ class CalendarViewModel(
         }
     }
 
+    /** Zeigt sofort die gespeicherten Termine und lädt dann vom Server (offline bleibt es beim Cache). */
     private suspend fun loadRange(range: DateRange) {
+        val start = range.start.startInstant()
+        val end = range.end.startInstant()
+        val cached = repo.cachedOccurrences(start, end)
+        if (cached != null) {
+            raw.value = cached
+            error.value = null
+        }
         loading.value = true
-        runCatching { repo.occurrences(range.start.startInstant(), range.end.startInstant()) }
+        runCatching { repo.occurrences(start, end) }
             .onSuccess { raw.value = it; error.value = null }
-            .onFailure { error.value = it.userMessage() }
+            .onFailure { if (cached == null) error.value = it.userMessage() else messages.send(it.userMessage()) }
         loading.value = false
     }
 
     fun refresh() {
+        repo.syncNow()
         viewModelScope.launch {
             runCatching { repo.loadCalendars() }.onFailure { messages.send(it.userMessage()) }
             val s = state.value

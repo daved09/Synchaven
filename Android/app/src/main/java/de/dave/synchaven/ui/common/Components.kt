@@ -172,14 +172,17 @@ enum class MainTab(@StringRes val labelRes: Int, val icon: ImageVector) {
 
 @Composable
 fun MainBottomBar(current: MainTab, onSelect: (MainTab) -> Unit) {
-    NavigationBar {
-        for (tab in MainTab.entries) {
-            NavigationBarItem(
-                selected = tab == current,
-                onClick = { if (tab != current) onSelect(tab) },
-                icon = { Icon(tab.icon, null) },
-                label = { Text(stringResource(tab.labelRes)) },
-            )
+    Column {
+        OfflineBanner()
+        NavigationBar {
+            for (tab in MainTab.entries) {
+                NavigationBarItem(
+                    selected = tab == current,
+                    onClick = { if (tab != current) onSelect(tab) },
+                    icon = { Icon(tab.icon, null) },
+                    label = { Text(stringResource(tab.labelRes)) },
+                )
+            }
         }
     }
 }

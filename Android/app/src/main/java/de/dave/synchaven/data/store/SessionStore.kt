@@ -7,6 +7,7 @@ import de.dave.synchaven.data.model.User
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 
@@ -40,6 +41,8 @@ class SessionStore(private val dataStore: AppDataStore) {
         val defaultView = stringPreferencesKey("user_default_view")
         val lastServer = stringPreferencesKey("last_server")
         val lastEmail = stringPreferencesKey("last_email")
+        /** `<server>|<user>`, für den das Android-Konto angelegt wurde – fehlt es dann, hat der Benutzer es entfernt */
+        val syncAccountFor = stringPreferencesKey("sync_account_for")
     }
 
     val state: StateFlow<SessionState> = dataStore.prefs
@@ -71,8 +74,22 @@ class SessionStore(private val dataStore: AppDataStore) {
         }
     }
 
+    /** Standardansicht lokal setzen (z. B. offline, bevor sie zum Server übertragen ist) */
+    suspend fun setDefaultView(mode: ViewMode) {
+        store.edit { it[Keys.defaultView] = mode.apiValue }
+    }
+
+    /** Für diese Sitzung wurde das Android-Konto bereits angelegt (und ggf. vom Benutzer wieder entfernt). */
+    suspend fun syncAccountCreated(session: Session): Boolean =
+        store.data.first()[Keys.syncAccountFor] == "${session.serverUrl}|${session.userId}"
+
+    suspend fun markSyncAccountCreated(serverUrl: String, userId: String) {
+        store.edit { it[Keys.syncAccountFor] = "$serverUrl|$userId" }
+    }
+
     suspend fun clear() {
         store.edit {
+            it.remove(Keys.syncAccountFor)
             it.remove(Keys.server)
             it.remove(Keys.token)
             it.remove(Keys.userId)

@@ -24,10 +24,19 @@ import de.dave.synchaven.ui.common.rememberLocalNetworkPermissionRequest
 import de.dave.synchaven.ui.navigation.CalendarRoute
 import de.dave.synchaven.ui.navigation.LoginRoute
 import de.dave.synchaven.ui.navigation.SyncHavenNavGraph
+import de.dave.synchaven.sync.SyncController
+import de.dave.synchaven.sync.SyncKind
+import de.dave.synchaven.sync.hasPermissions
+import de.dave.synchaven.sync.permissions
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.rememberCoroutineScope
 
 /** Oberste Ebene: wartet auf die Sitzung, fragt die Berechtigung fürs lokale Netz an und zeigt die Navigation. */
 @Composable
-fun AppRoot(sessionStore: SessionStore) {
+fun AppRoot(sessionStore: SessionStore, syncController: SyncController) {
     val session by sessionStore.state.collectAsStateWithLifecycle()
     Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         if (session == SessionState.Loading) {
@@ -49,6 +58,31 @@ fun AppRoot(sessionStore: SessionStore) {
         val navController = rememberNavController()
         SessionNavigationEffect(navController, loggedIn)
         SyncHavenNavGraph(navController, startLoggedIn = loggedIn)
+        if (loggedIn) SyncOnboarding(syncController)
+    }
+}
+
+/**
+ * Sobald das Android-Konto angelegt ist (Anmeldung oder Update), einmal nach den Berechtigungen für Kalender und
+ * Kontakte fragen und die erlaubten Bereiche einschalten – wie nach dem Einrichten eines Kontos in DAVx⁵.
+ * Später lässt sich das unter Einstellungen → Mit Android synchronisieren ändern.
+ */
+@Composable
+private fun SyncOnboarding(sync: SyncController) {
+    val state by sync.state.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var asked by rememberSaveable { mutableStateOf(false) }
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+        scope.launch(Dispatchers.IO) {
+            for (kind in SyncKind.entries) if (context.hasPermissions(kind)) sync.enable(kind)
+            sync.finishOnboarding()
+        }
+    }
+    if (state.accountName == null || state.onboarded || asked) return
+    LaunchedEffect(state.accountName) {
+        asked = true
+        launcher.launch(SyncKind.entries.flatMap { it.permissions.toList() }.toTypedArray())
     }
 }
 

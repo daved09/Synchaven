@@ -6,6 +6,8 @@ import de.dave.synchaven.R
 import de.dave.synchaven.UiText
 import de.dave.synchaven.data.AuthRepository
 import de.dave.synchaven.data.model.ServerInfo
+import de.dave.synchaven.data.offline.OfflineStatus
+import de.dave.synchaven.data.offline.OfflineSync
 import de.dave.synchaven.data.model.UpdateMeRequest
 import de.dave.synchaven.data.store.AppSettings
 import de.dave.synchaven.data.store.Session
@@ -14,8 +16,12 @@ import de.dave.synchaven.data.store.SessionStore
 import de.dave.synchaven.data.store.SettingsStore
 import de.dave.synchaven.data.store.ViewMode
 import de.dave.synchaven.data.userMessage
+import de.dave.synchaven.sync.SyncController
+import de.dave.synchaven.sync.SyncKind
+import de.dave.synchaven.sync.SyncState
 import de.dave.synchaven.ui.common.UiMessages
 import de.dave.synchaven.uiText
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -35,12 +41,26 @@ data class ProfileForm(
     val error: UiText? = null,
 )
 
+/** Zustand des Dialogs „Synchronisierung einrichten“ (Passwort für das Android-Konto) */
+data class SyncSetupForm(
+    val password: String = "",
+    val saving: Boolean = false,
+    val error: UiText? = null,
+)
+
 class SettingsViewModel(
     private val settingsStore: SettingsStore,
     private val sessionStore: SessionStore,
     private val auth: AuthRepository,
+    private val syncController: SyncController,
+    private val offlineSync: OfflineSync,
 ) : ViewModel() {
     val messages = UiMessages()
+
+    /** Stand des Offline-Caches */
+    val offline: StateFlow<OfflineStatus> = offlineSync.status
+
+    fun syncOfflineNow() = offlineSync.requestSync()
 
     val settings: StateFlow<AppSettings> = settingsStore.settings
 
@@ -117,6 +137,68 @@ class SettingsViewModel(
             }.onFailure { e -> _profile.update { it?.copy(saving = false, error = e.userMessage()) } }
         }
     }
+
+    // ---------- Synchronisierung mit Android ----------
+
+    val sync: StateFlow<SyncState> = syncController.state
+
+    /** `null` = Dialog geschlossen */
+    private val _syncSetup = MutableStateFlow<SyncSetupForm?>(null)
+    val syncSetup = _syncSetup.asStateFlow()
+
+    /** Konto entfernt (Android-Einstellungen) oder Berechtigung entzogen? */
+    fun refreshSync() = syncController.refresh()
+
+    /** Ohne Konto: aus der Sitzung anlegen. Mit Konto (Anmeldung fehlgeschlagen): Passwort abfragen. */
+    fun openSyncSetup() {
+        if (sync.value.accountName != null) {
+            _syncSetup.value = SyncSetupForm()
+            return
+        }
+        viewModelScope.launch {
+            runCatching { auth.ensureSyncAccount(force = true) }
+                .onFailure { messages.send(it.userMessage()) }
+        }
+    }
+
+    fun closeSyncSetup() {
+        _syncSetup.value = null
+    }
+
+    fun editSyncPassword(password: String) = _syncSetup.update { it?.copy(password = password, error = null) }
+
+    fun submitSyncSetup() {
+        val form = _syncSetup.value ?: return
+        if (form.password.isEmpty()) return
+        _syncSetup.update { it?.copy(saving = true) }
+        viewModelScope.launch {
+            runCatching { auth.setupSync(form.password) }
+                .onSuccess {
+                    _syncSetup.value = null
+                    // War die Synchronisierung schon eingeschaltet (Passwort erneuert), gleich nachholen
+                    syncController.requestSync(manual = true)
+                    messages.send(uiText(R.string.msg_sync_set_up))
+                }
+                .onFailure { e -> _syncSetup.update { it?.copy(saving = false, error = e.userMessage()) } }
+        }
+    }
+
+    /** Die Berechtigungen hat der Bildschirm bereits eingeholt. */
+    fun enableSync(kind: SyncKind) {
+        viewModelScope.launch(Dispatchers.IO) { syncController.enable(kind) }
+    }
+
+    fun disableSync(kind: SyncKind) {
+        viewModelScope.launch { syncController.disable(kind) }
+    }
+
+    fun syncPermissionDenied() = messages.send(uiText(R.string.sync_permission_denied))
+
+    fun setSyncInterval(minutes: Int) {
+        viewModelScope.launch(Dispatchers.IO) { syncController.setInterval(minutes) }
+    }
+
+    fun syncNow() = syncController.requestSync(manual = true)
 
     fun logout() {
         viewModelScope.launch { auth.logout() }

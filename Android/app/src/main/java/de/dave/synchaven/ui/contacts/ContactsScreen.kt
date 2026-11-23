@@ -80,7 +80,7 @@ fun ContactsScreen(
     /** Neuer Kontakt, vorbelegt mit dem gewählten Adressbuch */
     onNewContact: (String?) -> Unit,
 ) {
-    val vm = appViewModel { ContactsViewModel(it.contactRepository, it.fileTransfer, it.sessionStore) }
+    val vm = appViewModel { ContactsViewModel(it.contactRepository, it.fileTransfer) }
     val s by vm.state.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
     CollectMessages(vm.messages.flow, snackbar)
@@ -88,7 +88,6 @@ fun ContactsScreen(
     var searching by rememberSaveable { mutableStateOf(false) }
     var menu by remember { mutableStateOf(false) }
     var manageBooks by rememberSaveable { mutableStateOf(false) }
-    var davSetup by rememberSaveable { mutableStateOf(false) }
 
     // Import/Export: das Adressbuch, für das die Dateiauswahl geöffnet wurde
     var fileBookId by rememberSaveable { mutableStateOf<String?>(null) }
@@ -118,9 +117,9 @@ fun ContactsScreen(
                                 onClick = { menu = false; manageBooks = true },
                             )
                             DropdownMenuItem(
-                                text = { Text(stringResource(R.string.contacts_dav_sync)) },
+                                text = { Text(stringResource(R.string.contacts_sync)) },
                                 leadingIcon = { Icon(Icons.Outlined.Sync, null) },
-                                onClick = { menu = false; davSetup = true },
+                                onClick = { menu = false; onSelectTab(MainTab.SETTINGS) },
                             )
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.action_refresh)) },
@@ -206,7 +205,6 @@ fun ContactsScreen(
             onDismiss = { manageBooks = false },
         )
     }
-    if (davSetup) DavSetupDialog(vm.davInfo, onDismiss = { davSetup = false })
 }
 
 @Composable

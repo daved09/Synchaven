@@ -226,6 +226,21 @@ pub async fn list(
     Ok(Json(out))
 }
 
+/// Alle Termine eines Kalenders ohne Expansion (Serien als ein Eintrag mit `rrule`/`exdates`) –
+/// für Clients, die selbst synchronisieren (Android-Kalender).
+pub async fn list_series(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(calendar_id): Path<String>,
+) -> AppResult<Json<Vec<Event>>> {
+    owned_calendar(&state, &auth.id, &calendar_id).await?;
+    let rows: Vec<EventRow> = sqlx::query_as("SELECT * FROM events WHERE calendar_id = ? ORDER BY start_at, id")
+        .bind(&calendar_id)
+        .fetch_all(&state.db)
+        .await?;
+    Ok(Json(rows.into_iter().map(Into::into).collect()))
+}
+
 pub async fn get(State(state): State<AppState>, auth: AuthUser, Path(id): Path<String>) -> AppResult<Json<Event>> {
     Ok(Json(owned_event(&state, &auth.id, &id).await?.into()))
 }

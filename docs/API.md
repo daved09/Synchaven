@@ -74,6 +74,10 @@ Für neue Konten wird automatisch der Kalender „Persönlich“ angelegt.
 { "email": "anna@example.com", "password": "…" }
 ```
 
+### `POST /auth/refresh` → wie Login
+Liefert ein neues Token (gleiche Antwort wie `/auth/login`) für eine noch gültige Anmeldung. Die Android-App erneuert
+so das Token ihrer Synchronisierung, ohne das Passwort zu speichern.
+
 ### `GET /auth/me` → `User`
 
 ### `PUT /auth/me` → `User`
@@ -105,11 +109,15 @@ Löschen, Import sowie Anlegen, Bearbeiten und Löschen einzelner Termine werden
 | GET     | `/calendars/{id}`            | –                 | `Calendar`     |
 | PUT     | `/calendars/{id}`            | `CalendarInput`   | `Calendar`     |
 | DELETE  | `/calendars/{id}`            | –                 | `204` (inkl. aller Termine) |
+| GET     | `/calendars/{id}/events`     | –                 | `Event[]` (Serien nicht expandiert) |
 | GET     | `/calendars/{id}/export`     | –                 | `text/calendar` (.ics) |
 | POST    | `/calendars/{id}/import?timezone=Europe/Berlin` | .ics-Datei als Body (`text/calendar`) | `{ "imported": 12, "skipped": [] }` |
 
 `CalendarInput`: `{ "name": "Arbeit", "color": "#0B57D0", "description": "", "visible": true }`
 (`color`, `description`, `visible` optional).
+
+`/calendars/{id}/events` liefert alle Termine eines Kalenders als `Event` – Serien als ein Eintrag mit `rrule` und
+`exdates`. Gedacht für Clients, die selbst synchronisieren (die Android-App überträgt damit in den Android-Kalender).
 
 Beim Import werden Termine mit gleicher `UID` aktualisiert statt dupliziert. `timezone` gilt für
 Zeitangaben ohne `TZID` („floating time“). Geänderte Einzelvorkommen (`RECURRENCE-ID`) werden als
@@ -239,7 +247,11 @@ Firma, E-Mail, Telefon) gebildet. `type`: Telefon `mobile|home|work|fax|pager|ot
 andere Werte werden als eigene Bezeichnung gespeichert. `birthday`: `YYYY-MM-DD` oder `--MM-DD` (ohne Jahr).
 Ändert sich `addressbook_id`, wird der Kontakt verschoben.
 
-`Contact` entspricht dem Input plus `id`, `uid`, `has_photo`, `photo?`, `created_at`, `updated_at`.
+Optional `photo`: neues Foto als data:-URL (`data:image/jpeg;base64,…`), `""` entfernt das Foto. Fehlt das Feld (oder
+ist es `null`), bleibt das Foto unverändert.
+
+`Contact` entspricht dem Input plus `id`, `uid`, `etag`, `has_photo`, `photo?`, `created_at`, `updated_at`. `etag`
+ändert sich mit jeder Änderung des Kontakts (auch des Fotos oder per CardDAV) und eignet sich zum Abgleich.
 
 ### `DELETE /contacts/{id}` → `204`
 

@@ -96,6 +96,9 @@ object RRuleExpander {
         return out
     }
 
+    /** Lässt sich die Regel berechnen? Prüft Regeln im lokalen Modus, wo es keinen Server gibt, der sie prüft. */
+    fun isSupported(rrule: String): Boolean = parse(rrule, ZoneOffset.UTC) != null
+
     private fun parse(raw: String, zone: ZoneId): Rule? {
         val parts = raw.trim().replace(Regex("^RRULE:", RegexOption.IGNORE_CASE), "").uppercase()
             .split(';').map { it.trim() }.filter { it.isNotEmpty() }

@@ -3,6 +3,8 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Netzwechsel erkennen (OfflineSync): Server erneut versuchen und offline gemachte Änderungen übertragen -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <!-- Android 17+: nötig, um Server im lokalen Netz (z. B. homeserver.local) zu erreichen. -->
     <uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK" />
 

@@ -16,6 +16,7 @@ import android.os.IBinder
 import android.util.Log
 import de.dave.synchaven.MainActivity
 import de.dave.synchaven.R
+import de.dave.synchaven.SyncHavenApp
 import de.dave.synchaven.data.api.ApiException
 import de.dave.synchaven.data.userMessage
 import java.io.IOException
@@ -38,8 +39,11 @@ private class SyncAdapter(context: Context, private val kind: SyncKind) :
         if (extras.getBoolean(ContentResolver.SYNC_EXTRAS_INITIALIZE)) return
         val accounts = SyncAccounts(context)
         val res = context.resources
+        // Lokaler Modus: kein Server, die Synchronisierung liest und schreibt direkt die Daten der App
+        val container = if (accounts.isLocal(account)) (context.applicationContext as SyncHavenApp).container else null
+        val eventsBefore = container?.offlineStore?.data?.value?.events
         val error: String? = try {
-            val api = syncApi(accounts, account)
+            val api = container?.localApi ?: syncApi(accounts, account)
             val itemError = runBlocking {
                 when (kind) {
                     SyncKind.CALENDAR -> CalendarSyncer(account, provider, api, syncResult, res.getString(R.string.sync_untitled))
@@ -64,6 +68,12 @@ private class SyncAdapter(context: Context, private val kind: SyncKind) :
             errorMessage(e, syncResult)
         }
         Log.i(TAG, "${kind.name}: $syncResult${error?.let { " – $it" }.orEmpty()}")
+        if (container != null && container.offlineStore.data.value.events != eventsBefore) {
+            // Änderungen aus dem Android-Kalender bzw. Geburtstage aus geänderten Kontakten: Ansichten der App und
+            // den Android-Kalender nachziehen
+            container.calendarRepository.refreshViews()
+            if (kind == SyncKind.CONTACTS) container.syncController.requestSync(SyncKind.CALENDAR)
+        }
         // Das Konto kann während der Synchronisierung entfernt worden sein
         if (accounts.account() == account) accounts.recordResult(account, kind, error)
     }

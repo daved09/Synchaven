@@ -60,6 +60,9 @@ class CalendarRepository(
     /** Nur lokal geändert (offline) – Ansichten neu laden, die Synchronisierung folgt nach dem Übertragen. */
     private fun localChange() = _eventsVersion.update { it + 1 }
 
+    /** Termine wurden außerhalb der App geändert (lokaler Modus: Android-Kalender) – nur die Ansichten neu laden. */
+    fun refreshViews() = localChange()
+
     /** Kontakte wurden auf dem Server geändert: Geburtstagskalender neu laden. */
     fun birthdaysChanged() {
         scope.launch {

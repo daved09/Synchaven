@@ -6,6 +6,7 @@ import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
 import androidx.core.content.ContextCompat
+import de.dave.synchaven.data.store.LOCAL_USER
 import android.provider.CalendarContract
 import android.provider.ContactsContract
 
@@ -59,6 +60,9 @@ class SyncAccounts(context: Context) {
     fun serverUrl(account: Account): String? = am.getUserData(account, Keys.SERVER)
     fun userId(account: Account): String? = am.getUserData(account, Keys.USER_ID)
 
+    /** Konto des lokalen Modus: synchronisiert mit den Daten der App statt mit einem Server */
+    fun isLocal(account: Account): Boolean = serverUrl(account).isNullOrEmpty() && userId(account) == LOCAL_USER
+
     /** E-Mail-Adresse für die Anmeldung (der Kontoname bleibt bei einer Änderung der Adresse gleich). */
     fun email(account: Account): String = am.getUserData(account, Keys.EMAIL) ?: account.name
 
@@ -106,7 +110,8 @@ class SyncAccounts(context: Context) {
         serverUrl: String, userId: String, email: String, password: String?, token: String, expiresAt: String,
     ): Account {
         account()?.let { existing ->
-            if (serverUrl(existing) == serverUrl && userId(existing) == userId) {
+            // Im lokalen Modus ist die Adresse leer – AccountManager liefert sie dann ggf. als null
+            if (serverUrl(existing).orEmpty() == serverUrl && userId(existing) == userId) {
                 if (password != null) setPassword(existing, password)
                 setToken(existing, token, expiresAt)
                 setEmail(existing, email)

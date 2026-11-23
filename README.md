@@ -155,17 +155,29 @@ oder über *Einstellungen → Offline-Daten → Jetzt abgleichen*); danach lädt
 Kalender und Adressbücher anlegen/löschen, Import/Export, Profil. Beim Abmelden wird der Cache gelöscht; läuft nur das
 Token ab, bleibt er erhalten und ausstehende Änderungen werden nach der erneuten Anmeldung übertragen.
 
-Beim ersten Start die Adresse des Servers eintragen (z. B. `http://homeserver.local:8080`). Unverschlüsseltes HTTP ist
-für Server im Heimnetz erlaubt; selbst installierte Zertifizierungsstellen werden akzeptiert.
+**Ohne Server (lokaler Modus):** Mit *Ohne Server verwenden* auf dem Anmeldebildschirm funktioniert die App ganz
+ohne Weboberfläche. Kalender, Termine, Adressbücher und Kontakte liegen dann nur auf dem Gerät (`filesDir/local/`,
+damit in den Android-Sicherungen enthalten) – mit allen Funktionen: Kalender und Adressbücher verwalten, Serien,
+Geburtstagskalender aus den Kontakten, .ics- und .vcf-Import/-Export und die Synchronisierung mit dem Android-Kalender
+und den Systemkontakten (Konto „Synchaven (lokal)“). Technisch ersetzt `data/local/LocalApi.kt` die REST API: Sie
+speichert im selben lokalen Speicher wie der Offline-Cache und prüft Eingaben wie der Server; iCalendar, vCard und
+Geburtstage sind Portierungen aus `backend/src`. Beim vCard-Import bleiben nur die Felder erhalten, die die App kennt.
+*Einstellungen → Mit Server verbinden* wechselt zur Anmeldung; die lokalen Daten bleiben auf dem Gerät und sind beim
+nächsten *Ohne Server verwenden* wieder da – auf einen Server übertragen werden sie nicht (dafür: Export und Import).
+
+Beim ersten Start die Adresse des Servers eintragen (z. B. `http://homeserver.local:8080`) oder *Ohne Server verwenden*
+wählen. Unverschlüsseltes HTTP ist für Server im Heimnetz erlaubt; selbst installierte Zertifizierungsstellen werden
+akzeptiert.
 
 ```bash
 cd Android
 ./gradlew assembleRelease          # → app/build/outputs/apk/release/SyncHaven.apk
-./gradlew testDebugUnitTest        # Unit-Tests der Datums-, Wiederholungs-, Kontakt-, Sync- und Offline-Logik
+./gradlew testDebugUnitTest        # Unit-Tests der Datums-, Wiederholungs-, Kontakt-, Sync-, Offline- und Dateiformat-Logik
 ```
 
 Aufbau: `data/` (Retrofit-API, Repositories, DataStore für Sitzung und Einstellungen), `data/offline/` (lokaler
-Cache je Konto, Warteschlange offline gemachter Änderungen, Abgleich mit dem Server), `ui/<bereich>/`
+Cache je Konto, Warteschlange offline gemachter Änderungen, Abgleich mit dem Server), `data/local/` (lokaler Modus
+ohne Server: LocalApi, iCalendar, vCard, Geburtstage), `ui/<bereich>/`
 (Compose-Bildschirme mit je einem ViewModel), `util/` (Portierung der Hilfslogik aus `frontend/src/utils`),
 `sync/` (Android-Konto, SyncAdapter für CalendarContract und ContactsContract).
 

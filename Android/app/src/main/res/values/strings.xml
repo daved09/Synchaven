@@ -309,11 +309,20 @@
     <string name="login_hide_password">Passwort verbergen</string>
     <string name="login_create_account">Konto anlegen</string>
     <string name="login_cleartext_note">Unverschlüsselte Verbindungen (http://) nur im Heimnetz verwenden.</string>
+    <string name="login_or">oder</string>
+    <string name="login_local">Ohne Server verwenden</string>
+    <string name="login_local_hint">Kalender und Kontakte nur auf diesem Gerät speichern. Die Weboberfläche wird dafür nicht gebraucht.</string>
+    <string name="local_account_name">Synchaven (lokal)</string>
 
     <!-- Einstellungen -->
     <string name="settings_account">Konto</string>
     <string name="settings_server_value">%1$s · %2$s %3$s</string>
     <string name="settings_logout">Abmelden</string>
+    <string name="settings_local_mode">Nur auf diesem Gerät</string>
+    <string name="settings_local_mode_hint">Kalender und Kontakte werden ohne Server gespeichert. Zum Sichern eignet sich der Export als iCalendar- bzw. vCard-Datei.</string>
+    <string name="settings_connect_server">Mit Server verbinden</string>
+    <string name="dialog_connect_server_title">Mit Server verbinden?</string>
+    <string name="dialog_connect_server_text">Die mit Android synchronisierten Kalender und Kontakte werden von diesem Gerät entfernt. Die Daten der App bleiben erhalten und sind wieder da, sobald „Ohne Server verwenden“ gewählt wird – auf den Server übertragen werden sie nicht.</string>
     <string name="settings_appearance">Darstellung</string>
     <string name="theme_system">System</string>
     <string name="theme_light">Hell</string>

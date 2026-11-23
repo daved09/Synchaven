@@ -19,6 +19,8 @@ data class Session(
     val name: String,
     /** Standardansicht des Kalenders aus dem Benutzerkonto */
     val defaultView: ViewMode,
+    /** Lokaler Modus: ohne Server, alle Daten nur auf diesem Gerät */
+    val local: Boolean = false,
 )
 
 sealed interface SessionState {
@@ -28,7 +30,10 @@ sealed interface SessionState {
     data class LoggedIn(val session: Session) : SessionState
 }
 
-/** Angemeldete Sitzung (Server, Token, Benutzer) und die zuletzt verwendeten Anmeldedaten. */
+/** Benutzer-ID der Sitzung im lokalen Modus */
+const val LOCAL_USER = "local"
+
+/** Angemeldete Sitzung (Server, Token, Benutzer) oder lokaler Modus und die zuletzt verwendeten Anmeldedaten. */
 class SessionStore(private val dataStore: AppDataStore) {
     private val store = dataStore.store
 
@@ -43,6 +48,8 @@ class SessionStore(private val dataStore: AppDataStore) {
         val lastEmail = stringPreferencesKey("last_email")
         /** `<server>|<user>`, für den das Android-Konto angelegt wurde – fehlt es dann, hat der Benutzer es entfernt */
         val syncAccountFor = stringPreferencesKey("sync_account_for")
+        /** `1` im lokalen Modus ohne Server */
+        val localMode = stringPreferencesKey("local_mode")
     }
 
     val state: StateFlow<SessionState> = dataStore.prefs
@@ -59,11 +66,20 @@ class SessionStore(private val dataStore: AppDataStore) {
 
     suspend fun save(serverUrl: String, token: String, user: User) {
         store.edit {
+            it.remove(Keys.localMode)
             it[Keys.server] = serverUrl
             it[Keys.token] = token
             it[Keys.lastServer] = serverUrl
             it[Keys.lastEmail] = user.email
             it.putUser(user)
+        }
+    }
+
+    /** Lokalen Modus starten: ohne Server, ohne Anmeldung. */
+    suspend fun startLocal() {
+        store.edit {
+            it[Keys.localMode] = "1"
+            if (it[Keys.defaultView] == null) it[Keys.defaultView] = ViewMode.MONTH.apiValue
         }
     }
 
@@ -96,6 +112,7 @@ class SessionStore(private val dataStore: AppDataStore) {
             it.remove(Keys.email)
             it.remove(Keys.name)
             it.remove(Keys.defaultView)
+            it.remove(Keys.localMode)
         }
     }
 
@@ -107,6 +124,14 @@ class SessionStore(private val dataStore: AppDataStore) {
     }
 
     private fun Preferences.toSessionState(): SessionState {
+        if (this[Keys.localMode] == "1") {
+            return SessionState.LoggedIn(
+                Session(
+                    serverUrl = "", token = "", userId = LOCAL_USER, email = "", name = "",
+                    defaultView = ViewMode.fromApi(this[Keys.defaultView]), local = true,
+                )
+            )
+        }
         val server = this[Keys.server]
         val token = this[Keys.token]
         if (server.isNullOrBlank() || token.isNullOrBlank()) return SessionState.LoggedOut

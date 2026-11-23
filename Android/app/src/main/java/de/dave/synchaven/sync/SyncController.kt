@@ -94,7 +94,7 @@ class SyncController(context: Context) {
     }
 
     fun hasAccountFor(serverUrl: String, userId: String): Boolean =
-        accounts.account()?.let { accounts.serverUrl(it) == serverUrl && accounts.userId(it) == userId } ?: false
+        accounts.account()?.let { accounts.serverUrl(it).orEmpty() == serverUrl && accounts.userId(it) == userId } ?: false
 
     /** Die einmalige Abfrage der Berechtigungen nach dem Anlegen ist erledigt. */
     fun finishOnboarding() {

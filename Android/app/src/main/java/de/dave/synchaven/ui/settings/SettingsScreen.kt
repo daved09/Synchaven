@@ -14,6 +14,7 @@ import androidx.compose.material.icons.automirrored.outlined.Logout
 import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material.icons.outlined.Dns
 import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.PhoneAndroid
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -91,7 +92,18 @@ fun SettingsScreen(onSelectTab: (MainTab) -> Unit) {
         Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState())) {
             // ---------- Konto ----------
             SectionTitle(stringResource(R.string.settings_account))
-            session?.let { s ->
+            if (session?.local == true) {
+                ListItem(
+                    leadingContent = { Icon(Icons.Outlined.PhoneAndroid, null) },
+                    headlineContent = { Text(stringResource(R.string.settings_local_mode)) },
+                    supportingContent = { Text(stringResource(R.string.settings_local_mode_hint)) },
+                )
+                ListItem(
+                    leadingContent = { Icon(Icons.Outlined.Dns, null) },
+                    headlineContent = { Text(stringResource(R.string.settings_connect_server)) },
+                    modifier = Modifier.clickable { askLogout = true },
+                )
+            } else session?.let { s ->
                 ListItem(
                     leadingContent = { Icon(Icons.Outlined.AccountCircle, null) },
                     headlineContent = { Text(s.name.ifBlank { s.email }) },
@@ -109,16 +121,16 @@ fun SettingsScreen(onSelectTab: (MainTab) -> Unit) {
                         )
                     },
                 )
+                ListItem(
+                    leadingContent = { Icon(Icons.AutoMirrored.Outlined.Logout, null, tint = MaterialTheme.colorScheme.error) },
+                    headlineContent = { Text(stringResource(R.string.settings_logout), color = MaterialTheme.colorScheme.error) },
+                    modifier = Modifier.clickable { askLogout = true },
+                )
             }
-            ListItem(
-                leadingContent = { Icon(Icons.AutoMirrored.Outlined.Logout, null, tint = MaterialTheme.colorScheme.error) },
-                headlineContent = { Text(stringResource(R.string.settings_logout), color = MaterialTheme.colorScheme.error) },
-                modifier = Modifier.clickable { askLogout = true },
-            )
             HorizontalDivider()
 
-            // ---------- Offline-Daten ----------
-            if (session != null) {
+            // ---------- Offline-Daten (nur mit Server) ----------
+            if (session != null && session?.local != true) {
                 OfflineSection(offline, onSyncNow = vm::syncOfflineNow)
                 HorizontalDivider()
             }
@@ -250,7 +262,16 @@ fun SettingsScreen(onSelectTab: (MainTab) -> Unit) {
             dismissButton = { TextButton(onClick = vm::closeProfile) { Text(stringResource(R.string.action_cancel)) } },
         )
     }
-    if (askLogout) {
+    if (askLogout && session?.local == true) {
+        ConfirmDialog(
+            title = stringResource(R.string.dialog_connect_server_title),
+            text = stringResource(R.string.dialog_connect_server_text),
+            confirmLabel = stringResource(R.string.settings_connect_server),
+            destructive = false,
+            onConfirm = vm::logout,
+            onDismiss = { askLogout = false },
+        )
+    } else if (askLogout) {
         ConfirmDialog(
             title = stringResource(R.string.dialog_logout_title),
             text = stringResource(R.string.dialog_logout_text) +

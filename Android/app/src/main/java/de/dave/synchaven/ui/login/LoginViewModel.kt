@@ -80,6 +80,16 @@ class LoginViewModel(
         }
     }
 
+    /** Ohne Server weiter; der Sitzungszustand wechselt und die Navigation reagiert darauf. */
+    fun useLocally() {
+        if (_state.value.loading) return
+        _state.update { it.copy(loading = true, error = null) }
+        viewModelScope.launch {
+            runCatching { auth.startLocal() }
+                .onFailure { e -> _state.update { it.copy(loading = false, error = e.userMessage()) } }
+        }
+    }
+
     /** Bei Erfolg wechselt der Sitzungszustand und die Navigation reagiert darauf. */
     fun submit() {
         val s = _state.value

@@ -75,6 +75,9 @@ class OfflineSync(
 ) {
     /** `null` = unbekannt (z. B. nach einem Netzwechsel) */
     private val reachable = MutableStateFlow<Boolean?>(null)
+
+    /** Lokaler Modus: Es gibt keinen Server – die „API“ schreibt direkt in den [store], abzugleichen ist nichts. */
+    private val local: Boolean get() = sessionStore.current?.local == true
     private val reason = MutableStateFlow<UiText?>(null)
     private val syncing = MutableStateFlow(false)
     private val rejected = MutableStateFlow<UiText?>(null)
@@ -112,7 +115,7 @@ class OfflineSync(
                 }
 
                 override fun onLost(network: Network) {
-                    markOffline(null)
+                    if (!local) markOffline(null)
                 }
             })
         }
@@ -134,6 +137,13 @@ class OfflineSync(
         rejected.value = null
     }
 
+    /** Anderes Konto oder lokaler Modus: Erreichbarkeit und Meldungen des vorigen gelten nicht mehr. */
+    fun reset() {
+        reachable.value = null
+        reason.value = null
+        rejected.value = null
+    }
+
     // ---------- Zugriffe der Repositories ----------
 
     /**
@@ -143,7 +153,7 @@ class OfflineSync(
     suspend fun <T> write(op: PendingOp, online: suspend () -> T, offline: (OfflineData) -> T): T {
         store.awaitReady()
         val result = writeMutex.withLock {
-            if (store.data.value.outbox.isEmpty() && reachable.value != false) {
+            if (local || (store.data.value.outbox.isEmpty() && reachable.value != false)) {
                 try {
                     return@withLock online().also { markReachable() }
                 } catch (e: Throwable) {
@@ -175,7 +185,7 @@ class OfflineSync(
      */
     suspend fun <T> read(preferCache: Boolean = false, cached: (OfflineData) -> T?, fetch: suspend () -> T): T {
         store.awaitReady()
-        if (preferCache || reachable.value == false) cached(store.data.value)?.let { return it }
+        if (!local && (preferCache || reachable.value == false)) cached(store.data.value)?.let { return it }
         return try {
             fetch().also { markReachable() }
         } catch (e: Throwable) {
@@ -208,7 +218,7 @@ class OfflineSync(
 
     private suspend fun syncOnce() {
         store.awaitReady()
-        if (!store.isOpen || sessionStore.current == null) return
+        if (!store.isOpen || sessionStore.current == null || local) return
         syncing.value = true
         try {
             val sent = flush()

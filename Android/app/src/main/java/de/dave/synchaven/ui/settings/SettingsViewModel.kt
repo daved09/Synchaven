@@ -77,6 +77,7 @@ class SettingsViewModel(
 
     init {
         viewModelScope.launch {
+            if (sessionStore.current?.local == true) return@launch
             runCatching { auth.currentServerInfo() }.onSuccess { _serverInfo.value = it }
             // Name/E-Mail könnten in der Weboberfläche geändert worden sein
             runCatching { auth.me() }

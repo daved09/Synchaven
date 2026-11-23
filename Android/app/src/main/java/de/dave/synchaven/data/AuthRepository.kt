@@ -27,7 +27,19 @@ class AuthRepository(
     private val sync: SyncController,
     private val offline: OfflineSync,
     private val offlineStore: OfflineStore,
+    /** Name des Android-Kontos im lokalen Modus (erscheint im Kalender und in den Kontakten) */
+    private val localAccountName: String,
 ) {
+    private val isLocal get() = sessionStore.current?.local == true
+
+    /**
+     * Ohne Server verwenden: Kalender und Kontakte liegen nur auf diesem Gerät (siehe LocalApi). Daten aus einem
+     * früheren lokalen Modus sind wieder da. Die Navigation reagiert auf den neuen Sitzungszustand.
+     */
+    suspend fun startLocal() {
+        sessionStore.startLocal()
+    }
+
     suspend fun serverInfo(server: String): ServerInfo = apiCall { api.info(normalizeServerUrl(server)) }
 
     suspend fun currentServerInfo(): ServerInfo = apiCall { api.currentInfo() }
@@ -59,6 +71,12 @@ class AuthRepository(
         val s = sessionStore.current ?: return
         if (withContext(Dispatchers.IO) { sync.hasAccountFor(s.serverUrl, s.userId) }) return
         if (!force && sessionStore.syncAccountCreated(s)) return
+        if (s.local) {
+            // Ohne Server gibt es kein Token: die Synchronisierung liest und schreibt direkt die lokalen Daten
+            withContext(Dispatchers.IO) { sync.setupAccount(s.serverUrl, s.userId, localAccountName, null, "", "") }
+            sessionStore.markSyncAccountCreated(s.serverUrl, s.userId)
+            return
+        }
         val res = try {
             apiCall { api.refreshToken() }
         } catch (e: ApiException) {
@@ -89,7 +107,8 @@ class AuthRepository(
         sessionStore.markSyncAccountCreated(server, res.user.id)
     }
 
-    suspend fun me(): User = apiCall { api.me() }.also { sessionStore.updateUser(it) }
+    /** Benutzerkonto vom Server; im lokalen Modus gibt es keins (`null`). */
+    suspend fun me(): User? = if (isLocal) null else apiCall { api.me() }.also { sessionStore.updateUser(it) }
 
     suspend fun updateMe(request: UpdateMeRequest): User {
         val user = apiCall { api.updateMe(request) }
@@ -102,9 +121,12 @@ class AuthRepository(
         return user
     }
 
-    /** Speichert die Standardansicht des Kalenders im Benutzerkonto */
-    /** Ohne Verbindung lokal gemerkt und später übertragen */
+    /** Speichert die Standardansicht des Kalenders im Benutzerkonto; ohne Verbindung lokal gemerkt und später übertragen */
     suspend fun setDefaultView(mode: ViewMode) {
+        if (isLocal) {
+            sessionStore.setDefaultView(mode)
+            return
+        }
         offline.write(
             PendingOp.SetDefaultView(mode.apiValue),
             online = { updateMe(UpdateMeRequest(defaultView = mode.apiValue)) },
@@ -119,7 +141,8 @@ class AuthRepository(
      */
     suspend fun logout() {
         withContext(Dispatchers.IO) { sync.removeAccount() }
-        offlineStore.deleteCurrent()
+        // Im lokalen Modus sind das die einzigen Daten: Sie bleiben erhalten, bis der lokale Modus wieder startet
+        if (!isLocal) offlineStore.deleteCurrent()
         sessionStore.clear()
     }
 }

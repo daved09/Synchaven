@@ -306,9 +306,11 @@ data class Task(
     @SerialName("completed_at") val completedAt: String? = null,
     @SerialName("created_at") val createdAt: String = "",
     @SerialName("updated_at") val updatedAt: String = "",
+    /** Übergeordnete Aufgabe, wenn dies eine Unteraufgabe ist */
+    @SerialName("parent_id") val parentId: String? = null,
 ) {
     /** Eingabe zum Speichern mit unverändertem Status (`completed` fehlt) */
-    fun toInput() = TaskInput(listId, title, notes, due, allDay)
+    fun toInput() = TaskInput(listId, title, notes, due, allDay, parentId = parentId)
 }
 
 @Serializable
@@ -320,6 +322,13 @@ data class TaskInput(
     @SerialName("all_day") val allDay: Boolean = true,
     /** `null` lässt den Status unverändert (neue Aufgaben sind offen) */
     val completed: Boolean? = null,
+    /**
+     * Übergeordnete Aufgabe derselben Liste. `null` wird nicht gesendet und lässt die Zuordnung unverändert (neue
+     * Aufgaben: Hauptaufgabe); eine Unteraufgabe in einer anderen Liste wird zur Hauptaufgabe.
+     */
+    @OptIn(ExperimentalSerializationApi::class)
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    @SerialName("parent_id") val parentId: String? = null,
 )
 
 @Serializable

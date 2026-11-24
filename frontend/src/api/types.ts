@@ -144,6 +144,8 @@ export interface TaskListInput {
 export interface Task {
   id: string
   list_id: string
+  /** Übergeordnete Aufgabe, wenn dies eine Unteraufgabe ist */
+  parent_id: string | null
   title: string
   notes: string
   /** Fälligkeit; ganztägig als Mitternacht UTC, `null` = ohne Datum */
@@ -163,6 +165,8 @@ export interface TaskInput {
   all_day: boolean
   /** Fehlt das Feld, bleibt der Status erhalten */
   completed?: boolean
+  /** Übergeordnete Aufgabe; `null` = Hauptaufgabe, fehlt das Feld, bleibt die Zuordnung erhalten */
+  parent_id?: string | null
 }
 
 export interface ServerInfo {

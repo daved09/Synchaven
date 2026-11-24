@@ -14,6 +14,9 @@ const notify = useNotifyStore()
 const quickTitle = ref('')
 const adding = ref(false)
 const showCompleted = ref(false)
+/** Hauptaufgabe, unter der gerade eine Unteraufgabe eingegeben wird */
+const subFor = ref<string | null>(null)
+const subTitle = ref('')
 
 watch(() => tasks.lists, (l) => {
   if (l.length && !l.some((x) => x.id === listId.value)) listId.value = l[0].id
@@ -52,6 +55,29 @@ async function quickAdd() {
   } finally {
     adding.value = false
   }
+}
+function startSubtask(t: Task) {
+  subFor.value = t.id
+  subTitle.value = ''
+}
+async function addSubtask(parent: Task) {
+  const title = subTitle.value.trim()
+  if (!title) {
+    subFor.value = null
+    return
+  }
+  adding.value = true
+  try {
+    await tasks.createSubtask(parent, title)
+    subTitle.value = '' // Feld bleibt offen für die nächste Unteraufgabe
+  } catch (e) {
+    notify.fail(e)
+  } finally {
+    adding.value = false
+  }
+}
+function parentTitle(t: Task) {
+  return t.parent_id ? tasks.tasks.find((x) => x.id === t.parent_id)?.title : undefined
 }
 async function toggle(t: Task) {
   try {
@@ -113,28 +139,61 @@ async function clearCompleted() {
         <v-icon icon="mdi-check-all" size="40" color="outline" />
         <div class="mt-2">Keine offenen Aufgaben</div>
       </div>
-      <div
-        v-for="t in open" :key="t.id" class="task" role="button" tabindex="0"
-        @click="emit('open', t)" @keydown.enter="emit('open', t)"
-      >
-        <v-btn
-          icon size="small" variant="text" class="check" title="Als erledigt markieren" :color="list?.color"
-          @click.stop="toggle(t)"
-        >
-          <v-icon icon="mdi-checkbox-blank-circle-outline" class="off" />
-          <v-icon icon="mdi-check-circle-outline" class="on" />
-        </v-btn>
-        <div class="body">
-          <div class="text-body-large name">{{ t.title }}</div>
-          <div v-if="t.notes" class="text-body-small text-medium-emphasis notes">{{ t.notes }}</div>
-          <v-chip
-            v-if="t.due" size="x-small" variant="outlined" class="mt-1" :color="overdue(t) ? 'error' : undefined"
-            prepend-icon="mdi-calendar-outline"
+      <template v-for="t in open" :key="t.id">
+        <div class="task" role="button" tabindex="0" @click="emit('open', t)" @keydown.enter="emit('open', t)">
+          <v-btn
+            icon size="small" variant="text" class="check" title="Als erledigt markieren" :color="list?.color"
+            @click.stop="toggle(t)"
           >
-            {{ dueText(t) }}
-          </v-chip>
+            <v-icon icon="mdi-checkbox-blank-circle-outline" class="off" />
+            <v-icon icon="mdi-check-circle-outline" class="on" />
+          </v-btn>
+          <div class="body">
+            <div class="text-body-large name">{{ t.title }}</div>
+            <div v-if="t.notes" class="text-body-small text-medium-emphasis notes">{{ t.notes }}</div>
+            <v-chip
+              v-if="t.due" size="x-small" variant="outlined" class="mt-1" :color="overdue(t) ? 'error' : undefined"
+              prepend-icon="mdi-calendar-outline"
+            >
+              {{ dueText(t) }}
+            </v-chip>
+          </div>
+          <v-btn
+            v-if="!t.parent_id" icon="mdi-subdirectory-arrow-right" size="small" variant="text" class="add-sub"
+            title="Unteraufgabe hinzufügen" @click.stop="startSubtask(t)"
+          />
         </div>
-      </div>
+        <template v-if="!t.parent_id">
+          <div
+            v-for="s in tasks.subtasksOf(t.id).filter((x) => !x.completed)" :key="s.id" class="task sub" role="button"
+            tabindex="0" @click="emit('open', s)" @keydown.enter="emit('open', s)"
+          >
+            <v-btn
+              icon size="small" variant="text" class="check" title="Als erledigt markieren" :color="list?.color"
+              @click.stop="toggle(s)"
+            >
+              <v-icon icon="mdi-checkbox-blank-circle-outline" class="off" />
+              <v-icon icon="mdi-check-circle-outline" class="on" />
+            </v-btn>
+            <div class="body">
+              <div class="text-body-medium name">{{ s.title }}</div>
+              <v-chip
+                v-if="s.due" size="x-small" variant="outlined" class="mt-1" :color="overdue(s) ? 'error' : undefined"
+                prepend-icon="mdi-calendar-outline"
+              >
+                {{ dueText(s) }}
+              </v-chip>
+            </div>
+          </div>
+          <div v-if="subFor === t.id" class="sub-input">
+            <v-text-field
+              v-model="subTitle" placeholder="Unteraufgabe hinzufügen" aria-label="Neue Unteraufgabe" density="compact"
+              variant="underlined" hide-details autofocus maxlength="500" :loading="adding"
+              @keydown.enter="addSubtask(t)" @keydown.esc="subFor = null" @blur="!subTitle.trim() && (subFor = null)"
+            />
+          </div>
+        </template>
+      </template>
 
       <template v-if="completed.length">
         <button class="completed-head text-title-small" @click="showCompleted = !showCompleted">
@@ -152,6 +211,9 @@ async function clearCompleted() {
             />
             <div class="body">
               <div class="text-body-large name">{{ t.title }}</div>
+              <div v-if="parentTitle(t)" class="text-body-small text-medium-emphasis notes">
+                <v-icon icon="mdi-subdirectory-arrow-right" size="14" /> {{ parentTitle(t) }}
+              </div>
               <div v-if="t.due" class="text-body-small text-medium-emphasis">{{ dueText(t) }}</div>
             </div>
           </div>
@@ -173,6 +235,12 @@ async function clearCompleted() {
 .name { word-break: break-word; line-height: 20px; }
 .notes { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .task.done .name { text-decoration: line-through; opacity: .6; }
+.task.sub { margin-left: 32px; padding-top: 0; padding-bottom: 2px; }
+.task.sub .body { padding-top: 8px; }
+.sub-input { margin: 0 8px 4px 72px; }
+.add-sub { opacity: 0; transition: opacity .15s; }
+.task:hover .add-sub, .task:focus-within .add-sub { opacity: 1; }
+@media (hover: none) { .add-sub { opacity: .7; } }
 .check .on { display: none; }
 .check:hover .on { display: inline-flex; }
 .check:hover .off { display: none; }

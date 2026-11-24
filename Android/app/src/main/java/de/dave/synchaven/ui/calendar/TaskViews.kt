@@ -1,6 +1,19 @@
 package de.dave.synchaven.ui.calendar
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.outlined.SubdirectoryArrowRight
+import androidx.compose.material.icons.outlined.AccountTree
+import androidx.compose.material.icons.outlined.Add
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextOverflow
+import de.dave.synchaven.data.subtasksOf
+import de.dave.synchaven.util.dueText
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -102,12 +115,20 @@ private fun longDue(task: Task): String {
 fun TaskDetailsSheet(
     task: Task,
     list: TaskList?,
+    /** Alle Aufgaben – für Hauptaufgabe und Unteraufgaben */
+    tasks: List<Task>,
     onToggle: () -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
     onDismiss: () -> Unit,
+    /** Andere Aufgabe zeigen (Haupt- oder Unteraufgabe) */
+    onOpen: (Task) -> Unit,
+    onToggleSubtask: (Task) -> Unit,
+    onAddSubtask: (String) -> Unit,
 ) {
     var askDelete by remember { mutableStateOf(false) }
+    val parent = task.parentId?.let { p -> tasks.firstOrNull { it.id == p } }
+    val subtasks = if (task.parentId == null) tasks.subtasksOf(task.id) else emptyList()
     val color = parseHexColor(list?.color ?: "#1A73E8")
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
         Column(
@@ -122,6 +143,22 @@ fun TaskDetailsSheet(
                 TaskCheckIcon(task.completed, color, Modifier.padding(top = 4.dp))
                 Spacer(Modifier.size(16.dp))
                 Column(Modifier.weight(1f)) {
+                    parent?.let { p ->
+                        Row(
+                            Modifier.clip(RoundedCornerShape(8.dp)).clickable { onOpen(p) }.padding(vertical = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(
+                                Icons.Outlined.SubdirectoryArrowRight, null, Modifier.size(16.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            Spacer(Modifier.size(4.dp))
+                            Text(
+                                stringResource(R.string.subtask_of, p.title), style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                    }
                     Text(
                         task.title, style = MaterialTheme.typography.headlineSmall,
                         textDecoration = taskDecoration(task.completed),
@@ -139,6 +176,7 @@ fun TaskDetailsSheet(
             }
             if (task.notes.isNotBlank()) DetailLine(Icons.AutoMirrored.Outlined.Notes, task.notes)
             list?.let { DetailLine(Icons.Outlined.Checklist, it.name) }
+            if (task.parentId == null) SubtaskSection(subtasks, color, onOpen, onToggleSubtask, onAddSubtask)
 
             Button(onClick = onToggle, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
                 Icon(if (task.completed) Icons.AutoMirrored.Outlined.Undo else Icons.Outlined.Check, null, Modifier.size(18.dp))
@@ -162,9 +200,62 @@ fun TaskDetailsSheet(
     if (askDelete) {
         ConfirmDialog(
             title = stringResource(R.string.dialog_delete_task_title),
-            text = stringResource(R.string.dialog_delete_task_text, task.title),
+            text = if (subtasks.isEmpty()) stringResource(R.string.dialog_delete_task_text, task.title)
+            else pluralStringResource(R.plurals.dialog_delete_task_with_subtasks_text, subtasks.size, subtasks.size, task.title),
             onConfirm = onDelete,
             onDismiss = { askDelete = false },
+        )
+    }
+}
+
+/** Unteraufgaben in den Details: abhaken, öffnen und neue per Eingabefeld anlegen */
+@Composable
+private fun SubtaskSection(
+    subtasks: List<Task>,
+    color: Color,
+    onOpen: (Task) -> Unit,
+    onToggle: (Task) -> Unit,
+    onAdd: (String) -> Unit,
+) {
+    var title by rememberSaveable { mutableStateOf("") }
+    fun submit() {
+        if (title.isNotBlank()) {
+            onAdd(title)
+            title = "" // Feld bleibt für die nächste Unteraufgabe
+        }
+    }
+    Column(Modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Outlined.AccountTree, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
+            Spacer(Modifier.size(16.dp))
+            Text(stringResource(R.string.subtasks_title), style = MaterialTheme.typography.titleSmall)
+        }
+        for (s in subtasks) {
+            Row(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).clickable { onOpen(s) }.padding(start = 24.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                IconButton(onClick = { onToggle(s) }) { TaskCheckIcon(s.completed, color) }
+                Text(
+                    s.title, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f),
+                    textDecoration = taskDecoration(s.completed),
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = if (s.completed) 0.6f else 1f),
+                )
+                s.dueText()?.let {
+                    Text(it.asString(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        }
+        OutlinedTextField(
+            value = title,
+            onValueChange = { if (it.length <= 500) title = it },
+            placeholder = { Text(stringResource(R.string.subtask_add_hint)) },
+            leadingIcon = { Icon(Icons.Outlined.Add, null) },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+            keyboardActions = KeyboardActions(onDone = { submit() }),
+            shape = RoundedCornerShape(12.dp),
+            modifier = Modifier.fillMaxWidth().padding(start = 36.dp, top = 4.dp),
         )
     }
 }
@@ -190,6 +281,8 @@ fun TaskEditDialog(
     defaultDate: LocalDate?,
     onSave: (TaskInput) -> Unit,
     onDismiss: () -> Unit,
+    /** Anzahl der Unteraufgaben von [task] – für den Hinweis beim Listenwechsel */
+    subtaskCount: Int = 0,
 ) {
     val initialDue = task?.dueLocal()
     var title by rememberSaveable { mutableStateOf(task?.title.orEmpty()) }
@@ -258,6 +351,16 @@ fun TaskEditDialog(
                                     onClick = { listId = l.id; listMenu = false },
                                 )
                             }
+                        }
+                    }
+                    if (task != null && listId != task.listId) {
+                        val hint = when {
+                            task.parentId != null -> stringResource(R.string.subtask_list_hint)
+                            subtaskCount > 0 -> pluralStringResource(R.plurals.subtask_move_hint, subtaskCount, subtaskCount)
+                            else -> null
+                        }
+                        hint?.let {
+                            Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }

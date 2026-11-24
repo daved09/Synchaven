@@ -276,11 +276,14 @@ Löscht alle erledigten Aufgaben der Liste.
 ### `GET /tasks[?list_id=…]` → `Task[]`
 Alle Aufgaben des Benutzers: offene vor erledigten, dann nach Fälligkeit (ohne Datum zuletzt).
 ```json
-[{ "id": "…", "list_id": "…", "title": "Steuer abgeben", "notes": "", "due": "2026-11-25T00:00:00Z",
+[{ "id": "…", "list_id": "…", "parent_id": null, "title": "Steuer abgeben", "notes": "", "due": "2026-11-25T00:00:00Z",
    "all_day": true, "completed": false, "completed_at": null, "created_at": "…", "updated_at": "…" }]
 ```
 `due` folgt dem Zeitmodell der Termine: ganztägig als Mitternacht UTC des Tages, sonst ein Zeitpunkt in UTC;
 `null` = ohne Datum (dann ist `all_day` immer `true`).
+
+`parent_id`: übergeordnete Aufgabe, wenn dies eine **Unteraufgabe** ist, sonst `null`. Unteraufgaben gibt es wie in
+Google Tasks nur eine Ebene tief und nur innerhalb einer Liste.
 
 ### `POST /tasks` → `201 Task`  ·  `PUT /tasks/{id}` → `Task`
 ```json
@@ -288,13 +291,21 @@ Alle Aufgaben des Benutzers: offene vor erledigten, dann nach Fälligkeit (ohne 
   "due": "2026-11-24T08:30:00Z", "all_day": false, "completed": false }
 ```
 Pflicht sind `list_id` und `title` (1–500 Zeichen). `all_day` ist standardmäßig `true`. Fehlt `completed`, bleibt
-der Status erhalten (neue Aufgaben sind offen). Mit `list_id` lässt sich eine Aufgabe in eine andere Liste verschieben.
+der Status erhalten (neue Aufgaben sind offen). Mit `list_id` lässt sich eine Aufgabe in eine andere Liste verschieben;
+ihre Unteraufgaben ziehen mit.
+
+`parent_id` macht die Aufgabe zur Unteraufgabe einer Hauptaufgabe derselben Liste, `null` macht sie wieder zur
+Hauptaufgabe; fehlt das Feld, bleibt die Zuordnung erhalten. `400`, wenn die übergeordnete Aufgabe selbst eine
+Unteraufgabe ist oder die Aufgabe eigene Unteraufgaben hat. Wechselt eine Unteraufgabe die Liste, wird sie zur
+Hauptaufgabe.
 
 ### `PUT /tasks/{id}/completed` → `Task`
 Body `{ "completed": true }` – abhaken oder wieder öffnen. `completed_at` bleibt erhalten, solange die Aufgabe
-erledigt bleibt.
+erledigt bleibt. Eine erledigte Hauptaufgabe hakt ihre offenen Unteraufgaben mit ab; eine wieder geöffnete
+Unteraufgabe öffnet auch ihre Hauptaufgabe. Die Antwort enthält nur die angegebene Aufgabe – Clients wenden diese
+Regeln selbst an oder laden die Aufgaben neu. Dasselbe gilt, wenn sich `completed` per `PUT /tasks/{id}` ändert.
 
-### `GET /tasks/{id}` → `Task`  ·  `DELETE /tasks/{id}` → `204`
+### `GET /tasks/{id}` → `Task`  ·  `DELETE /tasks/{id}` → `204`  (löscht auch die Unteraufgaben)
 
 ## Adressbücher
 

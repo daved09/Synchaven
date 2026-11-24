@@ -94,7 +94,7 @@ class TaskRepository(
         if (!sync.hasAnyPending) {
             try {
                 val res = sync.online { apiCall { api.clearCompletedTasks(listId) } }
-                sync.mergeServer { d -> d.copy(tasks = d.tasks?.filterNot { it.listId == listId && it.completed }) }
+                sync.mergeServer { d -> d.copy(tasks = d.tasks?.withoutCompleted(listId)) }
                 return res.deleted
             } catch (e: Throwable) {
                 if (!e.isOfflineError()) throw e
@@ -108,7 +108,9 @@ class TaskRepository(
 
     fun task(id: String): Task? = store.data.value.let { d -> d.tasks?.firstOrNull { it.id == d.resolve(id) } }
 
-    suspend fun createTask(input: TaskInput): Task {
+    suspend fun createTask(task: TaskInput): Task {
+        // Die Hauptaufgabe kann inzwischen übertragen worden sein und eine neue ID haben
+        val input = task.parentId?.let { p -> task.copy(parentId = store.data.value.resolve(p)) } ?: task
         val localId = newLocalId()
         return sync.write(
             PendingOp.CreateTask(localId, input, now()),
@@ -116,6 +118,10 @@ class TaskRepository(
             offline = { d -> d.tasks?.firstOrNull { it.id == localId } ?: input.toLocalTask(localId) },
         )
     }
+
+    /** Neue Unteraufgabe ohne Datum unter [parent] */
+    suspend fun createSubtask(parent: Task, title: String): Task =
+        createTask(TaskInput(parent.listId, title, parentId = parent.id))
 
     suspend fun updateTask(id: String, input: TaskInput): Task = sync.write(
         PendingOp.UpdateTask(id, input),
@@ -126,7 +132,8 @@ class TaskRepository(
     /** Abhaken oder wieder öffnen – sofort sichtbar, bei einem Fehler zurück (wie in der Weboberfläche). */
     suspend fun setCompleted(task: Task, completed: Boolean): Task {
         val at = now()
-        sync.mergeServer { d -> d.copy(tasks = d.tasks?.map { if (it.id == task.id) it.withCompleted(completed, at) else it }) }
+        val before = store.data.value.tasks
+        sync.mergeServer { d -> d.copy(tasks = d.tasks?.withTaskCompleted(task.id, completed, at) { t, done -> t.withCompleted(done, at) }) }
         return try {
             sync.write(
                 PendingOp.SetTaskCompleted(task.id, completed, at),
@@ -134,7 +141,9 @@ class TaskRepository(
                 offline = { d -> d.tasks?.firstOrNull { it.id == d.resolve(task.id) } ?: task.withCompleted(completed, at) },
             )
         } catch (e: Exception) {
-            sync.mergeServer { d -> d.copy(tasks = d.tasks?.map { if (it.id == task.id) task else it }) }
+            // Zurück auf den Stand davor (samt mit abgehakten Unteraufgaben bzw. wieder geöffneter Hauptaufgabe)
+            val ids = before.orEmpty().associateBy { it.id }
+            sync.mergeServer { d -> d.copy(tasks = d.tasks?.map { ids[it.id] ?: it }) }
             throw e
         }
     }
@@ -148,7 +157,7 @@ class TaskRepository(
                 } catch (e: ApiException) {
                     if (e.status != 404) throw e
                 }
-                sync.mergeServer { d -> d.copy(tasks = d.tasks?.filterNot { it.id == id }) }
+                sync.mergeServer { d -> d.copy(tasks = d.tasks?.withoutTask(id)) }
             },
             offline = { },
         )
@@ -156,11 +165,7 @@ class TaskRepository(
 
     /** Übernimmt eine vom Server gelieferte Aufgabe in den Cache. */
     private suspend fun patchTask(t: Task) {
-        sync.mergeServer { d ->
-            d.copy(tasks = d.tasks.orEmpty().let { list ->
-                if (list.any { it.id == t.id }) list.map { if (it.id == t.id) t else it } else list + t
-            })
-        }
+        sync.mergeServer { d -> d.copy(tasks = d.tasks.orEmpty().withTaskSaved(t) { x, done -> x.withCompleted(done, now()) }) }
     }
 
     private fun now(): String = Instant.now().truncatedTo(ChronoUnit.SECONDS).toString()

@@ -56,10 +56,22 @@ fun calendarTasks(lists: List<TaskList>, tasks: List<Task>, zone: ZoneId = devic
     return tasks.mapNotNull { t -> visible[t.listId]?.let { t.toViewEvent(it.color.ifEmpty { DEFAULT_TASK_COLOR }, zone) } }
 }
 
-/** Offene Aufgaben einer Liste nach Fälligkeit, ohne Datum zuletzt */
-fun openTasks(tasks: List<Task>, listId: String): List<Task> =
-    tasks.filter { it.listId == listId && !it.completed }
+/**
+ * Offene Hauptaufgaben einer Liste nach Fälligkeit, ohne Datum zuletzt. Offene Unteraufgaben ohne offene Hauptaufgabe
+ * in der Liste stehen ebenfalls hier, damit nichts verloren geht.
+ */
+fun openTasks(tasks: List<Task>, listId: String): List<Task> {
+    val open = tasks.filter { it.listId == listId && !it.completed }
+    val openIds = open.mapTo(HashSet()) { it.id }
+    return open.filter { it.parentId == null || it.parentId !in openIds }
         .sortedWith(compareBy<Task>({ it.due == null }, { it.due?.let(::parseInstant) }, { it.createdAt }))
+}
+
+/** Offene Unteraufgaben je offener Hauptaufgabe der Liste, in der Reihenfolge, in der sie angelegt wurden */
+fun openSubtasks(tasks: List<Task>, listId: String): Map<String, List<Task>> =
+    tasks.filter { it.listId == listId && !it.completed && it.parentId != null }
+        .sortedWith(compareBy<Task>({ it.createdAt }, { it.id }))
+        .groupBy { it.parentId!! }
 
 /** Erledigte Aufgaben einer Liste, zuletzt erledigte zuerst */
 fun completedTasks(tasks: List<Task>, listId: String): List<Task> =

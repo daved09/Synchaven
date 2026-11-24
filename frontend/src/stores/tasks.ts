@@ -69,9 +69,18 @@ export const useTasksStore = defineStore('tasks', () => {
   function openCount(listId: string) {
     return tasks.value.filter((t) => t.list_id === listId && !t.completed).length
   }
-  /** Offene Aufgaben einer Liste nach Fälligkeit, ohne Datum zuletzt */
+  /** Offene Hauptaufgaben einer Liste nach Fälligkeit, ohne Datum zuletzt. Offene Unteraufgaben ohne offene
+   *  Hauptaufgabe in der Liste stehen ebenfalls hier, damit nichts verloren geht. */
   function openOf(listId: string) {
-    return tasks.value.filter((t) => t.list_id === listId && !t.completed).sort(byDue)
+    const open = tasks.value.filter((t) => t.list_id === listId && !t.completed)
+    const openIds = new Set(open.map((t) => t.id))
+    return open.filter((t) => !t.parent_id || !openIds.has(t.parent_id)).sort(byDue)
+  }
+  /** Unteraufgaben einer Aufgabe in der Reihenfolge, in der sie angelegt wurden */
+  function subtasksOf(id: string) {
+    return tasks.value
+      .filter((t) => t.parent_id === id)
+      .sort((a, b) => a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id))
   }
   /** Erledigte Aufgaben einer Liste, zuletzt erledigte zuerst */
   function completedOf(listId: string) {
@@ -119,7 +128,8 @@ export const useTasksStore = defineStore('tasks', () => {
   }
   async function clearCompleted(listId: string) {
     const r = await api.clearCompletedTasks(listId)
-    tasks.value = tasks.value.filter((t) => t.list_id !== listId || !t.completed)
+    const gone = new Set(tasks.value.filter((t) => t.list_id === listId && t.completed).map((t) => t.id))
+    tasks.value = tasks.value.filter((t) => !gone.has(t.id) && !(t.parent_id && gone.has(t.parent_id)))
     return r.deleted
   }
 
@@ -127,21 +137,42 @@ export const useTasksStore = defineStore('tasks', () => {
   async function create(input: TaskInput) {
     return put(await api.createTask(input))
   }
+  /** Neue Unteraufgabe ohne Datum unter einer Hauptaufgabe */
+  async function createSubtask(parent: Task, title: string) {
+    return create({ list_id: parent.list_id, parent_id: parent.id, title, notes: '', due: null, all_day: true })
+  }
   async function update(id: string, input: TaskInput) {
-    return put(await api.updateTask(id, input))
+    const before = tasks.value.find((t) => t.id === id)
+    const t = put(await api.updateTask(id, input))
+    // Unteraufgaben ziehen mit ihrer Hauptaufgabe in die andere Liste um (wie im Backend)
+    if (before && before.list_id !== t.list_id) {
+      tasks.value = tasks.value.map((x) => (x.parent_id === id ? { ...x, list_id: t.list_id } : x))
+    }
+    if (before && before.completed !== t.completed) applyCompleted(t)
+    return t
   }
   async function remove(id: string) {
     await api.deleteTask(id)
-    tasks.value = tasks.value.filter((t) => t.id !== id)
+    tasks.value = tasks.value.filter((t) => t.id !== id && t.parent_id !== id)
+  }
+  /** Folgen des Abhakens wie im Backend: Hauptaufgabe hakt offene Unteraufgaben mit ab,
+   *  eine wieder geöffnete Unteraufgabe öffnet ihre Hauptaufgabe. */
+  function applyCompleted(t: Task) {
+    tasks.value = tasks.value.map((x) =>
+      t.completed && x.parent_id === t.id && !x.completed ? { ...x, completed: true, completed_at: t.completed_at }
+      : !t.completed && x.id === t.parent_id && x.completed ? { ...x, completed: false, completed_at: null }
+      : x,
+    )
   }
   /** Abhaken oder wieder öffnen – sofort sichtbar, bei einem Fehler zurück */
   async function setCompleted(task: Task, completed: boolean) {
+    const snapshot = tasks.value
     const before = tasks.value.find((t) => t.id === task.id) ?? task
-    put({ ...before, completed, completed_at: completed ? new Date().toISOString() : null })
+    applyCompleted(put({ ...before, completed, completed_at: completed ? new Date().toISOString() : null }))
     try {
       return put(await api.setTaskCompleted(task.id, completed))
     } catch (e) {
-      put(before)
+      tasks.value = snapshot
       throw e
     }
   }
@@ -163,9 +194,9 @@ export const useTasksStore = defineStore('tasks', () => {
     tasks.value = []
   }
   return {
-    lists, tasks, listById, visibleListIds, calendarEvents, openCount, openOf, completedOf,
+    lists, tasks, listById, visibleListIds, calendarEvents, openCount, openOf, subtasksOf, completedOf,
     load, createList, updateList, removeList, toggleListVisible, clearCompleted,
-    create, update, remove, setCompleted, move, reset,
+    create, createSubtask, update, remove, setCompleted, move, reset,
   }
 })
 

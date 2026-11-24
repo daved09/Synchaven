@@ -14,6 +14,7 @@ import de.dave.synchaven.data.model.CalEvent
 import de.dave.synchaven.data.model.CompletedRequest
 import de.dave.synchaven.data.model.Task
 import de.dave.synchaven.data.model.TaskList
+import de.dave.synchaven.data.withoutTask
 import de.dave.synchaven.data.model.ExdateRequest
 import de.dave.synchaven.data.model.UpdateMeRequest
 import de.dave.synchaven.data.store.SessionStore
@@ -368,7 +369,7 @@ class OfflineSync(
         is PendingOp.SetTaskCompleted -> replaceTask(apiCall { api.setTaskCompleted(op.id, CompletedRequest(op.completed)) })
         is PendingOp.DeleteTask -> {
             ignoreNotFound { apiCall { api.deleteTask(op.id) } }
-            val f: (OfflineData) -> OfflineData = { d -> d.copy(tasks = d.tasks?.filterNot { it.id == op.id }) }
+            val f: (OfflineData) -> OfflineData = { d -> d.copy(tasks = d.tasks?.withoutTask(op.id)) }
             f
         }
         is PendingOp.UpdateTaskList -> {

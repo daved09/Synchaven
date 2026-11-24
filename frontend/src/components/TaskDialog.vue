@@ -44,6 +44,14 @@ watch(open, async (v) => {
 })
 
 const listItems = computed(() => tasks.lists.map((l) => ({ title: l.name, value: l.id, color: l.color })))
+/** Hinweis, wenn der Listenwechsel Unteraufgaben betrifft */
+const listHint = computed(() => {
+  const t = props.task
+  if (!t || listId.value === t.list_id) return ''
+  if (t.parent_id) return 'In einer anderen Liste wird die Unteraufgabe zur Hauptaufgabe.'
+  const n = tasks.subtasksOf(t.id).length
+  return n === 0 ? '' : n === 1 ? 'Die Unteraufgabe wird mit verschoben.' : `Die ${n} Unteraufgaben werden mit verschoben.`
+})
 
 async function save() {
   const { valid } = await formRef.value.validate()
@@ -116,7 +124,10 @@ function setToday() {
 
           <div class="row">
             <v-icon icon="mdi-format-list-checks" class="row-icon" />
-            <v-select v-model="listId" :items="listItems" aria-label="Liste" density="compact" hide-details>
+            <v-select
+              v-model="listId" :items="listItems" aria-label="Liste" density="compact" :hint="listHint"
+              :persistent-hint="!!listHint" :hide-details="!listHint"
+            >
               <template #item="{ props: p, item }">
                 <v-list-item v-bind="p">
                   <template #prepend><span class="dot mr-3" :style="{ background: item.raw.color }" /></template>

@@ -67,6 +67,7 @@ import de.dave.synchaven.ui.calendar.TaskDetailsSheet
 import de.dave.synchaven.ui.calendar.TaskEditDialog
 import de.dave.synchaven.ui.calendar.TaskListDialog
 import androidx.compose.material.icons.automirrored.outlined.PlaylistAdd
+import androidx.compose.material.icons.outlined.SubdirectoryArrowRight
 import de.dave.synchaven.ui.calendar.taskDecoration
 import de.dave.synchaven.ui.common.CollectMessages
 import de.dave.synchaven.ui.common.ConfirmDialog
@@ -162,10 +163,14 @@ fun TasksScreen(onSelectTab: (MainTab) -> Unit, onOpenSettings: () -> Unit) {
         TaskDetailsSheet(
             task = task,
             list = s.lists.firstOrNull { it.id == task.listId },
+            tasks = s.all,
             onToggle = { vm.setCompleted(task, !task.completed) },
             onEdit = { selectedTaskId = null; editing = task },
             onDelete = { selectedTaskId = null; vm.delete(task) },
             onDismiss = { selectedTaskId = null },
+            onOpen = { selectedTaskId = it.id },
+            onToggleSubtask = { vm.setCompleted(it, !it.completed) },
+            onAddSubtask = { vm.addSubtask(task, it) },
         )
     }
     if (creatingList) {
@@ -181,6 +186,7 @@ fun TasksScreen(onSelectTab: (MainTab) -> Unit, onOpenSettings: () -> Unit) {
         TaskEditDialog(
             task = task, lists = s.lists, defaultListId = task.listId, defaultDate = null,
             onSave = { vm.save(task.id, it) }, onDismiss = { editing = null },
+            subtaskCount = s.all.count { it.parentId == task.id },
         )
     }
     if (askClear) {
@@ -254,7 +260,10 @@ private fun TaskListContent(
                 }
             }
         }
-        items(s.open, key = { it.id }) { t -> TaskRow(t, color, onToggle, onOpen) }
+        for (t in s.open) {
+            item(key = t.id) { TaskRow(t, color, onToggle, onOpen) }
+            items(s.subtasks[t.id].orEmpty(), key = { it.id }) { sub -> TaskRow(sub, color, onToggle, onOpen, indent = true) }
+        }
         if (s.completed.isNotEmpty()) {
             item(key = "done-head") {
                 Row(
@@ -275,27 +284,53 @@ private fun TaskListContent(
                     )
                 }
             }
-            if (s.showCompleted) items(s.completed, key = { "done-" + it.id }) { t -> TaskRow(t, color, onToggle, onOpen) }
+            if (s.showCompleted) {
+                items(s.completed, key = { "done-" + it.id }) { t ->
+                    TaskRow(t, color, onToggle, onOpen, parent = t.parentId?.let { p -> s.all.firstOrNull { it.id == p } })
+                }
+            }
         }
     }
 }
 
 @Composable
-private fun TaskRow(task: Task, color: Color, onToggle: (Task) -> Unit, onOpen: (Task) -> Unit) {
+private fun TaskRow(
+    task: Task,
+    color: Color,
+    onToggle: (Task) -> Unit,
+    onOpen: (Task) -> Unit,
+    /** Unteraufgabe unter ihrer Hauptaufgabe: eingerückt und etwas kleiner */
+    indent: Boolean = false,
+    /** Hauptaufgabe, als Hinweis unter dem Titel (bei erledigten Unteraufgaben) */
+    parent: Task? = null,
+) {
     Row(
         Modifier
             .fillMaxWidth()
             .clickable { onOpen(task) }
-            .padding(start = 4.dp, end = 16.dp, top = 2.dp, bottom = 6.dp),
+            .padding(start = if (indent) 44.dp else 4.dp, end = 16.dp, top = if (indent) 0.dp else 2.dp, bottom = if (indent) 2.dp else 6.dp),
         verticalAlignment = Alignment.Top,
     ) {
-        IconButton(onClick = { onToggle(task) }) { TaskCheckIcon(task.completed, color) }
+        IconButton(onClick = { onToggle(task) }) { TaskCheckIcon(task.completed, color, size = if (indent) 20.dp else 24.dp) }
         Column(Modifier.weight(1f).padding(top = 12.dp)) {
             Text(
-                task.title, style = MaterialTheme.typography.bodyLarge,
+                task.title, style = if (indent) MaterialTheme.typography.bodyMedium else MaterialTheme.typography.bodyLarge,
                 textDecoration = taskDecoration(task.completed),
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = if (task.completed) 0.6f else 1f),
             )
+            parent?.let { p ->
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Outlined.SubdirectoryArrowRight, null, Modifier.size(14.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.size(4.dp))
+                    Text(
+                        p.title, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
             if (task.notes.isNotBlank() && !task.completed) {
                 Text(
                     task.notes, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,

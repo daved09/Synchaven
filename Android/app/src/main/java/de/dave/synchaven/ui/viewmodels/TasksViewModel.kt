@@ -14,6 +14,7 @@ import de.dave.synchaven.pluralText
 import de.dave.synchaven.ui.common.UiMessages
 import de.dave.synchaven.uiText
 import de.dave.synchaven.util.completedTasks
+import de.dave.synchaven.util.openSubtasks
 import de.dave.synchaven.util.openTasks
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -28,6 +29,8 @@ data class TasksUiState(
     /** Gewählte Liste (erste, solange nichts gewählt ist) */
     val list: TaskList? = null,
     val open: List<Task> = emptyList(),
+    /** Offene Unteraufgaben je Hauptaufgabe in [open] */
+    val subtasks: Map<String, List<Task>> = emptyMap(),
     val completed: List<Task> = emptyList(),
     /** Alle Aufgaben – für die Details einer gerade geöffneten Aufgabe */
     val all: List<Task> = emptyList(),
@@ -56,6 +59,7 @@ class TasksViewModel(private val repo: TaskRepository) : ViewModel() {
         TasksUiState(
             lists = l, list = list,
             open = list?.let { openTasks(all, it.id) }.orEmpty(),
+            subtasks = list?.let { openSubtasks(all, it.id) }.orEmpty(),
             completed = list?.let { completedTasks(all, it.id) }.orEmpty(),
             all = all, showCompleted = showDone,
             notLoaded = lists == null, loading = isLoading, error = err,
@@ -87,6 +91,12 @@ class TasksViewModel(private val repo: TaskRepository) : ViewModel() {
         val listId = state.value.list?.id ?: return
         val t = title.trim().takeIf { it.isNotEmpty() } ?: return
         launchAction { repo.createTask(TaskInput(listId, t)) }
+    }
+
+    /** Neue Unteraufgabe ohne Datum unter [parent] */
+    fun addSubtask(parent: Task, title: String) {
+        val t = title.trim().takeIf { it.isNotEmpty() } ?: return
+        launchAction { repo.createSubtask(parent, t) }
     }
 
     /** Neue Aufgabenliste anlegen und gleich auswählen */

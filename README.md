@@ -18,7 +18,8 @@ Material-3-Design** (Vuetify), einer **REST API** für eigene Clients wie eine A
 * Ansichten: Monat, Woche, Tag, Terminliste mit Suche
 * **Aufgaben** wie im Google Kalender: mehrere farbige Aufgabenlisten, Aufgaben mit Fälligkeit (ganztägig oder mit
   Uhrzeit) erscheinen im Kalender und lassen sich dort abhaken und per Drag & Drop verschieben; Aufgabenbereich mit
-  Schnelleingabe, auch für Aufgaben ohne Datum; offene Aufgaben erinnern zur Fälligkeit (ganztägige um 09:00)
+  Schnelleingabe, auch für Aufgaben ohne Datum; **Unteraufgaben** (eine Ebene tief; eine erledigte Hauptaufgabe hakt
+  ihre Unteraufgaben mit ab); offene Aufgaben erinnern zur Fälligkeit (ganztägige um 09:00)
 * **Kontakte:** mehrere Adressbücher, Suche, Telefon/E-Mail/Adressen/Websites mit Typen und eigenen Bezeichnungen,
   Geburtstag (auch ohne Jahr), Notizen, Kategorien (zum Filtern, umbenennbar; in DAVx⁵ als Kontaktgruppen), Fotos aus importierten oder synchronisierten Kontakten
 * **Geburtstagskalender:** Geburtstage aller Kontakte erscheinen automatisch als jährliche Termine im eigenen

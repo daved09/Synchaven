@@ -193,6 +193,10 @@ private fun List<PendingOp>.merge(op: PendingOp): List<PendingOp> = when (op) {
 /** Ersetzt nach dem Übertragen einer Anlage die vorläufige ID in den übrigen Änderungen. */
 fun List<PendingOp>.remap(localId: String, serverId: String): List<PendingOp> = map { op ->
     when {
+        // Offline angelegte Unteraufgaben einer offline angelegten Hauptaufgabe
+        op is PendingOp.CreateTask && op.input.parentId == localId -> op.copy(input = op.input.copy(parentId = serverId))
+        op is PendingOp.UpdateTask && op.input.parentId == localId ->
+            op.copy(id = if (op.id == localId) serverId else op.id, input = op.input.copy(parentId = serverId))
         op.targetId != localId -> op
         op is PendingOp.UpdateEvent -> op.copy(id = serverId)
         op is PendingOp.DeleteEvent -> op.copy(id = serverId)

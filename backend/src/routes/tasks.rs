@@ -172,6 +172,7 @@ struct TaskData {
     due: Option<String>,
     all_day: bool,
     completed: Option<bool>,
+    parent_id: Option<Option<String>>,
 }
 
 fn validate_task(input: TaskInput) -> AppResult<TaskData> {
@@ -189,6 +190,7 @@ fn validate_task(input: TaskInput) -> AppResult<TaskData> {
         due: due.map(time::to_db),
         all_day,
         completed: input.completed,
+        parent_id: input.parent_id,
     })
 }
 
@@ -201,6 +203,64 @@ async fn owned_task(state: &AppState, user_id: &str, id: &str) -> AppResult<Task
     .fetch_optional(&state.db)
     .await?
     .ok_or(AppError::NotFound)
+}
+
+/// Übergeordnete Aufgabe nach dem Speichern. Unteraufgaben gibt es nur eine Ebene tief und nur innerhalb einer
+/// Liste: Wechselt eine Unteraufgabe die Liste, wird sie zur Hauptaufgabe.
+async fn resolve_parent(
+    state: &AppState,
+    user_id: &str,
+    existing: Option<&TaskRow>,
+    data: &TaskData,
+) -> AppResult<Option<String>> {
+    let parent_id = match &data.parent_id {
+        Some(p) => p.clone(),
+        None => existing.and_then(|t| t.parent_id.clone()),
+    };
+    let Some(parent_id) = parent_id else { return Ok(None) };
+    if existing.is_some_and(|t| t.id == parent_id) {
+        return Err(AppError::BadRequest("Eine Aufgabe kann nicht ihre eigene Unteraufgabe sein".into()));
+    }
+    let parent = owned_task(state, user_id, &parent_id)
+        .await
+        .map_err(|_| AppError::BadRequest("Die übergeordnete Aufgabe gibt es nicht".into()))?;
+    if parent.parent_id.is_some() {
+        return Err(AppError::BadRequest("Unteraufgaben können keine eigenen Unteraufgaben haben".into()));
+    }
+    if parent.list_id != data.list_id {
+        return Ok(None);
+    }
+    if let Some(t) = existing {
+        let (children,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM tasks WHERE parent_id = ?")
+            .bind(&t.id)
+            .fetch_one(&state.db)
+            .await?;
+        if children > 0 {
+            return Err(AppError::BadRequest("Eine Aufgabe mit Unteraufgaben kann keine Unteraufgabe werden".into()));
+        }
+    }
+    Ok(Some(parent_id))
+}
+
+/// Folgen des Abhakens wie bei Google Tasks: Eine erledigte Hauptaufgabe hakt ihre offenen Unteraufgaben mit ab,
+/// eine wieder geöffnete Unteraufgabe öffnet auch ihre Hauptaufgabe.
+async fn cascade_completed(state: &AppState, task: &TaskRow) -> AppResult<()> {
+    let now = time::to_db(time::now());
+    if let Some(done) = &task.completed_at {
+        sqlx::query("UPDATE tasks SET completed_at = ?, updated_at = ? WHERE parent_id = ? AND completed_at IS NULL")
+            .bind(done)
+            .bind(&now)
+            .bind(&task.id)
+            .execute(&state.db)
+            .await?;
+    } else if let Some(parent) = &task.parent_id {
+        sqlx::query("UPDATE tasks SET completed_at = NULL, updated_at = ? WHERE id = ? AND completed_at IS NOT NULL")
+            .bind(&now)
+            .bind(parent)
+            .execute(&state.db)
+            .await?;
+    }
+    Ok(())
 }
 
 #[derive(Deserialize)]
@@ -239,14 +299,16 @@ pub async fn create(
 ) -> AppResult<(StatusCode, Json<Task>)> {
     let data = validate_task(input)?;
     owned_list(&state, &auth.id, &data.list_id).await?;
+    let parent_id = resolve_parent(&state, &auth.id, None, &data).await?;
     let id = uuid::Uuid::new_v4().to_string();
     let now = time::to_db(time::now());
     sqlx::query(
-        "INSERT INTO tasks (id, list_id, title, notes, due_at, all_day, completed_at, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO tasks (id, list_id, parent_id, title, notes, due_at, all_day, completed_at, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(&id)
     .bind(&data.list_id)
+    .bind(&parent_id)
     .bind(&data.title)
     .bind(&data.notes)
     .bind(&data.due)
@@ -256,7 +318,11 @@ pub async fn create(
     .bind(&now)
     .execute(&state.db)
     .await?;
-    Ok((StatusCode::CREATED, Json(owned_task(&state, &auth.id, &id).await?.into())))
+    let row = owned_task(&state, &auth.id, &id).await?;
+    if data.completed.is_some() {
+        cascade_completed(&state, &row).await?;
+    }
+    Ok((StatusCode::CREATED, Json(row.into())))
 }
 
 /// Neuer Wert für `completed_at`: Erledigungszeitpunkt bleibt erhalten, solange die Aufgabe erledigt bleibt.
@@ -277,21 +343,37 @@ pub async fn update(
     let existing = owned_task(&state, &auth.id, &id).await?;
     let data = validate_task(input)?;
     owned_list(&state, &auth.id, &data.list_id).await?;
+    let parent_id = resolve_parent(&state, &auth.id, Some(&existing), &data).await?;
+    let now = time::to_db(time::now());
     sqlx::query(
-        "UPDATE tasks SET list_id = ?, title = ?, notes = ?, due_at = ?, all_day = ?, completed_at = ?, updated_at = ?
-         WHERE id = ?",
+        "UPDATE tasks SET list_id = ?, parent_id = ?, title = ?, notes = ?, due_at = ?, all_day = ?, completed_at = ?,
+         updated_at = ? WHERE id = ?",
     )
     .bind(&data.list_id)
+    .bind(&parent_id)
     .bind(&data.title)
     .bind(&data.notes)
     .bind(&data.due)
     .bind(data.all_day)
     .bind(completed_at(&existing, data.completed))
-    .bind(time::to_db(time::now()))
+    .bind(&now)
     .bind(&id)
     .execute(&state.db)
     .await?;
-    Ok(Json(owned_task(&state, &auth.id, &id).await?.into()))
+    // Unteraufgaben ziehen mit ihrer Hauptaufgabe in die andere Liste um
+    if data.list_id != existing.list_id {
+        sqlx::query("UPDATE tasks SET list_id = ?, updated_at = ? WHERE parent_id = ?")
+            .bind(&data.list_id)
+            .bind(&now)
+            .bind(&id)
+            .execute(&state.db)
+            .await?;
+    }
+    let row = owned_task(&state, &auth.id, &id).await?;
+    if row.completed_at.is_some() != existing.completed_at.is_some() {
+        cascade_completed(&state, &row).await?;
+    }
+    Ok(Json(row.into()))
 }
 
 #[derive(Deserialize)]
@@ -313,11 +395,14 @@ pub async fn set_completed(
         .bind(&id)
         .execute(&state.db)
         .await?;
-    Ok(Json(owned_task(&state, &auth.id, &id).await?.into()))
+    let row = owned_task(&state, &auth.id, &id).await?;
+    cascade_completed(&state, &row).await?;
+    Ok(Json(row.into()))
 }
 
 pub async fn delete(State(state): State<AppState>, auth: AuthUser, Path(id): Path<String>) -> AppResult<StatusCode> {
     owned_task(&state, &auth.id, &id).await?;
+    // Unteraufgaben werden per ON DELETE CASCADE mitgelöscht.
     sqlx::query("DELETE FROM tasks WHERE id = ?").bind(&id).execute(&state.db).await?;
     Ok(StatusCode::NO_CONTENT)
 }
@@ -328,7 +413,15 @@ mod tests {
     use chrono::TimeZone;
 
     fn input(due: Option<chrono::DateTime<chrono::Utc>>, all_day: bool) -> TaskInput {
-        TaskInput { list_id: "l".into(), title: "  Einkaufen ".into(), notes: "Milch\n".into(), due, all_day, completed: None }
+        TaskInput {
+            list_id: "l".into(),
+            title: "  Einkaufen ".into(),
+            notes: "Milch\n".into(),
+            due,
+            all_day,
+            completed: None,
+            parent_id: None,
+        }
     }
 
     #[test]
@@ -351,6 +444,14 @@ mod tests {
     }
 
     #[test]
+    fn parent_id_distinguishes_missing_and_null() {
+        let parse = |j: &str| serde_json::from_str::<TaskInput>(j).unwrap().parent_id;
+        assert_eq!(parse(r#"{"list_id":"l","title":"x"}"#), None);
+        assert_eq!(parse(r#"{"list_id":"l","title":"x","parent_id":null}"#), Some(None));
+        assert_eq!(parse(r#"{"list_id":"l","title":"x","parent_id":"p"}"#), Some(Some("p".into())));
+    }
+
+    #[test]
     fn empty_title_is_rejected() {
         let mut i = input(None, true);
         i.title = "   ".into();
@@ -362,6 +463,7 @@ mod tests {
         let row = TaskRow {
             id: "t".into(),
             list_id: "l".into(),
+            parent_id: None,
             title: "x".into(),
             notes: String::new(),
             due_at: None,

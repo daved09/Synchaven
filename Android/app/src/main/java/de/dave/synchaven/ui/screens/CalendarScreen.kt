@@ -285,10 +285,14 @@ fun CalendarScreen(
         TaskDetailsSheet(
             task = task,
             list = s.taskLists.firstOrNull { it.id == task.listId },
+            tasks = s.tasks,
             onToggle = { vm.setTaskCompleted(task, !task.completed) },
             onEdit = { selectedTaskId = null; taskEdit = TaskEdit(task, null, task.listId) },
             onDelete = { selectedTaskId = null; vm.deleteTask(task) },
             onDismiss = { selectedTaskId = null },
+            onOpen = { selectedTaskId = it.id },
+            onToggleSubtask = { vm.setTaskCompleted(it, !it.completed) },
+            onAddSubtask = { vm.addSubtask(task, it) },
         )
     }
     taskEdit?.let { edit ->
@@ -299,6 +303,7 @@ fun CalendarScreen(
             defaultDate = edit.date,
             onSave = { vm.saveTask(edit.task?.id, it) },
             onDismiss = { taskEdit = null },
+            subtaskCount = edit.task?.let { t -> s.tasks.count { it.parentId == t.id } } ?: 0,
         )
     }
     taskListDialog?.let { list ->

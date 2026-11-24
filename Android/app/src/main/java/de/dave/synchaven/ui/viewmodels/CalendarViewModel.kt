@@ -324,6 +324,12 @@ class CalendarViewModel(
         messages.send(uiText(if (id == null) R.string.msg_task_created else R.string.msg_task_saved))
     }
 
+    /** Neue Unteraufgabe ohne Datum unter [parent] */
+    fun addSubtask(parent: Task, title: String) {
+        val t = title.trim().takeIf { it.isNotEmpty() } ?: return
+        launchAction { taskRepo.createSubtask(parent, t) }
+    }
+
     fun setTaskCompleted(task: Task, completed: Boolean) = launchAction {
         taskRepo.setCompleted(task, completed)
         messages.send(uiText(if (completed) R.string.msg_task_done else R.string.msg_task_reopened))

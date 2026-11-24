@@ -527,6 +527,18 @@
     <string name="calendar_create">Erstellen</string>
     <string name="dialog_delete_task_title">Aufgabe löschen?</string>
     <string name="dialog_delete_task_text">„%1$s“ wird endgültig gelöscht.</string>
+    <plurals name="dialog_delete_task_with_subtasks_text">
+        <item quantity="one">„%2$s“ und eine Unteraufgabe werden endgültig gelöscht.</item>
+        <item quantity="other">„%2$s“ und %1$d Unteraufgaben werden endgültig gelöscht.</item>
+    </plurals>
+    <string name="subtasks_title">Unteraufgaben</string>
+    <string name="subtask_add_hint">Unteraufgabe hinzufügen</string>
+    <string name="subtask_of">Unteraufgabe von „%1$s“</string>
+    <string name="subtask_list_hint">In einer anderen Liste wird die Unteraufgabe zur Hauptaufgabe.</string>
+    <plurals name="subtask_move_hint">
+        <item quantity="one">Die Unteraufgabe wird mit verschoben.</item>
+        <item quantity="other">Die %1$d Unteraufgaben werden mit verschoben.</item>
+    </plurals>
     <string name="dialog_delete_task_list_title">Aufgabenliste löschen?</string>
     <string name="dialog_delete_task_list_text">„%1$s“ wird mit allen Aufgaben endgültig gelöscht.</string>
     <string name="msg_task_created">Aufgabe angelegt</string>

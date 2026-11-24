@@ -364,6 +364,7 @@ mod tests {
         Task {
             id: "t".into(),
             list_id: "l".into(),
+            parent_id: None,
             title: "Aufgabe".into(),
             notes: String::new(),
             due,

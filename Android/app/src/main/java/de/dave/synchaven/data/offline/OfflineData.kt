@@ -10,6 +10,9 @@ import de.dave.synchaven.data.model.Occurrence
 import de.dave.synchaven.data.model.Task
 import de.dave.synchaven.data.model.TaskInput
 import de.dave.synchaven.data.model.TaskList
+import de.dave.synchaven.data.withTaskCompleted
+import de.dave.synchaven.data.withTaskSaved
+import de.dave.synchaven.data.withoutTask
 import de.dave.synchaven.util.RRuleExpander
 import de.dave.synchaven.util.Reminders
 import de.dave.synchaven.util.applyReminders
@@ -93,16 +96,19 @@ data class OfflineData(
                 defaultAllDayReminders = op.input.defaultAllDayReminders ?: c.defaultAllDayReminders) else c
         })
         is PendingOp.CreateTask -> withTasks { list ->
-            val t = op.input.toLocalTask(op.localId, createdAt = op.createdAt)
-            if (list.any { it.id == op.localId }) list.map { if (it.id == op.localId) t else it } else list + t
+            val base = list.firstOrNull { it.id == op.localId }
+            list.withTaskSaved(op.input.toLocalTask(op.localId, base = base, createdAt = op.createdAt)) { t, done ->
+                t.withCompleted(done, op.createdAt)
+            }
         }
         is PendingOp.UpdateTask -> withTasks { list ->
-            list.map { if (it.id == op.id) op.input.toLocalTask(it.id, base = it) else it }
+            val base = list.firstOrNull { it.id == op.id } ?: return@withTasks list
+            list.withTaskSaved(op.input.toLocalTask(base.id, base = base)) { t, done -> t.withCompleted(done, "") }
         }
         is PendingOp.SetTaskCompleted -> withTasks { list ->
-            list.map { if (it.id == op.id) it.withCompleted(op.completed, op.at) else it }
+            list.withTaskCompleted(op.id, op.completed, op.at) { t, done -> t.withCompleted(done, op.at) }
         }
-        is PendingOp.DeleteTask -> withTasks { list -> list.filterNot { it.id == op.id } }
+        is PendingOp.DeleteTask -> withTasks { list -> list.withoutTask(op.id) }
         is PendingOp.UpdateTaskList -> copy(taskLists = taskLists?.map { l ->
             if (l.id == op.id) l.copy(name = op.input.name, color = op.input.color ?: l.color, visible = op.input.visible ?: l.visible)
             else l
@@ -224,6 +230,7 @@ fun TaskInput.toLocalTask(id: String, base: Task? = null, createdAt: String = ""
     return Task(
         id = id,
         listId = listId,
+        parentId = parentId ?: base?.parentId,
         title = title.trim(),
         notes = notes.trimEnd(),
         due = dueAt,

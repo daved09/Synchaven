@@ -288,6 +288,7 @@ pub struct TaskListInput {
 pub struct TaskRow {
     pub id: String,
     pub list_id: String,
+    pub parent_id: Option<String>,
     pub title: String,
     pub notes: String,
     pub due_at: Option<String>,
@@ -301,6 +302,8 @@ pub struct TaskRow {
 pub struct Task {
     pub id: String,
     pub list_id: String,
+    /// Übergeordnete Aufgabe, wenn dies eine Unteraufgabe ist
+    pub parent_id: Option<String>,
     pub title: String,
     pub notes: String,
     /// Fälligkeit; ganztägig als Mitternacht UTC. `null` = ohne Datum
@@ -317,6 +320,7 @@ impl From<TaskRow> for Task {
         Self {
             id: r.id,
             list_id: r.list_id,
+            parent_id: r.parent_id,
             title: r.title,
             notes: r.notes,
             due: r.due_at.as_deref().map(from_db),
@@ -340,6 +344,10 @@ pub struct TaskInput {
     pub all_day: bool,
     /// Fehlt das Feld, bleibt der Status erhalten (neue Aufgaben: offen).
     pub completed: Option<bool>,
+    /// Übergeordnete Aufgabe. Fehlt das Feld, bleibt die Zuordnung erhalten (neue Aufgaben: Hauptaufgabe);
+    /// `null` macht eine Unteraufgabe zur Hauptaufgabe.
+    #[serde(default, deserialize_with = "present")]
+    pub parent_id: Option<Option<String>>,
 }
 
 fn default_true() -> bool {

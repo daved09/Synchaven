@@ -235,7 +235,10 @@ async function toggleTask(t: Task) {
   }
 }
 async function deleteTask(t: Task) {
-  if (!(await confirmRef.value!.ask('Aufgabe löschen?', `„${t.title}“ wird gelöscht.`))) return
+  const subs = tasks.subtasksOf(t.id).length
+  const text = subs === 0 ? `„${t.title}“ wird gelöscht.`
+    : `„${t.title}“ und ${subs === 1 ? 'eine Unteraufgabe werden' : `${subs} Unteraufgaben werden`} gelöscht.`
+  if (!(await confirmRef.value!.ask('Aufgabe löschen?', text))) return
   try {
     await tasks.remove(t.id)
     taskDetailsOpen.value = false
@@ -618,6 +621,7 @@ function onKey(e: KeyboardEvent) {
   <CalendarDialog v-model="calendarDialog" :calendar="editCalendar" />
   <TaskDetails
     v-model="taskDetailsOpen" :task-id="taskDetailsId" @edit="editTaskOpen" @delete="deleteTask" @toggle="toggleTask"
+    @open="openTask"
   />
   <TaskDialog v-model="taskEditorOpen" :task="editTask" :preset="taskPreset" />
   <TaskListDialog v-model="taskListDialog" :list="editTaskList" />

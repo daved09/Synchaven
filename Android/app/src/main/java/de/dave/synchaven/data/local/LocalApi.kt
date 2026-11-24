@@ -34,6 +34,10 @@ import de.dave.synchaven.data.model.User
 import de.dave.synchaven.data.offline.OfflineData
 import de.dave.synchaven.data.offline.OfflineStore
 import de.dave.synchaven.data.offline.toLocalTask
+import de.dave.synchaven.data.withTaskCompleted
+import de.dave.synchaven.data.withTaskSaved
+import de.dave.synchaven.data.withoutCompleted
+import de.dave.synchaven.data.withoutTask
 import de.dave.synchaven.data.offline.withCompleted
 import de.dave.synchaven.util.RRuleExpander
 import java.security.MessageDigest
@@ -162,7 +166,7 @@ class LocalApi(
         edit { d ->
             taskList(d, id)
             val all = d.tasks.orEmpty()
-            val keep = all.filterNot { it.listId == id && it.completed }
+            val keep = all.withoutCompleted(id)
             deleted = all.size - keep.size
             d.copy(tasks = keep).recount()
         }
@@ -182,7 +186,8 @@ class LocalApi(
         val t = body.toLocalTask(newId(), createdAt = ts)
         edit { d ->
             taskList(d, t.listId)
-            d.copy(tasks = d.tasks.orEmpty() + t).recount()
+            validateParent(d, null, body)
+            d.copy(tasks = d.tasks.orEmpty().withTaskSaved(t) { x, done -> x.withCompleted(done, ts) }).recount()
         }
         return task(data(), t.id)
     }
@@ -193,8 +198,9 @@ class LocalApi(
             val old = task(d, id)
             taskList(d, body.listId)
             val ts = now()
+            validateParent(d, old, body)
             val t = body.toLocalTask(id, base = old, createdAt = ts).copy(updatedAt = ts)
-            d.copy(tasks = d.tasks.orEmpty().map { if (it.id == id) t else it }).recount()
+            d.copy(tasks = d.tasks.orEmpty().withTaskSaved(t) { x, done -> x.withCompleted(done, ts).copy(updatedAt = ts) }).recount()
         }
         return task(data(), id)
     }
@@ -202,8 +208,12 @@ class LocalApi(
     override suspend fun setTaskCompleted(id: String, body: CompletedRequest): Task {
         edit { d ->
             val ts = now()
-            val t = task(d, id).withCompleted(body.completed, ts).copy(updatedAt = ts)
-            d.copy(tasks = d.tasks.orEmpty().map { if (it.id == id) t else it }).recount()
+            task(d, id)
+            d.copy(
+                tasks = d.tasks.orEmpty().withTaskCompleted(id, body.completed, ts) { t, done ->
+                    t.withCompleted(done, ts).copy(updatedAt = ts)
+                },
+            ).recount()
         }
         return task(data(), id)
     }
@@ -211,7 +221,7 @@ class LocalApi(
     override suspend fun deleteTask(id: String) {
         edit { d ->
             task(d, id)
-            d.copy(tasks = d.tasks.orEmpty().filterNot { it.id == id }).recount()
+            d.copy(tasks = d.tasks.orEmpty().withoutTask(id)).recount()
         }
     }
 
@@ -226,6 +236,17 @@ class LocalApi(
             it.uppercase()
         }
         return name to color
+    }
+
+    /** Wie `resolve_parent` im Backend: eine Ebene tief, die Hauptaufgabe muss es geben. */
+    private fun validateParent(d: OfflineData, existing: Task?, input: TaskInput) {
+        val parentId = input.parentId ?: return
+        if (existing?.id == parentId) bad("Eine Aufgabe kann nicht ihre eigene Unteraufgabe sein")
+        val parent = d.tasks.orEmpty().firstOrNull { it.id == parentId } ?: bad("Die übergeordnete Aufgabe gibt es nicht")
+        if (parent.parentId != null) bad("Unteraufgaben können keine eigenen Unteraufgaben haben")
+        if (parent.listId == input.listId && existing != null && d.tasks.orEmpty().any { it.parentId == existing.id }) {
+            bad("Eine Aufgabe mit Unteraufgaben kann keine Unteraufgabe werden")
+        }
     }
 
     private fun validateTask(input: TaskInput) {

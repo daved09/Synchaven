@@ -20,7 +20,7 @@ import de.dave.synchaven.util.cleanCategories
 import de.dave.synchaven.util.sameCategory
 import de.dave.synchaven.util.derivedName
 import de.dave.synchaven.util.isBlank
-import de.dave.synchaven.util.partsName
+import de.dave.synchaven.util.ownName
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
@@ -34,8 +34,8 @@ data class ContactEditUiState(
     val isNew: Boolean = true,
     val addressBooks: List<AddressBook> = emptyList(),
     /**
-     * `fullName` bleibt nur bei Kontakten ohne Namensteile erhalten (z. B. importiert mit nur FN), sonst leer:
-     * der Anzeigename wird immer aus den Namensteilen gebildet.
+     * `fullName` bleibt nur bei Kontakten ohne Spitzname und Namensteile erhalten (z. B. importiert mit nur FN),
+     * sonst leer: der Anzeigename wird immer aus Spitzname bzw. Namensteilen gebildet.
      */
     val contact: Contact = Contact(),
     /** Geburtstag wie eingegeben (TT.MM.JJJJ oder TT.MM.) */
@@ -81,7 +81,7 @@ class ContactEditViewModel(
                         loading = false, addressBooks = books,
                         allCategories = cleanCategories(repo.contacts.value.orEmpty().flatMap { c -> c.categories })
                             .sortedWith(String.CASE_INSENSITIVE_ORDER),
-                        contact = contact.copy(photo = null, fullName = if (contact.partsName().isEmpty()) contact.fullName else ""),
+                        contact = contact.copy(photo = null, fullName = if (contact.ownName().isEmpty()) contact.fullName else ""),
                         birthdayInput = birthdayToInput(contact.birthday),
                         showAllNameFields = listOf(contact.prefix, contact.additionalNames, contact.suffix, contact.nickname)
                             .any { s -> s.isNotBlank() },

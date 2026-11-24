@@ -44,9 +44,16 @@ private const val TAG = "ContactsSync"
 private const val MAX_PHOTO_BYTES = 400_000
 private const val MAX_PHOTO_SIZE = 720
 
+/**
+ * Eigene, unsichtbare Datenart: Bei Kontakten mit Spitzname steht als Name nur der Spitzname auf dem Gerät (sonst
+ * bildet Android den Anzeigenamen aus Vor- und Nachname). Diese Zeile bewahrt die echten Namensteile:
+ * `DATA1` = als Name geschriebener Spitzname, `DATA2` … `DATA6` = Präfix, Vorname, weitere Vornamen, Nachname, Suffix.
+ */
+private const val REAL_NAME_MIMETYPE = "vnd.android.cursor.item/vnd.de.dave.synchaven.realname"
+
 /** Datenarten, die die App verwaltet – andere bleiben beim Aktualisieren erhalten. */
 private val MANAGED_MIMETYPES = listOf(
-    StructuredName.CONTENT_ITEM_TYPE, Nickname.CONTENT_ITEM_TYPE, Organization.CONTENT_ITEM_TYPE,
+    StructuredName.CONTENT_ITEM_TYPE, REAL_NAME_MIMETYPE, Nickname.CONTENT_ITEM_TYPE, Organization.CONTENT_ITEM_TYPE,
     Phone.CONTENT_ITEM_TYPE, Email.CONTENT_ITEM_TYPE, StructuredPostal.CONTENT_ITEM_TYPE,
     Website.CONTENT_ITEM_TYPE, Event.CONTENT_ITEM_TYPE, Note.CONTENT_ITEM_TYPE, Photo.CONTENT_ITEM_TYPE,
     GroupMembership.CONTENT_ITEM_TYPE,
@@ -54,6 +61,9 @@ private val MANAGED_MIMETYPES = listOf(
 
 /** `SYNC4` eines Kontakts, dessen Gruppen die Kategorien des Servers wiedergeben (ab dieser App-Version geschrieben) */
 private const val CATEGORIES_MAPPED = "categories"
+
+/** `SYNC4` der aktuellen Schreibweise (Kategorien als Gruppen, Spitzname als Name); ältere werden neu geschrieben */
+private const val SYNC_FORMAT = "categories,nickname"
 
 private data class LocalGroup(val id: Long, val title: String, val dirty: Boolean, val deleted: Boolean)
 
@@ -68,6 +78,8 @@ private data class LocalContact(
     val deleted: Boolean,
     /** Gruppen entsprechen den Kategorien (siehe [CATEGORIES_MAPPED]) */
     val categoriesMapped: Boolean,
+    /** In der aktuellen Schreibweise ([SYNC_FORMAT]) geschrieben */
+    val currentFormat: Boolean,
 )
 
 /**
@@ -75,7 +87,7 @@ private data class LocalContact(
  * Richtungen. Lokale Änderungen werden zuerst hochgeladen, danach der Stand des Servers übernommen.
  *
  * Abbildung: `SOURCE_ID` = Kontakt-ID, `SYNC1` = ETag des Servers, `SYNC2` = Adressbuch, `SYNC3` = Stand des
- * Fotos (erkennt Fotoänderungen auf dem Gerät), `SYNC4` = [CATEGORIES_MAPPED]. Neue Kontakte vom Gerät landen im
+ * Fotos (erkennt Fotoänderungen auf dem Gerät), `SYNC4` = [SYNC_FORMAT]. Neue Kontakte vom Gerät landen im
  * ersten Adressbuch. Kategorien sind die Gruppen (Labels) des Kontos; ungenutzte Gruppen werden entfernt.
  */
 class ContactsSyncer(
@@ -129,8 +141,9 @@ class ContactsSyncer(
                         result.stats.numInserts++
                     }
                     existing.dirty || existing.deleted -> Unit
-                    // Vor dieser App-Version geschriebene Kontakte erhalten ihre Kategorien als Gruppen
-                    existing.etag != c.etag || (!existing.categoriesMapped && c.categories.isNotEmpty()) -> {
+                    // Vor dieser App-Version geschriebene Kontakte werden einmal neu geschrieben (Kategorien als
+                    // Gruppen, Spitzname als Name)
+                    existing.etag != c.etag || !existing.currentFormat -> {
                         write(existing.id, full(c))
                         result.stats.numUpdates++
                     }
@@ -251,7 +264,8 @@ class ContactsSyncer(
                             id = c.getLong(0), serverId = c.getString(1), etag = c.getString(2),
                             addressBookId = c.getString(3), photoMarker = c.getString(4),
                             dirty = c.getInt(5) != 0, deleted = c.getInt(6) != 0,
-                            categoriesMapped = c.getString(7) == CATEGORIES_MAPPED,
+                            categoriesMapped = c.getString(7) in listOf(CATEGORIES_MAPPED, SYNC_FORMAT),
+                            currentFormat = c.getString(7) == SYNC_FORMAT,
                         )
                     )
                 }
@@ -291,6 +305,7 @@ class ContactsSyncer(
 
     private fun readLocal(c: LocalContact, addressBookId: String): ContactInput {
         var name: ContactInput? = null
+        var realName: List<String>? = null
         var nickname = ""
         var org = Triple("", "", "")
         val phones = mutableListOf<TypedValue>()
@@ -318,6 +333,7 @@ class ContactsSyncer(
                         fullName = d(1), givenName = d(2), familyName = d(3), prefix = d(4), additionalNames = d(5),
                         suffix = d(6),
                     )
+                    REAL_NAME_MIMETYPE -> if (realName == null) realName = (1..6).map { d(it) }
                     Nickname.CONTENT_ITEM_TYPE -> if (nickname.isEmpty()) nickname = d(1)
                     Organization.CONTENT_ITEM_TYPE -> if (org.first.isEmpty() && org.second.isEmpty() && org.third.isEmpty()) {
                         // COMPANY = DATA1, TITLE = DATA4, DEPARTMENT = DATA5
@@ -353,6 +369,16 @@ class ContactsSyncer(
             photoMarker == c.photoMarker.orEmpty() -> null
             photoMarker.isEmpty() -> ""
             else -> currentPhoto(c.id) ?: ""
+        }
+        // Steht als Name noch der geschriebene Spitzname, gelten die bewahrten Namensteile; wurde der Name auf dem
+        // Gerät geändert, die Eingabe von dort.
+        val n = name
+        val kept = realName
+        if (n != null && kept != null && n.fullName == kept[0]) {
+            name = n.copy(
+                fullName = "", prefix = kept[1], givenName = kept[2], additionalNames = kept[3], familyName = kept[4],
+                suffix = kept[5],
+            )
         }
         return (name ?: emptyInput(addressBookId)).copy(
             addressBookId = addressBookId,
@@ -399,7 +425,7 @@ class ContactsSyncer(
             put(RawContacts.SYNC1, c.etag)
             put(RawContacts.SYNC2, c.addressBookId)
             put(RawContacts.DIRTY, 0)
-            put(RawContacts.SYNC4, CATEGORIES_MAPPED)
+            put(RawContacts.SYNC4, SYNC_FORMAT)
             // Stand des Fotos: ohne Foto sofort bekannt, sonst nach dem Schreiben (rememberPhoto)
             if (photo == null) put(RawContacts.SYNC3, "")
         }
@@ -425,12 +451,21 @@ class ContactsSyncer(
             ops.add(b.withValues(ContentValues().apply { put(Data.MIMETYPE, mimetype); values() }).build())
         }
 
+        // Ein Spitzname ist der Anzeigename. Android bildet ihn aber aus Vor- und Nachname, sobald es sie gibt:
+        // Deshalb steht dann nur der Spitzname als Name auf dem Gerät, die echten Namensteile in einer eigenen Zeile.
         // Ohne Namensteile leitet der Server den Anzeigenamen aus Firma, E-Mail oder Telefon ab – genauso wie
         // Android. Den abgeleiteten Namen nicht als Namen speichern, sonst zerlegt Android ihn in Vor-/Nachname.
+        val nickname = c.nickname.trim()
         val nameParts = listOf(c.prefix, c.givenName, c.additionalNames, c.familyName, c.suffix)
         val derived = c.fullName.isBlank() || c.fullName == c.organization ||
             c.emails.any { it.value == c.fullName } || c.phones.any { it.value == c.fullName }
-        if (nameParts.any { it.isNotBlank() } || !derived) row(StructuredName.CONTENT_ITEM_TYPE) {
+        if (nickname.isNotEmpty()) {
+            row(StructuredName.CONTENT_ITEM_TYPE) { put(StructuredName.DISPLAY_NAME, nickname) }
+            row(REAL_NAME_MIMETYPE) {
+                put(Data.DATA1, nickname)
+                nameParts.forEachIndexed { i, part -> put("data${i + 2}", part) }
+            }
+        } else if (nameParts.any { it.isNotBlank() } || !derived) row(StructuredName.CONTENT_ITEM_TYPE) {
             put(StructuredName.DISPLAY_NAME, c.fullName)
             put(StructuredName.PREFIX, c.prefix)
             put(StructuredName.GIVEN_NAME, c.givenName)

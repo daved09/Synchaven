@@ -46,15 +46,28 @@ export function partsName(c: ContactData): string {
     .join(' ')
 }
 
-/** Anzeigename aus Namensteilen, Firma, E-Mail oder Telefon (wie im Backend). */
+/** Eigener Name: der Spitzname, falls eingetragen, sonst der Name aus den Namensteilen (wie im Backend). */
+export function ownName(c: ContactData): string {
+  return c.nickname.trim() || partsName(c)
+}
+
+/** Anzeigename aus Spitzname, Namensteilen, Firma, E-Mail oder Telefon (wie im Backend). */
 export function derivedName(c: ContactData): string {
-  const name = partsName(c)
+  const name = ownName(c)
   return [name, c.organization.trim(), ...c.emails.map((e) => e.value.trim()), ...c.phones.map((p) => p.value.trim())]
     .find(Boolean) ?? ''
 }
 
 export function displayName(c: ContactData): string {
   return c.full_name || derivedName(c) || '(Ohne Namen)'
+}
+
+/**
+ * Eigentlicher Name ohne Spitzname (für den Kopf der Detailansicht, unter dem der Spitzname eigens steht):
+ * Namensteile, sonst Firma, E-Mail oder Telefon, sonst der Anzeigename
+ */
+export function realName(c: ContactData): string {
+  return partsName(c) || derivedName({ ...c, nickname: '' }) || displayName(c)
 }
 
 export function initials(c: ContactData): string {

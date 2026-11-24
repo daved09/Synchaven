@@ -6,7 +6,7 @@ import TypedListEditor from '@/components/TypedListEditor.vue'
 import { useContactsStore } from '@/stores/contacts'
 import { useNotifyStore } from '@/stores/notify'
 import {
-  birthdayFromInput, birthdayToInput, derivedName, emptyAddress, partsName, emptyContact, OTHER_TYPES, PHONE_TYPES,
+  birthdayFromInput, birthdayToInput, derivedName, emptyAddress, ownName, emptyContact, OTHER_TYPES, PHONE_TYPES,
   sameCategory,
 } from '@/utils/contact'
 
@@ -40,7 +40,7 @@ watch(open, (v) => {
     const copy: ContactData = JSON.parse(JSON.stringify(c))
     form.value = { ...emptyContact(), ...copy }
     bookId.value = c.addressbook_id
-    keptName.value = partsName(c) ? '' : c.full_name
+    keptName.value = ownName(c) ? '' : c.full_name
   } else {
     form.value = {
       ...emptyContact(), phones: [{ type: 'mobile', value: '' }], emails: [{ type: 'home', value: '' }],

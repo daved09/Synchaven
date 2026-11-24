@@ -3,7 +3,7 @@ import { computed, ref, watch } from 'vue'
 import type { Contact } from '@/api/types'
 import { useContactsStore } from '@/stores/contacts'
 import {
-  avatarColor, displayName, formatAddress, formatBirthday, initials, mapsUrl, typeLabel, websiteUrl,
+  avatarColor, displayName, formatAddress, formatBirthday, initials, mapsUrl, realName, typeLabel, websiteUrl,
 } from '@/utils/contact'
 
 const props = defineProps<{ contact: Contact; closable?: boolean }>()
@@ -49,8 +49,8 @@ const empty = computed(
         <v-img v-if="photo" :src="photo" cover :alt="displayName(c)" @error="photo = undefined" />
         <span v-else class="text-headline-medium text-white">{{ initials(c) }}</span>
       </v-avatar>
-      <div class="text-headline-small">{{ displayName(c) }}</div>
-      <div v-if="c.nickname" class="text-body-medium text-medium-emphasis">„{{ c.nickname }}“</div>
+      <div class="text-headline-small">{{ realName(c) }}</div>
+      <div v-if="c.nickname && c.nickname.trim() !== realName(c)" class="text-body-medium text-medium-emphasis">„{{ c.nickname }}“</div>
       <div v-if="job" class="text-body-medium text-medium-emphasis mt-1">{{ job }}</div>
       <div v-if="c.categories.length" class="d-flex flex-wrap justify-center ga-2 mt-3">
         <v-chip

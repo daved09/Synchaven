@@ -36,18 +36,27 @@ fun Contact.partsName(): String =
     listOf(prefix, givenName, additionalNames, familyName, suffix)
         .map { it.trim() }.filter { it.isNotEmpty() }.joinToString(" ")
 
-/** Anzeigename aus Namensteilen, Firma, E-Mail oder Telefon (wie im Backend) */
+/** Eigener Name: der Spitzname, falls eingetragen, sonst der Name aus den Namensteilen (wie im Backend) */
+fun Contact.ownName(): String = nickname.trim().ifEmpty { partsName() }
+
+/** Anzeigename aus Spitzname, Namensteilen, Firma, E-Mail oder Telefon (wie im Backend) */
 fun Contact.derivedName(): String {
-    val name = partsName()
+    val name = ownName()
     return (listOf(name, organization.trim()) + emails.map { it.value.trim() } + phones.map { it.value.trim() })
         .firstOrNull { it.isNotEmpty() } ?: ""
 }
 
 /**
- * Anzeigename: immer aus den Namensteilen, falls vorhanden (wie im Backend); leer, wenn der Kontakt weder Name
- * noch Firma, E-Mail oder Telefon hat
+ * Anzeigename: der Spitzname, falls eingetragen, sonst immer aus den Namensteilen, falls vorhanden (wie im
+ * Backend); leer, wenn der Kontakt weder Name noch Firma, E-Mail oder Telefon hat
  */
-fun Contact.displayName(): String = partsName().ifEmpty { fullName.trim().ifEmpty { derivedName() } }
+fun Contact.displayName(): String = ownName().ifEmpty { fullName.trim().ifEmpty { derivedName() } }
+
+/**
+ * Eigentlicher Name ohne Spitzname (für den Kopf der Detailansicht, unter dem der Spitzname eigens steht):
+ * Namensteile, sonst Firma, E-Mail oder Telefon, sonst der Anzeigename
+ */
+fun Contact.realName(): String = partsName().ifEmpty { copy(nickname = "").derivedName().ifEmpty { displayName() } }
 
 /** Anzeigename mit Platzhalter für Kontakte ohne Namen */
 fun Contact.displayNameText(): UiText = displayName().ifBlank { null }?.toUiText() ?: uiText(R.string.contact_no_name)

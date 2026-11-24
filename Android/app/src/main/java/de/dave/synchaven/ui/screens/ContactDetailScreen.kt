@@ -71,6 +71,7 @@ import de.dave.synchaven.ui.common.appViewModel
 import de.dave.synchaven.uiText
 import de.dave.synchaven.util.displayName
 import de.dave.synchaven.util.displayNameText
+import de.dave.synchaven.util.realName
 import de.dave.synchaven.util.formatBirthday
 import de.dave.synchaven.util.lines
 import de.dave.synchaven.util.mapQuery
@@ -128,8 +129,12 @@ fun ContactDetailScreen(onBack: () -> Unit, onEdit: (String) -> Unit) {
                             Avatar(c, 112)
                         }
                         Spacer(Modifier.height(12.dp))
-                        Text(c.displayNameText().asString(), style = MaterialTheme.typography.headlineSmall, textAlign = TextAlign.Center)
-                        if (c.nickname.isNotBlank()) {
+                        val name = c.realName()
+                        Text(
+                            name.ifBlank { c.displayNameText().asString() },
+                            style = MaterialTheme.typography.headlineSmall, textAlign = TextAlign.Center,
+                        )
+                        if (c.nickname.isNotBlank() && c.nickname.trim() != name) {
                             Text(stringResource(R.string.contact_nickname, c.nickname), color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         val org = UiText.Join(

@@ -432,9 +432,15 @@ impl ContactData {
             .join(" ")
     }
 
-    /// Anzeigename aus Namensteilen, Firma, E-Mail oder Telefon ableiten.
+    /// Eigener Name: der Spitzname, falls eingetragen, sonst der Name aus den Namensteilen.
+    pub fn own_name(&self) -> String {
+        let nickname = self.nickname.trim();
+        if nickname.is_empty() { self.parts_name() } else { nickname.to_string() }
+    }
+
+    /// Anzeigename aus Spitzname, Namensteilen, Firma, E-Mail oder Telefon ableiten.
     pub fn derived_name(&self) -> String {
-        let name = self.parts_name();
+        let name = self.own_name();
         let found = [name.as_str(), self.organization.trim()]
             .into_iter()
             .chain(self.emails.iter().map(|e| e.value.trim()))
@@ -473,13 +479,13 @@ impl ContactData {
         self.update_full_name();
     }
 
-    /// Anzeigename festlegen: Gibt es Namensteile, wird er immer daraus gebildet (kein eigener Anzeigename).
-    /// Nur ohne Namensteile bleibt ein vorhandener Name (z. B. `FN` einer importierten Karte), sonst Firma,
-    /// E-Mail oder Telefon.
+    /// Anzeigename festlegen: Ein Spitzname hat Vorrang, sonst wird er aus den Namensteilen gebildet (kein
+    /// eigener Anzeigename). Nur ohne beides bleibt ein vorhandener Name (z. B. `FN` einer importierten Karte),
+    /// sonst Firma, E-Mail oder Telefon.
     pub fn update_full_name(&mut self) {
-        let parts = self.parts_name();
-        if !parts.is_empty() {
-            self.full_name = parts;
+        let name = self.own_name();
+        if !name.is_empty() {
+            self.full_name = name;
         } else if self.full_name.trim().is_empty() {
             self.full_name = self.derived_name();
         }
@@ -1051,6 +1057,22 @@ mod tests {
         // Ohne Namensteile bleibt FN erhalten
         let card = parse_cards("BEGIN:VCARD\nVERSION:3.0\nFN:Bäckerei Schmidt\nEND:VCARD\n").remove(0);
         assert_eq!(extract(&card).full_name, "Bäckerei Schmidt");
+    }
+
+    #[test]
+    fn nickname_is_display_name() {
+        let mut d = ContactData { given_name: "Johannes".into(), family_name: "Müller".into(), nickname: " Hannes ".into(), ..Default::default() };
+        d.normalize();
+        assert_eq!(d.full_name, "Hannes");
+
+        // Auch ohne Namensteile und gegenüber einem vorhandenen FN
+        let card = parse_cards("BEGIN:VCARD\nVERSION:3.0\nFN:Alt\nNICKNAME:Hannes\nEND:VCARD\n").remove(0);
+        assert_eq!(extract(&card).full_name, "Hannes");
+
+        // Spitzname entfernt: wieder aus den Namensteilen
+        d.nickname.clear();
+        d.normalize();
+        assert_eq!(d.full_name, "Johannes Müller");
     }
 
     #[test]

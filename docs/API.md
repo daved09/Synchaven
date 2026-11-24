@@ -66,7 +66,7 @@ Antwort (auch bei Login):
 }
 ```
 `default_view` ist die Standardansicht des Kalenders (`month`, `week`, `day` oder `list`). Weboberfläche und App
-speichern dort die zuletzt gewählte Ansicht. `is_admin` ist `true` für Adressen aus `ADMIN_EMAILS`.
+speichern dort die zuletzt gewählte Ansicht. `is_admin` ist `true` für den Administrator – das erste registrierte Konto.
 Für neue Konten wird automatisch der Kalender „Persönlich“ angelegt. Bei `ALLOW_REGISTRATION=false` lässt sich nur
 das erste Konto einer leeren Datenbank registrieren (`allow_registration` in `/info` zeigt, ob es gerade geht).
 
@@ -372,7 +372,7 @@ Body `{ "name": "Freunde", "new_name": "Freundeskreis" }`. Gibt es `new_name` am
 ### `POST /contact-categories/delete` → `{ "updated": 3 }`
 Body `{ "name": "Freunde" }`. Entfernt die Kategorie aus allen Kontakten; die Kontakte bleiben erhalten.
 
-## Verwaltung (nur `ADMIN_EMAILS`, sonst `403`)
+## Verwaltung (nur Administrator, sonst `403`)
 
 ### `GET /admin/export` → `application/json`
 Die ganze Datenbank (alle Benutzer inkl. Passwort-Hashes) als Datei `synchaven-export-<Datum>.json`. Termine im

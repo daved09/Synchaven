@@ -1,4 +1,4 @@
-//! Verwaltung für Administratoren (`ADMIN_EMAILS`): Export und Import der ganzen Datenbank als JSON.
+//! Verwaltung für Administratoren (das erste registrierte Konto): Export und Import der ganzen Datenbank als JSON.
 
 use axum::{
     body::Bytes,
@@ -17,11 +17,11 @@ use crate::{
 };
 
 async fn require_admin(state: &AppState, auth: &AuthUser) -> AppResult<()> {
-    let email: String = sqlx::query_scalar("SELECT email FROM users WHERE id = ?")
+    let is_admin: bool = sqlx::query_scalar("SELECT is_admin FROM users WHERE id = ?")
         .bind(&auth.id)
         .fetch_one(&state.db)
         .await?;
-    if !state.config.is_admin(&email) {
+    if !is_admin {
         return Err(AppError::Forbidden("Nur für Administratoren".into()));
     }
     Ok(())

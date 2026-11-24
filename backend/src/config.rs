@@ -14,8 +14,6 @@ pub struct Config {
     pub cors_origins: Vec<String>,
     /// Kontaktadresse für Push-Dienste (VAPID `sub`), `mailto:` oder `https:`
     pub vapid_subject: String,
-    /// E-Mail-Adressen der Administratoren (kleingeschrieben), dürfen die ganze Datenbank exportieren/importieren
-    pub admin_emails: Vec<String>,
 }
 
 fn env_or(key: &str, default: &str) -> String {
@@ -44,11 +42,12 @@ impl Config {
             .filter(|s| !s.is_empty())
             .collect();
 
-        let admin_emails = env_or("ADMIN_EMAILS", "")
-            .split(',')
-            .map(|s| s.trim().to_lowercase())
-            .filter(|s| !s.is_empty())
-            .collect();
+        if std::env::var("ADMIN_EMAILS").is_ok_and(|v| !v.trim().is_empty()) {
+            tracing::warn!(
+                "ADMIN_EMAILS wird nicht mehr ausgewertet: Administrator ist das erste registrierte Konto \
+                 (bei bestehenden Datenbanken das älteste)"
+            );
+        }
 
         let vapid_subject = env_or("VAPID_SUBJECT", "mailto:synchaven@example.org");
 
@@ -57,11 +56,7 @@ impl Config {
             None => load_or_create_secret(&data_dir)?,
         };
 
-        Ok(Self { bind, data_dir, static_dir, jwt_secret, token_ttl_days, allow_registration, cors_origins, vapid_subject, admin_emails })
-    }
-
-    pub fn is_admin(&self, email: &str) -> bool {
-        self.admin_emails.iter().any(|a| a.eq_ignore_ascii_case(email.trim()))
+        Ok(Self { bind, data_dir, static_dir, jwt_secret, token_ttl_days, allow_registration, cors_origins, vapid_subject })
     }
 
     pub fn db_path(&self) -> PathBuf {

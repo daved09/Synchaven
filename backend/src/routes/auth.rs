@@ -69,19 +69,13 @@ async fn load_user(state: &AppState, id: &str) -> AppResult<UserRow> {
         .await?)
 }
 
-/// Benutzer für die Antwort, mit Admin-Kennzeichen aus der Konfiguration
-pub fn user_out(state: &AppState, row: UserRow) -> User {
-    let is_admin = state.config.is_admin(&row.email);
-    User { is_admin, ..row.into() }
-}
-
 fn respond(state: &AppState, user: UserRow) -> AppResult<Json<AuthResponse>> {
     let (token, expires_at) = state.jwt.issue(&user.id)?;
-    Ok(Json(AuthResponse { token, token_type: "Bearer", expires_at, user: user_out(state, user) }))
+    Ok(Json(AuthResponse { token, token_type: "Bearer", expires_at, user: user.into() }))
 }
 
-/// Registrierung erlaubt? Das erste Konto lässt sich immer anlegen – sonst käme man nach einem Neuanfang
-/// mit leerer Datenbank (etwa um einen Export einzuspielen) bei `ALLOW_REGISTRATION=false` nicht mehr hinein.
+/// Registrierung erlaubt? Das erste Konto (der Administrator) lässt sich immer anlegen – sonst käme man nach einem
+/// Neuanfang mit leerer Datenbank (etwa um einen Export einzuspielen) bei `ALLOW_REGISTRATION=false` nicht mehr hinein.
 pub async fn registration_open(state: &AppState) -> AppResult<bool> {
     if state.config.allow_registration {
         return Ok(true);
@@ -122,7 +116,12 @@ pub async fn register(
     let id = uuid::Uuid::new_v4().to_string();
     let now = time::to_db(time::now());
     let mut tx = state.db.begin().await?;
-    sqlx::query("INSERT INTO users (id, email, name, password_hash, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)")
+    // Ersteinrichtung: Das erste Konto wird Administrator. Die Prüfung steckt im INSERT selbst,
+    // damit zwei gleichzeitige Registrierungen nicht beide Administrator werden.
+    sqlx::query(
+        "INSERT INTO users (id, email, name, password_hash, created_at, updated_at, is_admin) \
+         VALUES (?, ?, ?, ?, ?, ?, NOT EXISTS (SELECT 1 FROM users))",
+    )
         .bind(&id)
         .bind(&email)
         .bind(&name)
@@ -170,7 +169,7 @@ pub async fn login(State(state): State<AppState>, Json(input): Json<LoginInput>)
 }
 
 pub async fn me(State(state): State<AppState>, auth: AuthUser) -> AppResult<Json<User>> {
-    Ok(Json(user_out(&state, load_user(&state, &auth.id).await?)))
+    Ok(Json(load_user(&state, &auth.id).await?.into()))
 }
 
 pub async fn update_me(
@@ -228,5 +227,5 @@ pub async fn update_me(
         .bind(&user.id)
         .execute(&state.db)
         .await?;
-    Ok(Json(user_out(&state, load_user(&state, &auth.id).await?)))
+    Ok(Json(load_user(&state, &auth.id).await?.into()))
 }

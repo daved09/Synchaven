@@ -352,6 +352,21 @@ async fn import_rows(conn: &mut SqliteConnection, export: &Export, replace: bool
         summary.push(format!("{table}: {}", rows.len()));
     }
 
+    // Ältere Exporte kennen is_admin noch nicht: Dann wird wie bei der Migration das älteste Konto Administrator.
+    let has_admin: Option<i64> = sqlx::query_scalar("SELECT 1 FROM users WHERE is_admin = 1 LIMIT 1")
+        .fetch_optional(&mut *conn)
+        .await?;
+    if has_admin.is_none() {
+        let promoted = sqlx::query(
+            "UPDATE users SET is_admin = 1 WHERE id = (SELECT id FROM users ORDER BY created_at, rowid LIMIT 1)",
+        )
+        .execute(&mut *conn)
+        .await?;
+        if promoted.rows_affected() > 0 {
+            warnings.push("Der Export enthielt keinen Administrator – das älteste Konto ist jetzt Administrator".into());
+        }
+    }
+
     // Geburtstagstermine aus den Kontakten erzeugen (ältere Exporte enthalten sie schon, dann bleibt es dabei)
     let contacts: Vec<String> = sqlx::query_scalar("SELECT id FROM contacts").fetch_all(&mut *conn).await?;
     for id in &contacts {

@@ -87,10 +87,13 @@ docker run -d --name synchaven -p 8080:8080 -v synchaven-data:/data ghcr.io/dave
 | `TOKEN_TTL_DAYS`     | `30`              | Gültigkeit der Anmeldung |
 | `JWT_SECRET`         | *(automatisch)*   | Eigenes Secret (≥ 32 Zeichen) |
 | `CORS_ORIGINS`       | `*`               | Erlaubte Browser-Origins, kommagetrennt |
-| `ADMIN_EMAILS`       | *(leer)*          | Administratoren, kommagetrennt: dürfen die ganze Datenbank exportieren/importieren |
 | `VAPID_SUBJECT`      | `mailto:synchaven@example.org` | Kontaktadresse für Push-Dienste (`mailto:` oder `https:`) |
 | `RUST_LOG`           | `synchaven=info`  | Log-Level |
 | `PUID` / `PGID`      | `10001`           | Benutzer-/Gruppen-ID für Programm und `/data` (nur Docker) |
+
+**Administrator** ist das erste Konto, das registriert wird – es darf die ganze Datenbank exportieren und
+importieren. Das erste Konto lässt sich auch bei `ALLOW_REGISTRATION=false` anlegen. Bei Datenbanken aus älteren
+Versionen (vorher `ADMIN_EMAILS`, das nicht mehr ausgewertet wird) wird beim Update das älteste Konto Administrator.
 
 **Hinweis:** Für den Betrieb im Internet einen Reverse-Proxy mit HTTPS (z. B. Caddy, Traefik, nginx)
 vorschalten und nach dem Anlegen der eigenen Konten `ALLOW_REGISTRATION=false` setzen.
@@ -132,11 +135,12 @@ Push-Abonnements) als JSON exportieren – gedacht vor allem als Rückfallebene 
 Migration fehlschlägt. Die Termine im Geburtstagskalender fehlen darin; sie werden beim Import aus den Kontakten neu
 erzeugt.
 
-**In der Weboberfläche:** Die eigene Adresse in `ADMIN_EMAILS` eintragen; dann gibt es unter
+**In der Weboberfläche:** Als Administrator (das erste registrierte Konto) gibt es unter
 *Konto → Einstellungen → Verwaltung* die Knöpfe *Datenbank exportieren* und *Datenbank importieren*. Der Import
 ersetzt alle Daten aller Benutzer. Nach einer fehlgeschlagenen Migration: alte Datenbank zur Seite legen (siehe
-unten), Server starten, mit der Admin-Adresse ein Konto registrieren (das erste Konto geht auch bei
-`ALLOW_REGISTRATION=false`) und den Export importieren – das vorläufige Konto wird dabei ersetzt.
+unten), Server starten, ein Konto registrieren (das erste Konto wird Administrator und geht auch bei
+`ALLOW_REGISTRATION=false`) und den Export importieren – das vorläufige Konto wird dabei durch die Konten aus dem
+Export ersetzt. Enthält der Export noch keinen Administrator (ältere Versionen), wird das älteste Konto einer.
 
 **Auf der Kommandozeile** – der Export geht auch bei laufendem Server:
 

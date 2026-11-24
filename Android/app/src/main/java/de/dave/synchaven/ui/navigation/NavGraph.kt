@@ -1,10 +1,15 @@
 package de.dave.synchaven.ui.navigation
 
+import androidx.activity.BackEventCompat
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleOut
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -40,6 +45,14 @@ fun SyncHavenNavGraph(navController: NavHostController, startLoggedIn: Boolean) 
         startDestination = if (startLoggedIn) CalendarRoute else LoginRoute,
         enterTransition = { fadeIn() },
         exitTransition = { fadeOut() },
+        // Zurück-Geste (Predictive Back, Material 3): Die aktuelle Seite schrumpft mit dem Finger und
+        // rückt zur Wischseite, die vorherige liegt unbewegt dahinter; beim Abschließen blendet sie aus.
+        predictivePopEnterTransition = { EnterTransition.None },
+        predictivePopExitTransition = { swipeEdge ->
+            val pivotX = if (swipeEdge == BackEventCompat.EDGE_LEFT) 0.8f else 0.2f
+            scaleOut(targetScale = 0.9f, transformOrigin = TransformOrigin(pivotX, 0.5f)) +
+                fadeOut(tween(easing = LateFade))
+        },
     ) {
         composable<LoginRoute> { LoginScreen() }
 
@@ -93,3 +106,6 @@ fun SyncHavenNavGraph(navController: NavHostController, startLoggedIn: Boolean) 
         }
     }
 }
+
+/** Bleibt während der Geste fast deckend und blendet erst gegen Ende aus. */
+private val LateFade = CubicBezierEasing(0.8f, 0f, 1f, 1f)

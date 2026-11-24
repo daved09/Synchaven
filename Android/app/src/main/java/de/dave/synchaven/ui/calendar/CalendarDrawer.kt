@@ -27,6 +27,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.DrawerState
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.Text
@@ -63,6 +64,7 @@ enum class TaskListAction { EDIT, DELETE }
 /** Seitenleiste: Ansicht wählen, Kalender und Aufgabenlisten ein-/ausblenden und verwalten. */
 @Composable
 fun CalendarDrawer(
+    drawerState: DrawerState,
     mode: ViewMode,
     calendars: List<Calendar>,
     onSelectMode: (ViewMode) -> Unit,
@@ -73,7 +75,8 @@ fun CalendarDrawer(
     onToggleTaskList: (TaskList) -> Unit,
     onTaskListAction: (TaskList, TaskListAction) -> Unit,
 ) {
-    ModalDrawerSheet {
+    // Mit drawerState folgt die Leiste der Zurück-Geste (Predictive Back) und schließt sich animiert
+    ModalDrawerSheet(drawerState) {
         Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 12.dp)) {
             Text(
                 stringResource(R.string.app_name), style = MaterialTheme.typography.titleLarge,

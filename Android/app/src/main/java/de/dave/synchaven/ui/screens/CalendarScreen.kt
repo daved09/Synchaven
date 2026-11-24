@@ -179,13 +179,13 @@ fun CalendarScreen(
         else if (ev.occ.recurring) pendingMove = ev to start else vm.moveEvent(ev, start)
     }
 
-    BackHandler(enabled = drawerState.isOpen) { scope.launch { drawerState.close() } }
     BackHandler(enabled = search.active && !drawerState.isOpen) { vm.closeSearch() }
 
     ModalNavigationDrawer(
         drawerState = drawerState,
         drawerContent = {
             CalendarDrawer(
+                drawerState = drawerState,
                 mode = s.mode,
                 calendars = s.calendars,
                 onSelectMode = { vm.setMode(it); scope.launch { drawerState.close() } },

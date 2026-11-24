@@ -15,7 +15,7 @@ import de.dave.synchaven.pluralText
 import de.dave.synchaven.ui.common.UiMessages
 import de.dave.synchaven.uiText
 import de.dave.synchaven.util.LOCALE
-import de.dave.synchaven.util.displayName
+import de.dave.synchaven.util.realName
 import de.dave.synchaven.util.groupLetter
 import de.dave.synchaven.util.matches
 import de.dave.synchaven.util.sameCategory
@@ -78,7 +78,7 @@ class ContactsViewModel(
             .filter { validBook == null || it.addressBookId == validBook }
             .filter { c -> validCategory == null || c.categories.any { sameCategory(it, validCategory) } }
             .filter { it.matches(q) }
-            .sortedWith { a, b -> collator.compare(a.displayName(), b.displayName()) }
+            .sortedWith { a, b -> collator.compare(a.realName(), b.realName()) }
         val groups = filtered.groupBy { it.groupLetter() }
             .map { (letter, list) -> ContactGroup(letter, list) }
             .sortedWith(compareBy({ it.letter == "#" }, { it.letter }))

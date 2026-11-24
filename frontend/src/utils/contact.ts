@@ -86,9 +86,9 @@ export function avatarColor(c: Contact): string {
   return AVATAR_COLORS[h % AVATAR_COLORS.length]
 }
 
-/** Letter for grouping the list */
+/** Letter for grouping the list (by the actual name, not the nickname) */
 export function groupLetter(c: ContactData): string {
-  const first = displayName(c).trim()[0]?.toUpperCase() ?? '#'
+  const first = realName(c).trim()[0]?.toUpperCase() ?? '#'
   const base = first.normalize('NFD').replace(/[̀-ͯ]/g, '')
   return /[A-Z]/.test(base) ? base : '#'
 }

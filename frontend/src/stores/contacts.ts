@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { api } from '@/api/client'
 import type { AddressBook, AddressBookInput, Contact, ContactInput } from '@/api/types'
+import { realName } from '@/utils/contact'
 
 function download(text: string, name: string) {
   const url = URL.createObjectURL(new Blob([text], { type: 'text/vcard' }))
@@ -21,7 +22,7 @@ export const useContactsStore = defineStore('contacts', () => {
 
   const bookById = computed(() => new Map(books.value.map((b) => [b.id, b])))
   const sorted = computed(() =>
-    [...list.value].sort((a, b) => a.full_name.localeCompare(b.full_name, 'de', { sensitivity: 'base' })),
+    [...list.value].sort((a, b) => realName(a).localeCompare(realName(b), 'de', { sensitivity: 'base' })),
   )
   /** All categories with the number of contacts, alphabetical */
   const categories = computed(() => {

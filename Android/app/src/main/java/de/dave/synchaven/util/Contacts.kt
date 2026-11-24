@@ -61,6 +61,9 @@ fun Contact.realName(): String = partsName().ifEmpty { copy(nickname = "").deriv
 /** Display name with a placeholder for contacts without a name */
 fun Contact.displayNameText(): UiText = displayName().ifBlank { null }?.toUiText() ?: uiText(R.string.contact_no_name)
 
+/** Actual name with a placeholder for contacts without a name (for the contact list) */
+fun Contact.realNameText(): UiText = realName().ifBlank { null }?.toUiText() ?: uiText(R.string.contact_no_name)
+
 fun Contact.initials(): String {
     val parts = if (givenName.isNotBlank() || familyName.isNotBlank()) listOf(givenName, familyName)
     else displayName().split(Regex("\\s+"))
@@ -79,9 +82,9 @@ fun Contact.avatarColor(): String {
     return AVATAR_COLORS[(h % AVATAR_COLORS.size.toUInt()).toInt()]
 }
 
-/** Letter for grouping the list */
+/** Letter for grouping the list (by the actual name, not the nickname) */
 fun Contact.groupLetter(): String {
-    val first = displayName().trim().take(1).uppercase(LOCALE)
+    val first = realName().trim().take(1).uppercase(LOCALE)
     val base = Normalizer.normalize(first, Normalizer.Form.NFD).replace(Regex("\\p{Mn}+"), "")
     return if (base.length == 1 && base[0] in 'A'..'Z') base else "#"
 }

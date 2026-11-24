@@ -69,8 +69,7 @@ import de.dave.synchaven.ui.common.LoadingBox
 import de.dave.synchaven.ui.common.MainBottomBar
 import de.dave.synchaven.ui.common.MainTab
 import de.dave.synchaven.ui.common.appViewModel
-import de.dave.synchaven.util.displayName
-import de.dave.synchaven.util.displayNameText
+import de.dave.synchaven.util.realNameText
 import de.dave.synchaven.util.subtitle
 import de.dave.synchaven.ui.contacts.AddressBooksDialog
 import de.dave.synchaven.ui.contacts.Avatar
@@ -300,7 +299,7 @@ private fun ContactFilter(
 @Composable
 private fun ContactRow(c: Contact, onClick: () -> Unit) {
     ListItem(
-        headlineContent = { Text(c.displayNameText().asString(), maxLines = 1, overflow = TextOverflow.Ellipsis) },
+        headlineContent = { Text(c.realNameText().asString(), maxLines = 1, overflow = TextOverflow.Ellipsis) },
         supportingContent = c.subtitle().takeIf { it.isNotBlank() }?.let {
             { Text(it, maxLines = 1, overflow = TextOverflow.Ellipsis) }
         },

@@ -12,7 +12,7 @@ import DavSetupDialog from '@/components/DavSetupDialog.vue'
 import { useAuthStore } from '@/stores/auth'
 import { useContactsStore } from '@/stores/contacts'
 import { useNotifyStore } from '@/stores/notify'
-import { avatarColor, displayName, groupLetter, initials, matches, sameCategory, subtitle } from '@/utils/contact'
+import { avatarColor, displayName, groupLetter, initials, matches, realName, sameCategory, subtitle } from '@/utils/contact'
 
 const route = useRoute()
 const router = useRouter()
@@ -393,7 +393,7 @@ function onKey(e: KeyboardEvent) {
                   <span class="text-label-large text-white">{{ initials(item.contact) }}</span>
                 </v-avatar>
               </template>
-              <v-list-item-title>{{ displayName(item.contact) }}</v-list-item-title>
+              <v-list-item-title>{{ realName(item.contact) }}</v-list-item-title>
               <v-list-item-subtitle>{{ subtitle(item.contact) }}</v-list-item-subtitle>
             </v-list-item>
           </template>

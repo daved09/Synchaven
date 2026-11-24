@@ -238,6 +238,15 @@ Erinnerungen und sendet sie verschlüsselt (RFC 8291) als JSON:
   "location": "", "start": "2026-11-26T13:30:00Z", "end": "2026-11-26T14:00:00Z", "all_day": false, "minutes": 10
 }
 ```
+Offene Aufgaben mit Fälligkeit erinnern einmal: zur fälligen Uhrzeit, ganztägige am Fälligkeitstag um 09:00 in
+der Zeitzone des Abonnements. Erledigte Aufgaben und Aufgaben ohne Datum erinnern nicht:
+
+```json
+{
+  "type": "task", "tag": "task_<task_id>_<fälligkeit>", "task_id": "…", "list_id": "…", "title": "Steuer abgeben",
+  "notes": "", "due": "2026-11-26T00:00:00Z", "all_day": true
+}
+```
 Abgelaufene Abonnements (Antwort `404`/`410` des Push-Dienstes) werden automatisch entfernt.
 
 ---

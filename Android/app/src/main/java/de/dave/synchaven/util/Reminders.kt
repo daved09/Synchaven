@@ -5,6 +5,7 @@ import de.dave.synchaven.R
 import de.dave.synchaven.data.model.CalEvent
 import de.dave.synchaven.data.model.Calendar
 import de.dave.synchaven.data.model.EventInput
+import de.dave.synchaven.data.model.Task
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDateTime
@@ -127,6 +128,34 @@ object Reminders {
         return events.asSequence().flatMap { due(it, it.effectiveReminders(byId[it.calendarId]), zone, from, to) }
             .minOfOrNull { it.at }
     }
+
+    /** Erinnerung an ganztägige Aufgaben: am Fälligkeitstag um 09:00 (wie der Server) */
+    const val TASK_ALL_DAY_MINUTE = 9 * 60
+
+    /** Eine fällige Erinnerung an eine Aufgabe */
+    data class TaskDue(val task: Task, val at: Instant) {
+        val key get() = "task_${task.id}_${task.due}"
+    }
+
+    /**
+     * Zeitpunkt der Erinnerung an eine offene Aufgabe (wie Google Tasks): zur Fälligkeit bzw. bei ganztägigen
+     * Aufgaben am Fälligkeitstag um 09:00 in [zone]; `null` bei erledigten Aufgaben und Aufgaben ohne Datum.
+     */
+    fun taskReminderAt(task: Task, zone: ZoneId): Instant? {
+        if (task.completed) return null
+        val due = task.due?.let(::parseInstant) ?: return null
+        return if (task.allDay) {
+            LocalDateTime.ofInstant(due, ZoneOffset.UTC).plusMinutes(TASK_ALL_DAY_MINUTE.toLong()).atZone(zone).toInstant()
+        } else due
+    }
+
+    /** Erinnerungen an Aufgaben, deren Zeitpunkt in (from, to] liegt */
+    fun dueTasks(tasks: List<Task>, zone: ZoneId, from: Instant, to: Instant): List<TaskDue> =
+        tasks.mapNotNull { t -> taskReminderAt(t, zone)?.takeIf { it > from && it <= to }?.let { TaskDue(t, it) } }
+
+    /** Frühester Erinnerungszeitpunkt einer Aufgabe in (from, to] oder `null` */
+    fun nextTask(tasks: List<Task>, zone: ZoneId, from: Instant, to: Instant): Instant? =
+        dueTasks(tasks, zone, from, to).minOfOrNull { it.at }
 
     private fun parseInstant(s: String): Instant? = runCatching { java.time.OffsetDateTime.parse(s).toInstant() }.getOrNull()
 }

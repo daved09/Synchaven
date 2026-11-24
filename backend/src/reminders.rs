@@ -4,6 +4,9 @@
 //! Eine Erinnerung ist eine Minutenzahl vor Beginn. Bei ganztägigen Terminen bezieht sie sich auf
 //! Mitternacht in der Zeitzone des Empfängers; negative Werte bedeuten eine Uhrzeit am Tag selbst
 //! (-540 = 09:00), wie `TRIGGER:PT9H` in iCalendar.
+//!
+//! Offene Aufgaben mit Fälligkeit erinnern wie in Google Tasks einmal: zur fälligen Uhrzeit bzw. bei ganztägigen
+//! Aufgaben am Fälligkeitstag um [`TASK_ALL_DAY_MINUTE`] in der Zeitzone des Empfängers.
 
 use std::{collections::HashMap, time::Duration as StdDuration};
 
@@ -13,7 +16,7 @@ use serde_json::json;
 
 use crate::{
     birthdays,
-    models::{CalendarRow, Event, EventRow},
+    models::{CalendarRow, Event, EventRow, Task, TaskRow},
     push::{Outcome, Subscription},
     recurrence, time, AppState,
 };
@@ -28,6 +31,9 @@ const MIN_ALL_DAY: i32 = -(24 * 60 - 1);
 pub const DEFAULT_TIMED: &[i32] = &[15];
 /// Voreinstellung neuer Kalender für ganztägige Termine: am Tag selbst um 09:00
 pub const DEFAULT_ALL_DAY: &[i32] = &[-540];
+
+/// Erinnerung an ganztägige Aufgaben: am Fälligkeitstag um 09:00 (Minuten nach Mitternacht)
+pub const TASK_ALL_DAY_MINUTE: i64 = 9 * 60;
 
 /// Prüfintervall des Hintergrunddienstes
 const INTERVAL: StdDuration = StdDuration::from_secs(30);
@@ -134,6 +140,61 @@ pub fn payload(d: &Due) -> serde_json::Value {
     })
 }
 
+/// Eine fällige Erinnerung an eine Aufgabe.
+#[derive(Debug, PartialEq)]
+pub struct TaskDue {
+    pub task_id: String,
+    pub list_id: String,
+    pub title: String,
+    pub notes: String,
+    /// Fälligkeit (ganztägig: Mitternacht UTC des Tages)
+    pub due: DateTime<Utc>,
+    pub all_day: bool,
+    /// Zeitpunkt der Erinnerung
+    pub at: DateTime<Utc>,
+}
+
+/// Zeitpunkt der Erinnerung an eine Aufgabe; `None` bei erledigten Aufgaben und Aufgaben ohne Datum.
+pub fn task_reminder_at(task: &Task, tz: Tz) -> Option<DateTime<Utc>> {
+    if task.completed {
+        return None;
+    }
+    let due = task.due?;
+    Some(if task.all_day {
+        time::local_to_utc(due.naive_utc() + Duration::minutes(TASK_ALL_DAY_MINUTE), tz)
+    } else {
+        due
+    })
+}
+
+/// Erinnerung an die Aufgabe, falls ihr Zeitpunkt in (from, to] liegt.
+pub fn task_due(task: &Task, tz: Tz, from: DateTime<Utc>, to: DateTime<Utc>) -> Option<TaskDue> {
+    let at = task_reminder_at(task, tz).filter(|at| *at > from && *at <= to)?;
+    Some(TaskDue {
+        task_id: task.id.clone(),
+        list_id: task.list_id.clone(),
+        title: task.title.clone(),
+        notes: task.notes.clone(),
+        due: task.due?,
+        all_day: task.all_day,
+        at,
+    })
+}
+
+/// Nutzlast der Push-Nachricht für eine Aufgabe.
+pub fn task_payload(d: &TaskDue) -> serde_json::Value {
+    json!({
+        "type": "task",
+        "tag": format!("task_{}_{}", d.task_id, d.due.timestamp()),
+        "task_id": d.task_id,
+        "list_id": d.list_id,
+        "title": d.title,
+        "notes": d.notes,
+        "due": d.due,
+        "all_day": d.all_day,
+    })
+}
+
 /// Startet den Hintergrunddienst.
 pub fn spawn(state: AppState) {
     tokio::spawn(async move {
@@ -210,6 +271,20 @@ async fn run(state: &AppState, from: DateTime<Utc>, to: DateTime<Utc>) -> anyhow
         .fetch_all(&state.db)
         .await?;
 
+        // Offene Aufgaben, deren Erinnerung im Zeitfenster liegen kann (ganztägig: ± 1 Tag wegen der Zeitzone)
+        let tasks: Vec<Task> = sqlx::query_as::<_, TaskRow>(
+            "SELECT t.* FROM tasks t JOIN task_lists l ON l.id = t.list_id WHERE l.user_id = ?
+             AND t.completed_at IS NULL AND t.due_at IS NOT NULL AND t.due_at >= ? AND t.due_at <= ?",
+        )
+        .bind(user_id)
+        .bind(time::to_db(from - Duration::days(2)))
+        .bind(time::to_db(to + Duration::days(2)))
+        .fetch_all(&state.db)
+        .await?
+        .into_iter()
+        .map(Task::from)
+        .collect();
+
         let mut tzs: Vec<&str> = subs.iter().map(|s| s.timezone.as_str()).collect();
         tzs.sort_unstable();
         tzs.dedup();
@@ -230,6 +305,14 @@ async fn run(state: &AppState, from: DateTime<Utc>, to: DateTime<Utc>) -> anyhow
                 let ttl = (d.end - to).num_seconds().clamp(60, 86_400) as u64;
                 for sub in subs.iter().filter(|s| s.timezone == tz_name) {
                     deliver(state, sub, body.as_bytes(), StdDuration::from_secs(ttl)).await;
+                }
+            }
+            for d in tasks.iter().filter_map(|t| task_due(t, tz, from, to)) {
+                let body = task_payload(&d).to_string();
+                // Bis zum Ende des Fälligkeitstags zustellbar, mindestens eine Stunde
+                let ttl = 86_400 - (to - d.at).num_seconds().clamp(0, 86_400 - 3_600);
+                for sub in subs.iter().filter(|s| s.timezone == tz_name) {
+                    deliver(state, sub, body.as_bytes(), StdDuration::from_secs(ttl as u64)).await;
                 }
             }
         }
@@ -274,6 +357,44 @@ mod tests {
             created_at: start,
             updated_at: start,
         }
+    }
+
+    fn task(due: Option<DateTime<Utc>>, all_day: bool, completed: bool) -> Task {
+        let t = Utc.with_ymd_and_hms(2026, 11, 1, 0, 0, 0).unwrap();
+        Task {
+            id: "t".into(),
+            list_id: "l".into(),
+            title: "Aufgabe".into(),
+            notes: String::new(),
+            due,
+            all_day,
+            completed,
+            completed_at: completed.then_some(t),
+            created_at: t,
+            updated_at: t,
+        }
+    }
+
+    #[test]
+    fn task_reminders() {
+        let w = Duration::seconds(30);
+        // Mit Uhrzeit: genau zur Fälligkeit
+        let at = Utc.with_ymd_and_hms(2026, 11, 24, 13, 0, 0).unwrap();
+        let t = task(Some(at), false, false);
+        let d = task_due(&t, chrono_tz::UTC, at - w, at).unwrap();
+        assert_eq!(d.at, at);
+        assert!(task_due(&t, chrono_tz::UTC, at, at + w).is_none());
+        // Erledigt oder ohne Datum: keine Erinnerung
+        assert!(task_due(&task(Some(at), false, true), chrono_tz::UTC, at - w, at).is_none());
+        assert!(task_due(&task(None, true, false), chrono_tz::UTC, at - w, at + w).is_none());
+
+        // Ganztägig am 24.12.: um 09:00 Berliner Zeit (= 08:00 UTC)
+        let day = time::midnight_utc(NaiveDate::from_ymd_opt(2026, 12, 24).unwrap());
+        let t = task(Some(day), true, false);
+        let at = Utc.with_ymd_and_hms(2026, 12, 24, 8, 0, 0).unwrap();
+        assert_eq!(task_due(&t, chrono_tz::Europe::Berlin, at - w, at).map(|d| d.at), Some(at));
+        assert!(task_due(&t, chrono_tz::UTC, at - w, at).is_none());
+        assert_eq!(task_payload(&task_due(&t, chrono_tz::Europe::Berlin, at - w, at).unwrap())["type"], "task");
     }
 
     #[test]

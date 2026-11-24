@@ -27,8 +27,8 @@ const pushHint = computed(() => ({
   unsupported: 'Dieser Browser unterstützt keine Push-Benachrichtigungen.',
   insecure: 'Benachrichtigungen funktionieren nur, wenn Synchaven über HTTPS aufgerufen wird.',
   denied: 'Benachrichtigungen sind für diese Seite im Browser blockiert. Bitte in den Website-Einstellungen erlauben.',
-  off: 'Erinnerungen an Termine erscheinen als Benachrichtigung, auch wenn Synchaven nicht geöffnet ist.',
-  on: 'Erinnerungen werden an diesen Browser gesendet. Sie werden pro Termin oder als Standard pro Kalender eingestellt.',
+  off: 'Erinnerungen an Termine und fällige Aufgaben erscheinen als Benachrichtigung, auch wenn Synchaven nicht geöffnet ist.',
+  on: 'Erinnerungen werden an diesen Browser gesendet. Sie werden pro Termin oder als Standard pro Kalender eingestellt; Aufgaben erinnern zur Fälligkeit (ganztägig um 09:00).',
 }[push.value ?? 'off']))
 
 async function togglePush(on: boolean | null) {

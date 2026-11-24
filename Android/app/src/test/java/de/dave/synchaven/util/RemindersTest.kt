@@ -4,6 +4,7 @@ import de.dave.synchaven.data.api.AppJson
 import de.dave.synchaven.data.model.CalEvent
 import de.dave.synchaven.data.model.Calendar
 import de.dave.synchaven.data.model.EventInput
+import de.dave.synchaven.data.model.Task
 import de.dave.synchaven.data.offline.OfflineData
 import de.dave.synchaven.data.offline.PendingOp
 import de.dave.synchaven.data.offline.toLocalEvent
@@ -125,5 +126,24 @@ class RemindersTest {
         // Daten ohne die Felder (vor den Erinnerungen) erhalten die Voreinstellung schon beim Lesen
         val before = AppJson.decodeFromString(OfflineData.serializer(), """{"calendars":[{"id":"c","name":"K"}]}""")
         assertEquals(listOf(15), before.calendars!![0].defaultReminders)
+    }
+
+    @Test
+    fun taskReminders() {
+        fun task(due: String?, allDay: Boolean, completed: Boolean = false) =
+            Task(id = "t", listId = "l", title = "A", due = due, allDay = allDay, completed = completed)
+        val timed = task("2026-11-24T13:00:00Z", allDay = false)
+        val at = t("2026-11-24T13:00:00Z")
+        assertEquals(at, Reminders.taskReminderAt(timed, utc))
+        assertEquals(1, Reminders.dueTasks(listOf(timed), utc, at.minusSeconds(30), at).size)
+        assertTrue(Reminders.dueTasks(listOf(timed), utc, at, at.plusSeconds(30)).isEmpty())
+        assertNull(Reminders.taskReminderAt(task("2026-11-24T13:00:00Z", allDay = false, completed = true), utc))
+        assertNull(Reminders.taskReminderAt(task(null, allDay = true), utc))
+
+        // Ganztägig am 24.12.: 09:00 Berliner Zeit = 08:00 UTC
+        val allDay = task("2026-12-24T00:00:00Z", allDay = true)
+        assertEquals(t("2026-12-24T08:00:00Z"), Reminders.taskReminderAt(allDay, ZoneId.of("Europe/Berlin")))
+        assertEquals(t("2026-12-24T08:00:00Z"),
+            Reminders.nextTask(listOf(timed, allDay), ZoneId.of("Europe/Berlin"), t("2026-12-01T00:00:00Z"), t("2026-12-31T00:00:00Z")))
     }
 }

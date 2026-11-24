@@ -1,4 +1,4 @@
-/* Synchaven Service Worker: zeigt Erinnerungen an, die der Server per Web Push schickt. */
+/* Synchaven Service Worker: zeigt Erinnerungen an Termine und Aufgaben an, die der Server per Web Push schickt. */
 
 self.addEventListener('install', () => self.skipWaiting())
 self.addEventListener('activate', (event) => event.waitUntil(self.clients.claim()))
@@ -58,6 +58,15 @@ self.addEventListener('push', (event) => {
       tag: p.tag,
       timestamp: start.getTime(),
       data: { url: `/?view=day&date=${dayKey(start)}` },
+    }
+  } else if (p.type === 'task') {
+    const due = localDate(p.due, p.all_day)
+    const when = p.all_day ? `Fällig: ${dayLabel(due)}` : `Fällig: ${dayLabel(due)}, ${time(due)}`
+    options = {
+      body: p.notes ? `${when}\n${p.notes}` : when,
+      tag: p.tag,
+      timestamp: due.getTime(),
+      data: { url: `/?view=day&date=${dayKey(due)}` },
     }
   } else {
     options = { body: p.body || '', tag: p.tag || 'synchaven', data: { url: '/' } }

@@ -18,7 +18,7 @@ Material-3-Design** (Vuetify), einer **REST API** für eigene Clients wie eine A
 * Ansichten: Monat, Woche, Tag, Terminliste mit Suche
 * **Aufgaben** wie im Google Kalender: mehrere farbige Aufgabenlisten, Aufgaben mit Fälligkeit (ganztägig oder mit
   Uhrzeit) erscheinen im Kalender und lassen sich dort abhaken und per Drag & Drop verschieben; Aufgabenbereich mit
-  Schnelleingabe, auch für Aufgaben ohne Datum
+  Schnelleingabe, auch für Aufgaben ohne Datum; offene Aufgaben erinnern zur Fälligkeit (ganztägige um 09:00)
 * **Kontakte:** mehrere Adressbücher, Suche, Telefon/E-Mail/Adressen/Websites mit Typen und eigenen Bezeichnungen,
   Geburtstag (auch ohne Jahr), Notizen, Kategorien (zum Filtern, umbenennbar; in DAVx⁵ als Kontaktgruppen), Fotos aus importierten oder synchronisierten Kontakten
 * **Geburtstagskalender:** Geburtstage aller Kontakte erscheinen automatisch als jährliche Termine im eigenen
@@ -213,7 +213,7 @@ Android-Konto, damit sich die Synchronisierung nach Ablauf des Tokens selbst neu
 * Wer bisher DAVx⁵ für dieselben Adressbücher genutzt hat, sollte dort das Konto entfernen, sonst erscheinen
   Kontakte doppelt.
 
-**Erinnerungen:** Die App zeigt Erinnerungen an Termine als Android-Benachrichtigung – geplant aus dem lokalen
+**Erinnerungen:** Die App zeigt Erinnerungen an Termine und fällige Aufgaben als Android-Benachrichtigung – geplant aus dem lokalen
 Cache, daher auch offline und im lokalen Modus. Ein- und ausschalten unter *Einstellungen → Benachrichtigungen*; ab
 Android 13 fragt die App einmal nach der Berechtigung. Änderungen aus der Weboberfläche kommen beim nächsten Abgleich
 an (beim Öffnen der App, spätestens etwa alle vier Stunden). In den Android-Kalender werden keine Erinnerungen

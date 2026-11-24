@@ -22,6 +22,7 @@ import de.dave.synchaven.di.AppContainer
 import de.dave.synchaven.ui.theme.parseHexColor
 import de.dave.synchaven.util.FMT_TIME
 import de.dave.synchaven.util.Reminders
+import de.dave.synchaven.util.dueLocal
 import de.dave.synchaven.util.effectiveReminders
 import java.time.Duration
 import java.time.Instant
@@ -40,7 +41,7 @@ import kotlinx.coroutines.sync.withLock
 import androidx.compose.ui.graphics.toArgb
 
 /**
- * Erinnerungen an Termine als Android-Benachrichtigungen. Grundlage ist der lokale Cache ([OfflineData]) – das
+ * Erinnerungen an Termine und fällige Aufgaben als Android-Benachrichtigungen. Grundlage ist der lokale Cache ([OfflineData]) – das
  * funktioniert auch offline und im lokalen Modus. Geplant wird immer nur der nächste fällige Zeitpunkt per
  * [AlarmManager]; beim Auslösen werden alle seit der letzten Prüfung fälligen Erinnerungen angezeigt und der
  * nächste Alarm geplant. Ändern sich die Daten, wird neu geplant.
@@ -69,7 +70,7 @@ object ReminderNotifier {
         val app = context.applicationContext
         ensureChannel(app)
         container.appScope.launch {
-            combine(container.offlineStore.data, container.settingsStore.settings) { d, s -> Triple(d.events, d.calendars, s.reminders) }
+            combine(container.offlineStore.data, container.settingsStore.settings) { d, s -> listOf(d.events, d.calendars, d.tasks, d.taskLists, s.reminders) }
                 .distinctUntilChanged()
                 .debounce(1_000)
                 .collect { runCatching { check(app, container, alarm = false) }.onFailure { Log.w(TAG, "Prüfung fehlgeschlagen", it) } }
@@ -105,11 +106,14 @@ object ReminderNotifier {
         if (now > from) {
             val due = events.flatMap { ev -> Reminders.due(ev, ev.effectiveReminders(calendars[ev.calendarId]), zone, from, now) }
             for (d in due) notify(context, data, d, calendars[d.event.calendarId]?.color)
+            val lists = data.taskLists.orEmpty().associateBy { it.id }
+            for (d in Reminders.dueTasks(data.tasks.orEmpty(), zone, from, now)) notifyTask(context, d, lists[d.task.listId]?.color)
         }
         prefs.edit().putString(KEY_ACCOUNT, account).putLong(KEY_CHECKED, now.toEpochMilli()).apply()
 
         val next = Reminders.next(events, data.calendars.orEmpty(), zone, now, now.plus(LOOKAHEAD))
-        scheduleAlarm(context, minOf(next ?: Instant.MAX, now.plus(REFRESH)))
+        val nextTask = Reminders.nextTask(data.tasks.orEmpty(), zone, now, now.plus(LOOKAHEAD))
+        scheduleAlarm(context, minOf(next ?: Instant.MAX, nextTask ?: Instant.MAX, now.plus(REFRESH)))
 
         if (alarm) container.offlineSync.syncIfNeeded(Duration.ofMinutes(30))
     }
@@ -157,6 +161,44 @@ object ReminderNotifier {
             .setContentText(text)
             .setStyle(NotificationCompat.BigTextStyle().bigText(if (ev.description.isBlank()) text else "$text\n${ev.description}"))
             .setCategory(NotificationCompat.CATEGORY_EVENT)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setContentIntent(open)
+            .setAutoCancel(true)
+            .setWhen(d.at.toEpochMilli())
+            .setShowWhen(true)
+        color?.let { runCatching { builder.setColor(parseHexColor(it).toArgb()) } }
+        try {
+            NotificationManagerCompat.from(context).notify(d.key, 1, builder.build())
+        } catch (e: SecurityException) {
+            Log.w(TAG, "Keine Berechtigung für Benachrichtigungen", e)
+        }
+    }
+
+    private fun notifyTask(context: Context, d: Reminders.TaskDue, color: String?) {
+        if (!canNotify(context)) return
+        val task = d.task
+        val zone = ZoneId.systemDefault()
+        val today = LocalDate.now(zone)
+        val due = task.dueLocal(zone)
+        val text = due?.let {
+            val day = when (it.toLocalDate()) {
+                today -> context.getString(R.string.notification_today)
+                today.plusDays(1) -> context.getString(R.string.notification_tomorrow)
+                else -> it.toLocalDate().format(FMT_NOTIFICATION_DAY)
+            }
+            context.getString(R.string.notification_task_due, if (task.allDay) day else "$day, ${it.format(FMT_TIME)}")
+        }.orEmpty()
+        val open = PendingIntent.getActivity(
+            context, d.key.hashCode(),
+            Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+        val builder = NotificationCompat.Builder(context, CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_launcher_calendar_mono)
+            .setContentTitle(task.title)
+            .setContentText(text)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(if (task.notes.isBlank()) text else "$text\n${task.notes}"))
+            .setCategory(NotificationCompat.CATEGORY_REMINDER)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setContentIntent(open)
             .setAutoCancel(true)

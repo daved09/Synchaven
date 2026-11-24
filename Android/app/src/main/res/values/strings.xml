@@ -480,13 +480,14 @@
 
     <!-- Benachrichtigungen -->
     <string name="notification_channel_reminders">Erinnerungen</string>
-    <string name="notification_channel_reminders_description">Erinnerungen an Termine</string>
+    <string name="notification_channel_reminders_description">Erinnerungen an Termine und fällige Aufgaben</string>
+    <string name="notification_task_due">Fällig: %1$s</string>
     <string name="notification_today">Heute</string>
     <string name="notification_tomorrow">Morgen</string>
     <string name="notification_all_day">%1$s (ganztägig)</string>
     <string name="settings_notifications">Benachrichtigungen</string>
-    <string name="settings_reminders">Erinnerungen an Termine</string>
-    <string name="settings_reminders_summary">Erinnerungen werden pro Termin oder als Standard pro Kalender eingestellt.</string>
+    <string name="settings_reminders">Erinnerungen an Termine und Aufgaben</string>
+    <string name="settings_reminders_summary">Erinnerungen werden pro Termin oder als Standard pro Kalender eingestellt. Aufgaben erinnern zur Fälligkeit, ganztägige um 09:00.</string>
     <string name="settings_reminders_denied">Benachrichtigungen sind für Synchaven in den Android-Einstellungen ausgeschaltet.</string>
     <string name="settings_reminders_open_settings">Einstellungen öffnen</string>
     <string name="settings_reminders_exact">Für pünktliche Erinnerungen „Wecker und Erinnerungen“ erlauben.</string>

@@ -4,7 +4,6 @@ import androidx.annotation.StringRes
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
-import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import de.dave.synchaven.R
 import java.time.DayOfWeek
@@ -37,8 +36,6 @@ data class AppSettings(
     val seedColor: String = "#6750A4",
     val weekStart: DayOfWeek = DayOfWeek.MONDAY,
     val showWeekNumbers: Boolean = true,
-    /** Hour to which the week and day views scroll when opened */
-    val dayStartHour: Int = 7,
     /** Show event reminders as notifications */
     val reminders: Boolean = true,
     /** The notification permission (Android 13+) has already been requested once */
@@ -52,7 +49,6 @@ class SettingsStore(private val dataStore: AppDataStore) {
         val seedColor = stringPreferencesKey("seed_color")
         val weekStart = stringPreferencesKey("week_start")
         val showWeekNumbers = booleanPreferencesKey("show_week_numbers")
-        val dayStartHour = intPreferencesKey("day_start_hour")
         val reminders = booleanPreferencesKey("reminders")
         val notificationPermissionAsked = booleanPreferencesKey("notification_permission_asked")
     }
@@ -69,7 +65,6 @@ class SettingsStore(private val dataStore: AppDataStore) {
             prefs[Keys.seedColor] = s.seedColor
             prefs[Keys.weekStart] = s.weekStart.name
             prefs[Keys.showWeekNumbers] = s.showWeekNumbers
-            prefs[Keys.dayStartHour] = s.dayStartHour
             prefs[Keys.reminders] = s.reminders
             prefs[Keys.notificationPermissionAsked] = s.notificationPermissionAsked
         }
@@ -83,7 +78,6 @@ class SettingsStore(private val dataStore: AppDataStore) {
             seedColor = this[Keys.seedColor] ?: d.seedColor,
             weekStart = enumOr(this[Keys.weekStart], d.weekStart),
             showWeekNumbers = this[Keys.showWeekNumbers] ?: d.showWeekNumbers,
-            dayStartHour = this[Keys.dayStartHour] ?: d.dayStartHour,
             reminders = this[Keys.reminders] ?: d.reminders,
             notificationPermissionAsked = this[Keys.notificationPermissionAsked] ?: d.notificationPermissionAsked,
         )

@@ -71,7 +71,6 @@ const views = [
   { title: 'Tag', value: 'day' },
   { title: 'Terminliste', value: 'list' },
 ]
-const hours = Array.from({ length: 13 }, (_, h) => ({ title: `${String(h).padStart(2, '0')}:00`, value: h }))
 </script>
 
 <template>
@@ -107,7 +106,6 @@ const hours = Array.from({ length: 13 }, (_, h) => ({ title: `${String(h).padSta
           @update:model-value="setDefaultView"
         />
         <v-select v-model="settings.weekStartsOn" :items="weekStarts" label="Woche beginnt am" />
-        <v-select v-model="settings.dayStartHour" :items="hours" label="Tagesansicht scrollt zu" />
         <v-switch v-model="settings.showWeekNumbers" label="Kalenderwochen anzeigen" color="primary" inset hide-details />
 
         <div class="text-title-small mt-4 mb-1">Benachrichtigungen</div>

@@ -102,7 +102,8 @@ import de.dave.synchaven.ui.calendar.TaskListAction
 import de.dave.synchaven.ui.calendar.TaskListDialog
 import de.dave.synchaven.ui.calendar.TimeGridView
 import de.dave.synchaven.ui.calendar.icon
-import de.dave.synchaven.ui.calendar.rememberTimeGridScroll
+import de.dave.synchaven.ui.calendar.rememberSharedTimeGridOffset
+import de.dave.synchaven.ui.calendar.rememberSyncedTimeGridScroll
 import de.dave.synchaven.ui.viewmodels.CalendarUiState
 import de.dave.synchaven.ui.viewmodels.CalendarViewModel
 import java.time.LocalDate
@@ -364,7 +365,7 @@ private fun CalendarContent(
     onTaskToggle: (ViewEvent) -> Unit,
 ) {
     // Shared scroll position of all week/day pages
-    val gridScroll = rememberTimeGridScroll(s.settings.dayStartHour)
+    val gridScroll = rememberSharedTimeGridOffset()
     val onSettled by rememberUpdatedState(onPageSettled)
     AnimatedContent(
         targetState = s.anchor,
@@ -399,13 +400,13 @@ private fun CalendarContent(
                     onDayClick = onDayClick, onDayLongClick = onNewEventOn, onEventClick = onEventClick,
                 )
                 ViewMode.WEEK, ViewMode.DAY -> TimeGridView(
-                    days = range.days, events = s.events, dayStartHour = s.settings.dayStartHour,
+                    days = range.days, events = s.events,
                     onDayClick = onDayClick,
                     onSlotClick = { onNewEventAt(it, false) },
                     onAllDayClick = { onNewEventAt(it.atStartOfDay(), true) },
                     onEventClick = onEventClick,
                     onEventMove = onEventMove,
-                    scroll = gridScroll,
+                    scroll = rememberSyncedTimeGridScroll(gridScroll, active = page == pager.currentPage),
                 )
                 ViewMode.LIST -> AgendaView(
                     days = range.days, events = s.events,

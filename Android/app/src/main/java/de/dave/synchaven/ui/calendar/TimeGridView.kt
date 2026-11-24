@@ -28,11 +28,16 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableIntState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -59,6 +64,7 @@ import de.dave.synchaven.util.shortName
 import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.LocalTime
 import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
 
@@ -66,11 +72,37 @@ private val HOUR_HEIGHT = 56.dp
 private val LABEL_WIDTH = 44.dp
 private val ALL_DAY_LANE = 22.dp
 
-/** Scroll position of the hour grid, initially at [dayStartHour] */
+/** Hours shown above the now line when the calendar opens */
+private const val NOW_CONTEXT_HOURS = 2f
+
+/**
+ * Scroll position shared by several hour grids (pager pages). When the calendar opens it starts a little
+ * above the current time, so the now line is in view; it survives returning from other screens.
+ */
 @Composable
-fun rememberTimeGridScroll(dayStartHour: Int): ScrollState {
-    val px = with(LocalDensity.current) { (HOUR_HEIGHT * dayStartHour).roundToPx() }
-    return rememberScrollState(px)
+fun rememberSharedTimeGridOffset(): MutableIntState {
+    val density = LocalDensity.current
+    return rememberSaveable {
+        val now = LocalTime.now()
+        val hours = (now.hour + now.minute / 60f - NOW_CONTEXT_HOURS).coerceAtLeast(0f)
+        // too large values are capped at the maximum by the ScrollState
+        mutableIntStateOf(with(density) { (HOUR_HEIGHT * hours).roundToPx() })
+    }
+}
+
+/**
+ * Own scroll state of one page that follows [shared] and, while [active], drives it.
+ * Pages can't share one ScrollState: the all-day row differs in height per page, so does the
+ * maximum scroll position – a shared state would cap the current page at its neighbor's maximum.
+ */
+@Composable
+fun rememberSyncedTimeGridScroll(shared: MutableIntState, active: Boolean): ScrollState {
+    val state = rememberScrollState(shared.intValue)
+    LaunchedEffect(state, active) {
+        if (active) snapshotFlow { state.value }.collect { shared.intValue = it }
+        else snapshotFlow { shared.intValue }.collect { state.scrollTo(it) }
+    }
+    return state
 }
 
 /** Minute grid when moving via drag & drop */
@@ -84,15 +116,14 @@ private const val SNAP_MINUTES = 15
 fun TimeGridView(
     days: List<LocalDate>,
     events: List<ViewEvent>,
-    dayStartHour: Int,
     onDayClick: (LocalDate) -> Unit,
     onSlotClick: (LocalDateTime) -> Unit,
     onAllDayClick: (LocalDate) -> Unit,
     onEventClick: (ViewEvent) -> Unit,
     onEventMove: (ViewEvent, LocalDateTime) -> Unit,
     modifier: Modifier = Modifier,
-    /** Vertical scroll position – while swiping the pages share one, so the hours line up */
-    scroll: ScrollState = rememberTimeGridScroll(dayStartHour),
+    /** Vertical scroll position – see [rememberSyncedTimeGridScroll], so the hours line up while swiping */
+    scroll: ScrollState,
 ) {
     val today = LocalDate.now()
     val colors = MaterialTheme.colorScheme

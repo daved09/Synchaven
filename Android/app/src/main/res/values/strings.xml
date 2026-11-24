@@ -337,8 +337,6 @@
     <string name="settings_default_view">Standardansicht</string>
     <string name="settings_week_start">Woche beginnt am</string>
     <string name="settings_week_numbers">Kalenderwochen anzeigen</string>
-    <string name="settings_day_start">Tagesbeginn: %1$02d:00 Uhr</string>
-    <string name="settings_day_start_hint">Wochen- und Tagesansicht starten bei dieser Uhrzeit</string>
     <string name="settings_about">Synchaven für Android</string>
     <string name="settings_version">Version %1$s</string>
     <string name="profile_title">Profil bearbeiten</string>

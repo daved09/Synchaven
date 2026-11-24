@@ -11,7 +11,6 @@ import { taskIcon } from '@/stores/tasks'
 const props = defineProps<{
   events: ViewEvent[]
   days: Date[]
-  dayStartHour: number
 }>()
 const emit = defineEmits<{
   select: [ev: ViewEvent, el: HTMLElement]
@@ -134,15 +133,31 @@ const barGhost = computed(() => {
   return { ev: d.ev, lane: d.lane, start, end, contBefore: from < 0, contAfter: to > n }
 })
 
+/** Hours shown above the now line when the grid opens */
+const NOW_CONTEXT_HOURS = 2
+
+/** Scrolls so the now line is in view, with a little context above it */
 function scrollToStart() {
-  if (scroller.value) scroller.value.scrollTop = Math.max(0, props.dayStartHour * HOUR - 8)
+  if (scroller.value) scroller.value.scrollTop = Math.max(0, nowTop.value - NOW_CONTEXT_HOURS * HOUR)
 }
+// The visible height still changes after mounting (the all-day row grows once the events have loaded),
+// so the grid keeps following the now line until the user scrolls or clicks in it.
+let followNow = true
+const stopFollow = () => (followNow = false)
+const resize = new ResizeObserver(() => followNow && scrollToStart())
 onMounted(() => {
   scrollToStart()
+  resize.observe(scroller.value!)
   timer = window.setInterval(() => (now.value = new Date()), 60_000)
 })
-onBeforeUnmount(() => clearInterval(timer))
-watch(() => props.days.length, () => nextTick(scrollToStart))
+onBeforeUnmount(() => {
+  clearInterval(timer)
+  resize.disconnect()
+})
+watch(() => props.days.length, () => {
+  followNow = true
+  nextTick(scrollToStart)
+})
 
 const today = new Date()
 </script>
@@ -214,7 +229,10 @@ const today = new Date()
     </div>
 
     <!-- Time grid -->
-    <div ref="scroller" class="tg-scroll" @scroll="onScrollDuringDrag?.()">
+    <div
+      ref="scroller" class="tg-scroll" @scroll="onScrollDuringDrag?.()"
+      @wheel.passive="stopFollow" @touchstart.passive="stopFollow" @pointerdown="stopFollow" @keydown="stopFollow"
+    >
       <div class="tg-body" :style="{ height: `${24 * HOUR}px` }">
         <div class="gutter hours">
           <div v-for="h in hours" :key="h" class="hour-label text-label-small" :style="{ top: `${h * HOUR}px` }">

@@ -12,7 +12,6 @@ export interface Settings {
   /** Cached default view from the user account (for the initial render before `/auth/me`) */
   defaultView: ViewMode
   showWeekNumbers: boolean
-  dayStartHour: number
 }
 
 const KEY = 'synchaven.settings'
@@ -22,7 +21,6 @@ const DEFAULTS: Settings = {
   weekStartsOn: 1,
   defaultView: 'month',
   showWeekNumbers: true,
-  dayStartHour: 7,
 }
 
 export function loadSettings(): Settings {

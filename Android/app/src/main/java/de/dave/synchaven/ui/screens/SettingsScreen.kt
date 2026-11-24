@@ -26,7 +26,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
-import androidx.compose.material3.Slider
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
@@ -221,20 +220,6 @@ fun SettingsScreen(onBack: () -> Unit) {
                 headlineContent = { Text(stringResource(R.string.settings_week_numbers)) },
                 trailingContent = {
                     Switch(settings.showWeekNumbers, onCheckedChange = { v -> vm.update { it.copy(showWeekNumbers = v) } })
-                },
-            )
-            ListItem(
-                headlineContent = { Text(stringResource(R.string.settings_day_start, settings.dayStartHour)) },
-                supportingContent = {
-                    Column {
-                        Text(stringResource(R.string.settings_day_start_hint))
-                        Slider(
-                            value = settings.dayStartHour.toFloat(),
-                            onValueChange = { v -> vm.update { it.copy(dayStartHour = v.toInt()) } },
-                            valueRange = 0f..12f,
-                            steps = 11,
-                        )
-                    }
                 },
             )
             HorizontalDivider()

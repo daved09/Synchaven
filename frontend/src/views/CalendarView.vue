@@ -598,7 +598,7 @@ function onKey(e: KeyboardEvent) {
           />
           <TimeGrid
             v-else-if="view.mode === 'week' || view.mode === 'day'"
-            :events="gridEvents" :days="p.days" :day-start-hour="settings.dayStartHour"
+            :events="gridEvents" :days="p.days"
             @select="openEvent" @create="(s, allDay) => newEvent(s, allDay)" @open-day="openDay" @move="moveEvent"
             @toggle="(ev) => ev.task && toggleTask(ev.task)"
           />

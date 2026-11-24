@@ -66,19 +66,19 @@ private val HOUR_HEIGHT = 56.dp
 private val LABEL_WIDTH = 44.dp
 private val ALL_DAY_LANE = 22.dp
 
-/** Scrollposition des Stundenrasters, anfangs bei [dayStartHour] */
+/** Scroll position of the hour grid, initially at [dayStartHour] */
 @Composable
 fun rememberTimeGridScroll(dayStartHour: Int): ScrollState {
     val px = with(LocalDensity.current) { (HOUR_HEIGHT * dayStartHour).roundToPx() }
     return rememberScrollState(px)
 }
 
-/** Minutenraster beim Verschieben per Drag & Drop */
+/** Minute grid when moving via drag & drop */
 private const val SNAP_MINUTES = 15
 
 /**
- * Wochen- bzw. Tagesansicht mit Stundenraster. Tippen auf eine freie Stelle legt einen Termin an,
- * langes Drücken auf einen Termin verschiebt ihn (Uhrzeit und – in der Woche – Tag).
+ * Week or day view with an hour grid. Tapping a free spot creates an event,
+ * long-pressing an event moves it (time and – in the week view – day).
  */
 @Composable
 fun TimeGridView(
@@ -91,13 +91,13 @@ fun TimeGridView(
     onEventClick: (ViewEvent) -> Unit,
     onEventMove: (ViewEvent, LocalDateTime) -> Unit,
     modifier: Modifier = Modifier,
-    /** Senkrechte Scrollposition – beim Wischen teilen sich die Seiten eine, damit die Stunden fluchten */
+    /** Vertical scroll position – while swiping the pages share one, so the hours line up */
     scroll: ScrollState = rememberTimeGridScroll(dayStartHour),
 ) {
     val today = LocalDate.now()
     val colors = MaterialTheme.colorScheme
     Column(modifier.fillMaxSize()) {
-        // Kopfzeile mit Wochentag und Datum
+        // Header row with weekday and date
         Row(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
             Spacer(Modifier.width(LABEL_WIDTH))
             for (day in days) {
@@ -127,7 +127,7 @@ fun TimeGridView(
         HorizontalDivider(color = colors.outlineVariant)
 
         val density = LocalDensity.current
-        // Minütlich aktualisierte Uhrzeit für die Jetzt-Linie
+        // Time updated every minute for the now line
         val now by produceState(LocalDateTime.now()) {
             while (true) {
                 delay(60_000)
@@ -156,7 +156,7 @@ fun TimeGridView(
                 val hourPx = with(density) { HOUR_HEIGHT.toPx() }
                 val lineColor = colors.outlineVariant
 
-                // Raster und Tippen auf freie Zeiten
+                // Grid and tapping free times
                 Row(
                     Modifier.fillMaxSize().drawBehind {
                         for (h in 1 until 24) {
@@ -175,7 +175,7 @@ fun TimeGridView(
                                 }
                                 .pointerInput(day) {
                                     detectTapGestures { pos ->
-                                        // auf halbe Stunden runden
+                                        // round to half hours
                                         val halfHours = (pos.y / (hourPx / 2)).toInt().coerceIn(0, 47)
                                         onSlotClick(day.atTime(halfHours / 2, (halfHours % 2) * 30))
                                     }
@@ -184,7 +184,7 @@ fun TimeGridView(
                     }
                 }
 
-                // Termine
+                // Events
                 days.forEachIndexed { index, day ->
                     val items = remember(events, day) { layoutDay(events, day) }
                     for (item in items) {
@@ -222,7 +222,7 @@ fun TimeGridView(
     }
 }
 
-/** Leiste für ganztägige und mehrtägige Termine */
+/** Bar for all-day and multi-day events */
 @Composable
 private fun AllDayRow(
     days: List<LocalDate>,
@@ -284,7 +284,7 @@ private fun TimedEvent(
     modifier: Modifier,
     hourPx: Float,
     colWidthPx: Float,
-    /** erlaubte Tagesverschiebung nach rechts bzw. links */
+    /** allowed day shift to the right or left */
     maxDayShift: Pair<Int, Int>,
     onClick: () -> Unit,
     onMove: (LocalDateTime) -> Unit,
@@ -299,7 +299,7 @@ private fun TimedEvent(
             .zIndex(if (drag != null) 3f else 1f)
             .offset {
                 val d = drag ?: return@offset IntOffset.Zero
-                // Während des Ziehens auf Raster und ganze Tage einrasten
+                // Snap to the grid and whole days while dragging
                 val days = (d.x / colWidthPx).roundToInt().coerceIn(maxDayShift.second, maxDayShift.first)
                 IntOffset((days * colWidthPx).roundToInt(), ((d.y / snapPx).roundToInt() * snapPx).roundToInt())
             }
@@ -337,7 +337,7 @@ private fun TimedEvent(
         val duration = Duration.between(ev.start, ev.end).toMinutes()
         val timeText = stringResource(R.string.time_range, startTime.format(FMT_TIME), startTime.plusMinutes(duration).format(FMT_TIME))
         if (ev.isTask) {
-            // Aufgaben: Abhak-Symbol, Titel und Fälligkeit in einer Zeile
+            // Tasks: check-off icon, title and due date in one row
             Row(verticalAlignment = Alignment.CenterVertically) {
                 TaskCheckIcon(ev.completed, textColor, size = 14.dp)
                 Spacer(Modifier.width(4.dp))
@@ -348,7 +348,7 @@ private fun TimedEvent(
                 )
             }
         } else if (duration < 45) {
-            // Kurze Termine: Titel und Uhrzeit in einer Zeile
+            // Short events: title and time in one row
             Text(
                 stringResource(R.string.event_title_time, ev.title, startTime.format(FMT_TIME)), color = textColor,
                 style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Medium,

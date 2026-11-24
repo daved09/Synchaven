@@ -4,18 +4,18 @@ import { api } from '@/api/client'
 import type { Task, TaskInput, TaskList, TaskListInput, ViewEvent } from '@/api/types'
 import { addDays, addMinutes, allDayToLocal, localToAllDay } from '@/utils/date'
 
-/** Präfix der IDs, unter denen Aufgaben im Kalender erscheinen (getrennt von Termin-IDs) */
+/** Prefix of the IDs under which tasks appear in the calendar (separate from event IDs) */
 export const TASK_PREFIX = 'task:'
-/** Höhe einer Aufgabe mit Uhrzeit im Zeitraster */
+/** Height of a timed task in the time grid */
 const TASK_MINUTES = 30
 
-/** Fälligkeit als lokales Datum (ganztägig: Mitternacht lokal) */
+/** Due date as a local date (all-day: local midnight) */
 export function taskDueDate(t: Task): Date | null {
   if (!t.due) return null
   return t.all_day ? allDayToLocal(t.due) : new Date(t.due)
 }
 
-/** Eingabe zum Speichern einer vorhandenen Aufgabe mit geänderten Feldern */
+/** Input for saving an existing task with changed fields */
 export function taskInput(t: Task, patch: Partial<TaskInput> = {}): TaskInput {
   return { list_id: t.list_id, title: t.title, notes: t.notes, due: t.due, all_day: t.all_day, ...patch }
 }
@@ -58,7 +58,7 @@ export const useTasksStore = defineStore('tasks', () => {
   const listById = computed(() => new Map(lists.value.map((l) => [l.id, l])))
   const visibleListIds = computed(() => new Set(lists.value.filter((l) => l.visible).map((l) => l.id)))
 
-  /** Aufgaben mit Fälligkeit aus eingeblendeten Listen – für die Kalenderansichten */
+  /** Tasks with a due date from visible lists – for the calendar views */
   const calendarEvents = computed<ViewEvent[]>(() =>
     tasks.value
       .filter((t) => visibleListIds.value.has(t.list_id))
@@ -69,20 +69,20 @@ export const useTasksStore = defineStore('tasks', () => {
   function openCount(listId: string) {
     return tasks.value.filter((t) => t.list_id === listId && !t.completed).length
   }
-  /** Offene Hauptaufgaben einer Liste nach Fälligkeit, ohne Datum zuletzt. Offene Unteraufgaben ohne offene
-   *  Hauptaufgabe in der Liste stehen ebenfalls hier, damit nichts verloren geht. */
+  /** Open top-level tasks of a list by due date, without date last. Open subtasks without an open
+   *  parent task in the list are listed here too, so nothing gets lost. */
   function openOf(listId: string) {
     const open = tasks.value.filter((t) => t.list_id === listId && !t.completed)
     const openIds = new Set(open.map((t) => t.id))
     return open.filter((t) => !t.parent_id || !openIds.has(t.parent_id)).sort(byDue)
   }
-  /** Unteraufgaben einer Aufgabe in der Reihenfolge, in der sie angelegt wurden */
+  /** Subtasks of a task in the order they were created */
   function subtasksOf(id: string) {
     return tasks.value
       .filter((t) => t.parent_id === id)
       .sort((a, b) => a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id))
   }
-  /** Erledigte Aufgaben einer Liste, zuletzt erledigte zuerst */
+  /** Completed tasks of a list, most recently completed first */
   function completedOf(listId: string) {
     return tasks.value
       .filter((t) => t.list_id === listId && t.completed)
@@ -101,7 +101,7 @@ export const useTasksStore = defineStore('tasks', () => {
     return t
   }
 
-  // --- Listen ---
+  // --- Lists ---
   async function createList(data: TaskListInput) {
     const l = await api.createTaskList(data)
     lists.value.push(l)
@@ -118,7 +118,7 @@ export const useTasksStore = defineStore('tasks', () => {
     tasks.value = tasks.value.filter((t) => t.list_id !== id)
   }
   async function toggleListVisible(list: TaskList) {
-    list.visible = !list.visible // optimistisch
+    list.visible = !list.visible // optimistic
     try {
       await updateList(list.id, { name: list.name, color: list.color, visible: list.visible })
     } catch (e) {
@@ -133,18 +133,18 @@ export const useTasksStore = defineStore('tasks', () => {
     return r.deleted
   }
 
-  // --- Aufgaben ---
+  // --- Tasks ---
   async function create(input: TaskInput) {
     return put(await api.createTask(input))
   }
-  /** Neue Unteraufgabe ohne Datum unter einer Hauptaufgabe */
+  /** New subtask without a date under a parent task */
   async function createSubtask(parent: Task, title: string) {
     return create({ list_id: parent.list_id, parent_id: parent.id, title, notes: '', due: null, all_day: true })
   }
   async function update(id: string, input: TaskInput) {
     const before = tasks.value.find((t) => t.id === id)
     const t = put(await api.updateTask(id, input))
-    // Unteraufgaben ziehen mit ihrer Hauptaufgabe in die andere Liste um (wie im Backend)
+    // Subtasks move along with their parent task to the other list (as in the backend)
     if (before && before.list_id !== t.list_id) {
       tasks.value = tasks.value.map((x) => (x.parent_id === id ? { ...x, list_id: t.list_id } : x))
     }
@@ -155,8 +155,8 @@ export const useTasksStore = defineStore('tasks', () => {
     await api.deleteTask(id)
     tasks.value = tasks.value.filter((t) => t.id !== id && t.parent_id !== id)
   }
-  /** Folgen des Abhakens wie im Backend: Hauptaufgabe hakt offene Unteraufgaben mit ab,
-   *  eine wieder geöffnete Unteraufgabe öffnet ihre Hauptaufgabe. */
+  /** Consequences of checking off, as in the backend: a parent task checks off its open subtasks,
+   *  a reopened subtask reopens its parent task. */
   function applyCompleted(t: Task) {
     tasks.value = tasks.value.map((x) =>
       t.completed && x.parent_id === t.id && !x.completed ? { ...x, completed: true, completed_at: t.completed_at }
@@ -164,7 +164,7 @@ export const useTasksStore = defineStore('tasks', () => {
       : x,
     )
   }
-  /** Abhaken oder wieder öffnen – sofort sichtbar, bei einem Fehler zurück */
+  /** Check off or reopen – visible immediately, reverted on error */
   async function setCompleted(task: Task, completed: boolean) {
     const snapshot = tasks.value
     const before = tasks.value.find((t) => t.id === task.id) ?? task
@@ -176,7 +176,7 @@ export const useTasksStore = defineStore('tasks', () => {
       throw e
     }
   }
-  /** Fälligkeit verschieben (Drag & Drop im Kalender); die Uhrzeit wandert mit */
+  /** Move the due date (drag & drop in the calendar); the time moves along */
   async function move(task: Task, newStart: Date) {
     const due = task.all_day ? localToAllDay(newStart) : newStart.toISOString()
     const before = tasks.value.find((t) => t.id === task.id) ?? task
@@ -200,7 +200,7 @@ export const useTasksStore = defineStore('tasks', () => {
   }
 })
 
-/** Symbol einer Aufgabe im Kalender: leerer Kreis oder Haken */
+/** Icon of a task in the calendar: empty circle or check mark */
 export function taskIcon(t: Task): string {
   return t.completed ? 'mdi-check-circle' : 'mdi-checkbox-blank-circle-outline'
 }

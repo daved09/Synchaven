@@ -25,9 +25,9 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 
 /**
- * Aufgabenlisten und Aufgaben. Wie Kalender und Termine liegen sie im [OfflineStore]; Anlegen, Bearbeiten, Abhaken
- * und Löschen funktionieren auch ohne Verbindung (Warteschlange von [OfflineSync]). Listen anlegen und löschen geht
- * nur mit Server. Im lokalen Modus speichert die [de.dave.synchaven.data.local.LocalApi] sie auf dem Gerät.
+ * Task lists and tasks. Like calendars and events, they are kept in the [OfflineStore]; creating, editing, checking
+ * off and deleting also work without a connection (queue of [OfflineSync]). Creating and deleting lists only works
+ * with a server. In local mode, [de.dave.synchaven.data.local.LocalApi] stores them on the device.
  */
 class TaskRepository(
     private val api: SyncHavenApi,
@@ -35,11 +35,11 @@ class TaskRepository(
     private val sync: OfflineSync,
     scope: CoroutineScope,
 ) {
-    /** `null`: noch nie geladen oder vom Server nicht unterstützt */
+    /** `null`: never loaded or not supported by the server */
     val lists: StateFlow<List<TaskList>?> = store.data.map { it.taskLists }.stateIn(scope, SharingStarted.Eagerly, null)
     val tasks: StateFlow<List<Task>?> = store.data.map { it.tasks }.stateIn(scope, SharingStarted.Eagerly, null)
 
-    /** Lädt Listen und Aufgaben vom Server (offline bleibt es beim Cache). */
+    /** Loads lists and tasks from the server (offline, the cache stays as is). */
     suspend fun load() {
         sync.read(preferCache = sync.hasAnyPending, cached = { d -> d.taskLists?.let { Unit } }) {
             val (lists, tasks) = fetchTasks(api) ?: return@read
@@ -47,7 +47,7 @@ class TaskRepository(
         }
     }
 
-    // ---------- Listen ----------
+    // ---------- Lists ----------
 
     suspend fun createList(input: TaskListInput): TaskList {
         val l = sync.online { apiCall { api.createTaskList(input) } }
@@ -65,7 +65,7 @@ class TaskRepository(
         offline = { d -> d.taskLists?.firstOrNull { it.id == id } ?: TaskList(id, input.name) },
     )
 
-    /** Blendet die Aufgaben einer Liste im Kalender ein/aus – sofort lokal, danach auf dem Server. */
+    /** Shows/hides a list's tasks in the calendar – immediately locally, then on the server. */
     suspend fun toggleVisible(list: TaskList) {
         val toggled = list.copy(visible = !list.visible)
         sync.mergeServer { it.apply(PendingOp.UpdateTaskList(list.id, toggled.toInput())) }
@@ -85,8 +85,8 @@ class TaskRepository(
     }
 
     /**
-     * Löscht alle erledigten Aufgaben einer Liste und liefert ihre Anzahl. Mit Verbindung in einem Aufruf, sonst
-     * (oder wenn noch Änderungen ausstehen, die der Server noch nicht kennt) einzeln über die Warteschlange.
+     * Deletes all completed tasks of a list and returns their number. With a connection in one call, otherwise
+     * (or if changes are still pending that the server doesn't know yet) one by one via the queue.
      */
     suspend fun clearCompleted(listId: String): Int {
         store.awaitReady()
@@ -104,12 +104,12 @@ class TaskRepository(
         return done.size
     }
 
-    // ---------- Aufgaben ----------
+    // ---------- Tasks ----------
 
     fun task(id: String): Task? = store.data.value.let { d -> d.tasks?.firstOrNull { it.id == d.resolve(id) } }
 
     suspend fun createTask(task: TaskInput): Task {
-        // Die Hauptaufgabe kann inzwischen übertragen worden sein und eine neue ID haben
+        // The parent task may have been transferred in the meantime and have a new ID
         val input = task.parentId?.let { p -> task.copy(parentId = store.data.value.resolve(p)) } ?: task
         val localId = newLocalId()
         return sync.write(
@@ -119,7 +119,7 @@ class TaskRepository(
         )
     }
 
-    /** Neue Unteraufgabe ohne Datum unter [parent] */
+    /** New subtask without a date under [parent] */
     suspend fun createSubtask(parent: Task, title: String): Task =
         createTask(TaskInput(parent.listId, title, parentId = parent.id))
 
@@ -129,7 +129,7 @@ class TaskRepository(
         offline = { d -> d.tasks?.firstOrNull { it.id == d.resolve(id) } ?: input.toLocalTask(d.resolve(id)) },
     )
 
-    /** Abhaken oder wieder öffnen – sofort sichtbar, bei einem Fehler zurück (wie in der Weboberfläche). */
+    /** Check off or reopen – visible immediately, reverted on error (as in the web UI). */
     suspend fun setCompleted(task: Task, completed: Boolean): Task {
         val at = now()
         val before = store.data.value.tasks
@@ -141,7 +141,7 @@ class TaskRepository(
                 offline = { d -> d.tasks?.firstOrNull { it.id == d.resolve(task.id) } ?: task.withCompleted(completed, at) },
             )
         } catch (e: Exception) {
-            // Zurück auf den Stand davor (samt mit abgehakten Unteraufgaben bzw. wieder geöffneter Hauptaufgabe)
+            // Back to the previous state (including subtasks checked off along with it or a reopened parent task)
             val ids = before.orEmpty().associateBy { it.id }
             sync.mergeServer { d -> d.copy(tasks = d.tasks?.map { ids[it.id] ?: it }) }
             throw e
@@ -163,7 +163,7 @@ class TaskRepository(
         )
     }
 
-    /** Übernimmt eine vom Server gelieferte Aufgabe in den Cache. */
+    /** Takes a task returned by the server into the cache. */
     private suspend fun patchTask(t: Task) {
         sync.mergeServer { d -> d.copy(tasks = d.tasks.orEmpty().withTaskSaved(t) { x, done -> x.withCompleted(done, now()) }) }
     }

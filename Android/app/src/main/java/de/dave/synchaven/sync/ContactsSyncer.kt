@@ -40,18 +40,18 @@ import java.io.ByteArrayOutputStream
 
 private const val TAG = "ContactsSync"
 
-/** Größere Fotos werden vor dem Einfügen verkleinert (Binder-Transaktionen sind auf ~1 MB begrenzt). */
+/** Larger photos are scaled down before inserting (Binder transactions are limited to ~1 MB). */
 private const val MAX_PHOTO_BYTES = 400_000
 private const val MAX_PHOTO_SIZE = 720
 
 /**
- * Eigene, unsichtbare Datenart: Bei Kontakten mit Spitzname steht als Name nur der Spitzname auf dem Gerät (sonst
- * bildet Android den Anzeigenamen aus Vor- und Nachname). Diese Zeile bewahrt die echten Namensteile:
- * `DATA1` = als Name geschriebener Spitzname, `DATA2` … `DATA6` = Präfix, Vorname, weitere Vornamen, Nachname, Suffix.
+ * Custom, invisible data kind: for contacts with a nickname, only the nickname is stored as the name on the device (otherwise
+ * Android builds the display name from first and last name). This row preserves the real name parts:
+ * `DATA1` = nickname written as the name, `DATA2` … `DATA6` = prefix, first name, additional names, last name, suffix.
  */
 private const val REAL_NAME_MIMETYPE = "vnd.android.cursor.item/vnd.de.dave.synchaven.realname"
 
-/** Datenarten, die die App verwaltet – andere bleiben beim Aktualisieren erhalten. */
+/** Data kinds the app manages – others are kept when updating. */
 private val MANAGED_MIMETYPES = listOf(
     StructuredName.CONTENT_ITEM_TYPE, REAL_NAME_MIMETYPE, Nickname.CONTENT_ITEM_TYPE, Organization.CONTENT_ITEM_TYPE,
     Phone.CONTENT_ITEM_TYPE, Email.CONTENT_ITEM_TYPE, StructuredPostal.CONTENT_ITEM_TYPE,
@@ -59,10 +59,10 @@ private val MANAGED_MIMETYPES = listOf(
     GroupMembership.CONTENT_ITEM_TYPE,
 )
 
-/** `SYNC4` eines Kontakts, dessen Gruppen die Kategorien des Servers wiedergeben (ab dieser App-Version geschrieben) */
+/** `SYNC4` of a contact whose groups reflect the server's categories (written from this app version on) */
 private const val CATEGORIES_MAPPED = "categories"
 
-/** `SYNC4` der aktuellen Schreibweise (Kategorien als Gruppen, Spitzname als Name); ältere werden neu geschrieben */
+/** `SYNC4` of the current format (categories as groups, nickname as name); older ones are rewritten */
 private const val SYNC_FORMAT = "categories,nickname"
 
 private data class LocalGroup(val id: Long, val title: String, val dirty: Boolean, val deleted: Boolean)
@@ -72,23 +72,23 @@ private data class LocalContact(
     val serverId: String?,
     val etag: String?,
     val addressBookId: String?,
-    /** `<Datenzeile>:<DATA_VERSION>` des Fotos beim letzten Abgleich, leer = kein Foto */
+    /** `<data row>:<DATA_VERSION>` of the photo at the last sync, empty = no photo */
     val photoMarker: String?,
     val dirty: Boolean,
     val deleted: Boolean,
-    /** Gruppen entsprechen den Kategorien (siehe [CATEGORIES_MAPPED]) */
+    /** Groups correspond to the categories (see [CATEGORIES_MAPPED]) */
     val categoriesMapped: Boolean,
-    /** In der aktuellen Schreibweise ([SYNC_FORMAT]) geschrieben */
+    /** Written in the current format ([SYNC_FORMAT]) */
     val currentFormat: Boolean,
 )
 
 /**
- * Gleicht die Kontakte aller Adressbücher mit den Android-Kontakten (RawContacts des Kontos) ab – in beide
- * Richtungen. Lokale Änderungen werden zuerst hochgeladen, danach der Stand des Servers übernommen.
+ * Syncs the contacts of all address books with the Android contacts (the account's RawContacts) – in both
+ * directions. Local changes are uploaded first, then the server's state is taken over.
  *
- * Abbildung: `SOURCE_ID` = Kontakt-ID, `SYNC1` = ETag des Servers, `SYNC2` = Adressbuch, `SYNC3` = Stand des
- * Fotos (erkennt Fotoänderungen auf dem Gerät), `SYNC4` = [SYNC_FORMAT]. Neue Kontakte vom Gerät landen im
- * ersten Adressbuch. Kategorien sind die Gruppen (Labels) des Kontos; ungenutzte Gruppen werden entfernt.
+ * Mapping: `SOURCE_ID` = contact ID, `SYNC1` = the server's ETag, `SYNC2` = address book, `SYNC3` = state of the
+ * photo (detects photo changes on the device), `SYNC4` = [SYNC_FORMAT]. New contacts from the device end up in the
+ * first address book. Categories are the account's groups (labels); unused groups are removed.
  */
 class ContactsSyncer(
     private val account: Account,
@@ -108,7 +108,7 @@ class ContactsSyncer(
     private val groupsUri = Groups.CONTENT_URI.asSyncAdapter()
     private fun groupUri(id: Long) = ContentUris.withAppendedId(Groups.CONTENT_URI, id).asSyncAdapter()
 
-    /** Gruppen des Kontos nach ID; neu angelegte kommen beim Schreiben hinzu */
+    /** The account's groups by ID; newly created ones are added when writing */
     private val groups = mutableMapOf<Long, LocalGroup>()
     private fun rawContactUri(id: Long) = ContentUris.withAppendedId(RawContacts.CONTENT_URI, id).asSyncAdapter()
 
@@ -123,12 +123,12 @@ class ContactsSyncer(
         loadGroups()
         applyGroupChanges()
 
-        // 1. Lokale Änderungen hochladen
+        // 1. Upload local changes
         for (c in localContacts().filter { it.dirty || it.deleted }) {
             itemSafe { upload(c, c.addressBookId?.takeIf { it in bookIds } ?: defaultBook) }
         }
 
-        // 2. Stand des Servers übernehmen
+        // 2. Take over the server's state
         val remote = apiCall { api.contacts() }
         val local = localContacts()
         val localByServerId = local.filter { it.serverId != null }.associateBy { it.serverId!! }
@@ -141,8 +141,8 @@ class ContactsSyncer(
                         result.stats.numInserts++
                     }
                     existing.dirty || existing.deleted -> Unit
-                    // Vor dieser App-Version geschriebene Kontakte werden einmal neu geschrieben (Kategorien als
-                    // Gruppen, Spitzname als Name)
+                    // Contacts written before this app version are rewritten once (categories as
+                    // groups, nickname as name)
                     existing.etag != c.etag || !existing.currentFormat -> {
                         write(existing.id, full(c))
                         result.stats.numUpdates++
@@ -162,7 +162,7 @@ class ContactsSyncer(
         deleteUnusedGroups()
     }
 
-    // ---------- Gruppen (Kategorien) ----------
+    // ---------- Groups (categories) ----------
 
     private fun loadGroups() {
         groups.clear()
@@ -183,8 +183,8 @@ class ContactsSyncer(
     )?.use { c -> buildList { while (c.moveToNext()) add(c.getLong(0)) } } ?: emptyList()
 
     /**
-     * Auf dem Gerät umbenannte oder gelöschte Gruppen: Die Mitglieder werden als geändert markiert, damit ihre
-     * Kategorien hochgeladen werden.
+     * Groups renamed or deleted on the device: the members are marked as changed so their
+     * categories are uploaded.
      */
     private fun applyGroupChanges() {
         val ops = Batch(provider)
@@ -206,7 +206,7 @@ class ContactsSyncer(
         groups.values.removeAll { it.deleted }
     }
 
-    /** ID der Gruppe zur Kategorie, bei Bedarf neu angelegt */
+    /** ID of the group for the category, created if needed */
     private fun groupFor(category: String): Long {
         groups.values.firstOrNull { it.title.equals(category, ignoreCase = true) }?.let { return it.id }
         val values = ContentValues().apply {
@@ -231,7 +231,7 @@ class ContactsSyncer(
         ops.flush()
     }
 
-    /** Kontakte ohne Gruppe sollen in der Kontakte-App sichtbar sein. */
+    /** Contacts without a group should be visible in the contacts app. */
     private fun ensureVisible() {
         val uri = ContactsContract.Settings.CONTENT_URI.asSyncAdapter()
         val values = ContentValues().apply {
@@ -245,7 +245,7 @@ class ContactsSyncer(
         if (provider.update(uri, values, where, args) == 0) provider.insert(uri, values)
     }
 
-    /** Kontakt mit Foto (die Liste enthält keine Fotos) */
+    /** Contact with photo (the list contains no photos) */
     private suspend fun full(c: Contact): Contact = if (c.hasPhoto) apiCall { api.contact(c.id) } else c
 
     private fun localContacts(): List<LocalContact> =
@@ -272,7 +272,7 @@ class ContactsSyncer(
             }
         } ?: emptyList()
 
-    // ---------- Hochladen ----------
+    // ---------- Upload ----------
 
     private suspend fun upload(c: LocalContact, addressBookId: String) {
         if (c.deleted) {
@@ -294,12 +294,12 @@ class ContactsSyncer(
             try {
                 apiCall { api.updateContact(c.serverId, input) }
             } catch (e: ApiException) {
-                // Auf dem Server inzwischen gelöscht: die Änderung vom Gerät nicht verwerfen
+                // Deleted on the server in the meantime: don't discard the change from the device
                 if (e.status != 404) throw e
                 apiCall { api.createContact(input.copy(photo = input.photo ?: currentPhoto(c.id))) }
             }.also { result.stats.numUpdates++ }
         }
-        // Normalisierten Stand des Servers übernehmen (setzt DIRTY zurück)
+        // Take over the server's normalized state (resets DIRTY)
         write(c.id, saved)
     }
 
@@ -324,7 +324,7 @@ class ContactsSyncer(
         )
         provider.query(dataUri, columns, "${Data.RAW_CONTACT_ID} = ?", arrayOf(c.id.toString()), null)?.use { cur ->
             fun s(i: Int) = cur.getString(i)?.trim().orEmpty()
-            // DATA1 … DATA10 liegen in den Spalten 3 … 12
+            // DATA1 … DATA10 are in columns 3 … 12
             fun d(n: Int) = s(n + 2)
             fun type() = cur.getString(4)?.toIntOrNull() ?: 0
             while (cur.moveToNext()) {
@@ -364,14 +364,14 @@ class ContactsSyncer(
                 }
             }
         }
-        // Foto nur übertragen, wenn es auf dem Gerät geändert wurde
+        // Only transfer the photo if it was changed on the device
         val photo = when {
             photoMarker == c.photoMarker.orEmpty() -> null
             photoMarker.isEmpty() -> ""
             else -> currentPhoto(c.id) ?: ""
         }
-        // Steht als Name noch der geschriebene Spitzname, gelten die bewahrten Namensteile; wurde der Name auf dem
-        // Gerät geändert, die Eingabe von dort.
+        // If the name is still the written nickname, the preserved name parts apply; if the name was changed on the
+        // device, the input from there.
         val n = name
         val kept = realName
         if (n != null && kept != null && n.fullName == kept[0]) {
@@ -387,7 +387,7 @@ class ContactsSyncer(
             phones = phones, emails = emails, addresses = addresses, urls = urls,
             birthday = birthday,
             note = notes.joinToString("\n"),
-            // Vor dieser App-Version geschriebene Kontakte haben noch keine Gruppen: Kategorien des Servers behalten
+            // Contacts written before this app version don't have groups yet: keep the server's categories
             categories = if (c.categoriesMapped || categories.isNotEmpty()) cleanCategories(categories) else null,
             photo = photo,
         )
@@ -399,7 +399,7 @@ class ContactsSyncer(
         phones = emptyList(), emails = emptyList(), addresses = emptyList(), urls = emptyList(), birthday = "", note = "",
     )
 
-    /** Foto des Kontakts als data:-URL – das große Anzeigefoto, ersatzweise das Vorschaubild. */
+    /** The contact's photo as a data: URL – the large display photo, otherwise the thumbnail. */
     private fun currentPhoto(rawContactId: Long): String? {
         val displayPhoto = Uri.withAppendedPath(
             ContentUris.withAppendedId(RawContacts.CONTENT_URI, rawContactId), RawContacts.DisplayPhoto.CONTENT_DIRECTORY,
@@ -414,9 +414,9 @@ class ContactsSyncer(
         return "data:image/jpeg;base64," + Base64.encodeToString(bytes, Base64.NO_WRAP)
     }
 
-    // ---------- Schreiben ----------
+    // ---------- Writing ----------
 
-    /** Legt den Kontakt an ([rawId] = null) oder ersetzt seine Daten durch den Stand des Servers. */
+    /** Creates the contact ([rawId] = null) or replaces its data with the server's state. */
     private fun write(rawId: Long?, c: Contact) {
         val ops = Batch(provider, maxSize = Int.MAX_VALUE)
         val photo = c.photo?.let(::decodePhoto)
@@ -426,7 +426,7 @@ class ContactsSyncer(
             put(RawContacts.SYNC2, c.addressBookId)
             put(RawContacts.DIRTY, 0)
             put(RawContacts.SYNC4, SYNC_FORMAT)
-            // Stand des Fotos: ohne Foto sofort bekannt, sonst nach dem Schreiben (rememberPhoto)
+            // State of the photo: known immediately without a photo, otherwise after writing (rememberPhoto)
             if (photo == null) put(RawContacts.SYNC3, "")
         }
         val back: Int?
@@ -451,10 +451,10 @@ class ContactsSyncer(
             ops.add(b.withValues(ContentValues().apply { put(Data.MIMETYPE, mimetype); values() }).build())
         }
 
-        // Ein Spitzname ist der Anzeigename. Android bildet ihn aber aus Vor- und Nachname, sobald es sie gibt:
-        // Deshalb steht dann nur der Spitzname als Name auf dem Gerät, die echten Namensteile in einer eigenen Zeile.
-        // Ohne Namensteile leitet der Server den Anzeigenamen aus Firma, E-Mail oder Telefon ab – genauso wie
-        // Android. Den abgeleiteten Namen nicht als Namen speichern, sonst zerlegt Android ihn in Vor-/Nachname.
+        // A nickname is the display name. But Android builds it from first and last name as soon as they exist:
+        // so in that case only the nickname is stored as the name on the device, the real name parts in a separate row.
+        // Without name parts the server derives the display name from company, email or phone – just like
+        // Android. Don't store the derived name as a name, otherwise Android splits it into first/last name.
         val nickname = c.nickname.trim()
         val nameParts = listOf(c.prefix, c.givenName, c.additionalNames, c.familyName, c.suffix)
         val derived = c.fullName.isBlank() || c.fullName == c.organization ||
@@ -526,7 +526,7 @@ class ContactsSyncer(
         rememberPhoto(id)
     }
 
-    /** Merkt sich den Stand des Fotos, wie ihn der Provider gespeichert hat, um spätere Änderungen zu erkennen. */
+    /** Remembers the state of the photo as the provider stored it, to detect later changes. */
     private fun rememberPhoto(rawId: Long) {
         val marker = provider.query(
             dataUri, arrayOf(Data._ID, Data.DATA_VERSION), "${Data.RAW_CONTACT_ID} = ? AND ${Data.MIMETYPE} = ?",
@@ -535,7 +535,7 @@ class ContactsSyncer(
         provider.update(rawContactUri(rawId), ContentValues().apply { put(RawContacts.SYNC3, marker) }, null, null)
     }
 
-    /** data:-URL → JPEG/PNG-Bytes, große Fotos verkleinert; `null` bei http(s)-Links oder ungültigen Daten. */
+    /** data: URL → JPEG/PNG bytes, large photos scaled down; `null` for http(s) links or invalid data. */
     private fun decodePhoto(dataUrl: String): ByteArray? {
         if (!dataUrl.startsWith("data:")) return null
         val base64 = dataUrl.substringAfter(',', "").takeIf { it.isNotEmpty() } ?: return null

@@ -8,7 +8,7 @@ export const useCalendarsStore = defineStore('calendars', () => {
   const list = ref<Calendar[]>([])
   const byId = computed(() => new Map(list.value.map((c) => [c.id, c])))
   const visibleIds = computed(() => new Set(list.value.filter((c) => c.visible).map((c) => c.id)))
-  /** Kalender, in die Termine eingetragen werden können (ohne Geburtstagskalender) */
+  /** Calendars that events can be added to (without the birthday calendar) */
   const writable = computed(() => list.value.filter((c) => c.kind !== 'birthdays'))
 
   async function load() {
@@ -29,7 +29,7 @@ export const useCalendarsStore = defineStore('calendars', () => {
     list.value = list.value.filter((x) => x.id !== id)
   }
   async function toggleVisible(cal: Calendar) {
-    cal.visible = !cal.visible // optimistisch
+    cal.visible = !cal.visible // optimistic
     try {
       await update(cal.id, { name: cal.name, color: cal.color, description: cal.description, visible: cal.visible })
     } catch (e) {

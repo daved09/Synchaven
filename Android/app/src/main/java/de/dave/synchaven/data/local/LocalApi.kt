@@ -57,30 +57,30 @@ import okhttp3.ResponseBody
 import okhttp3.ResponseBody.Companion.toResponseBody
 import okio.Buffer
 
-/** Schlüssel des [OfflineStore] für die Daten des lokalen Modus */
+/** Key of the [OfflineStore] for the local mode's data */
 const val LOCAL_ACCOUNT = "local"
 
-/** Standardliste wie beim Server („Meine Aufgaben“) */
+/** Default list as on the server ("Meine Aufgaben") */
 private const val DEFAULT_TASK_LIST = "Meine Aufgaben"
 private const val DEFAULT_TASK_COLOR = "#1A73E8"
 
-/** Legt die Standard-Aufgabenliste an, falls es noch keine gibt. */
+/** Creates the default task list if there is none yet. */
 private fun OfflineData.withDefaultTaskList(ts: String): OfflineData =
     if (!taskLists.isNullOrEmpty()) this
     else copy(taskLists = listOf(TaskList(LocalApi.newId(), DEFAULT_TASK_LIST, DEFAULT_TASK_COLOR, createdAt = ts, updatedAt = ts)))
 
 /**
- * „Server“ des lokalen Modus: dieselbe Schnittstelle wie die REST API, aber gespeichert im [OfflineStore] unter
- * [LOCAL_ACCOUNT]. So funktionieren Repositories und die Synchronisierung mit Android ohne Änderungen auch ganz ohne
- * Weboberfläche. Prüfungen und Fehlermeldungen entsprechen denen des Servers (siehe backend/src/routes).
+ * "Server" of the local mode: the same interface as the REST API, but stored in the [OfflineStore] under
+ * [LOCAL_ACCOUNT]. This way the repositories and the sync with Android work unchanged, even entirely without
+ * the web UI. Validation and error messages match those of the server (see backend/src/routes).
  */
 class LocalApi(
     private val store: OfflineStore,
-    /** Standardansicht aus der Sitzung (für [me]) */
+    /** Default view from the session (for [me]) */
     private val defaultView: () -> String,
 ) : SyncHavenApi {
 
-    // ---------- Speicher ----------
+    // ---------- Storage ----------
 
     private suspend fun data(): OfflineData {
         store.awaitReady()
@@ -88,13 +88,13 @@ class LocalApi(
         return store.data.value
     }
 
-    /** Ändert die lokalen Daten atomar; [transform] darf mit [bad]/[notFound] abbrechen. */
+    /** Changes the local data atomically; [transform] may abort with [bad]/[notFound]. */
     private suspend fun edit(transform: (OfflineData) -> OfflineData): OfflineData {
         data()
         return store.update(transform)
     }
 
-    /** Legt beim ersten Öffnen einen Standardkalender und ein Adressbuch an (wie die Registrierung beim Server). */
+    /** Creates a default calendar and an address book when first opened (like registration on the server). */
     suspend fun ensureInitialized() {
         edit { d ->
             val ts = now()
@@ -110,7 +110,7 @@ class LocalApi(
         }
     }
 
-    // ---------- Konto ----------
+    // ---------- Account ----------
 
     override suspend fun info(server: String): ServerInfo = localInfo()
     override suspend fun currentInfo(): ServerInfo = localInfo()
@@ -119,7 +119,7 @@ class LocalApi(
     override suspend fun refreshToken(): AuthResponse = unavailable()
     override suspend fun me(): User = User(id = LOCAL_ACCOUNT, email = "", defaultView = defaultView())
 
-    /** Lokal gibt es nur die Standardansicht; die speichert die Sitzung. */
+    /** Locally there is only the default view; the session stores it. */
     override suspend fun updateMe(body: UpdateMeRequest): User {
         if (body.name != null || body.email != null || body.newPassword != null) unavailable()
         return me().let { u -> body.defaultView?.let { u.copy(defaultView = it) } ?: u }
@@ -127,8 +127,8 @@ class LocalApi(
 
     private fun localInfo() = ServerInfo(name = "Synchaven (lokal)")
 
-    // ---------- Aufgaben ----------
-    // Wie backend/src/routes/tasks.rs: mindestens eine Liste, die letzte ist nicht löschbar.
+    // ---------- Tasks ----------
+    // Like backend/src/routes/tasks.rs: at least one list, the last one cannot be deleted.
 
     override suspend fun taskLists(): List<TaskList> {
         if (data().taskLists.isNullOrEmpty()) edit { it.withDefaultTaskList(now()) }
@@ -173,7 +173,7 @@ class LocalApi(
         return ClearCompletedResult(deleted)
     }
 
-    /** Offene vor erledigten, dann nach Fälligkeit (ohne Datum zuletzt) – wie `GET /tasks`. */
+    /** Open before completed, then by due date (without date last) – like `GET /tasks`. */
     override suspend fun tasks(listId: String?): List<Task> = data().tasks.orEmpty()
         .filter { listId == null || it.listId == listId }
         .sortedWith(compareBy<Task>({ it.completed }, { it.due == null }, { it.due?.let(::parse) }, { it.createdAt }, { it.id }))
@@ -238,7 +238,7 @@ class LocalApi(
         return name to color
     }
 
-    /** Wie `resolve_parent` im Backend: eine Ebene tief, die Hauptaufgabe muss es geben. */
+    /** Like `resolve_parent` in the backend: one level deep, the parent task must exist. */
     private fun validateParent(d: OfflineData, existing: Task?, input: TaskInput) {
         val parentId = input.parentId ?: return
         if (existing?.id == parentId) bad("Eine Aufgabe kann nicht ihre eigene Unteraufgabe sein")
@@ -255,7 +255,7 @@ class LocalApi(
         if (input.due != null && parse(input.due) == null) bad("Ungültige Fälligkeit")
     }
 
-    // ---------- Kalender ----------
+    // ---------- Calendars ----------
 
     override suspend fun calendars(): List<Calendar> = data().calendars.orEmpty()
 
@@ -310,8 +310,8 @@ class LocalApi(
         return ICal.export(cal.name, events, reminders = { it.effectiveReminders(cal) }).toResponseBody("text/calendar; charset=utf-8".toMediaType())
     }
 
-    /** Wie `POST /calendars/{id}/import`: Termine mit gleicher UID werden aktualisiert, geänderte Einzelvorkommen
-     *  einer Serie werden eigene Termine und in der Serie ausgenommen. */
+    /** Like `POST /calendars/{id}/import`: events with the same UID are updated, modified single occurrences
+     *  of a series become separate events and are excluded from the series. */
     override suspend fun importCalendar(id: String, timezone: String, ics: RequestBody): ImportResult {
         ensureWritable(calendar(data(), id))
         val zone = ICal.zoneOrNull(timezone) ?: ZoneOffset.UTC
@@ -338,7 +338,7 @@ class LocalApi(
             }
             for (e in masters) {
                 val uid = e.uid?.takeIf { it.isNotEmpty() } ?: newUid()
-                // Eine ungültige RRULE soll nicht den ganzen Termin verwerfen
+                // An invalid RRULE should not discard the whole event
                 val ev = runCatching { validateEvent(input(e, e.rrule), "") }.recoverCatching {
                     validateEvent(input(e, null), "").also { skipped += "${e.title}: Wiederholungsregel ignoriert" }
                 }
@@ -377,7 +377,7 @@ class LocalApi(
         return name to color
     }
 
-    // ---------- Termine ----------
+    // ---------- Events ----------
 
     override suspend fun occurrences(start: String, end: String, query: String?): List<Occurrence> {
         val from = parse(start) ?: bad("Ungültiger Zeitpunkt: $start")
@@ -436,7 +436,7 @@ class LocalApi(
     private fun validReminders(list: List<Int>, allDay: Boolean): List<Int> =
         try { Reminders.validate(list, allDay) } catch (e: IllegalArgumentException) { bad(e.message.orEmpty()) }
 
-    /** Wie `EventData::validate` des Servers: liefert den gespeicherten Termin (ohne UID, Erinnerungen geprüft). */
+    /** Like the server's `EventData::validate`: returns the stored event (without UID, reminders validated). */
     private fun validateEvent(input: EventInput, id: String): CalEvent {
         input.applyReminders(null)?.let { validReminders(it, input.allDay) }
         val title = input.title.trim()
@@ -446,7 +446,7 @@ class LocalApi(
         val s = parse(input.start) ?: bad("Ungültiger Beginn: ${input.start}")
         val e = parse(input.end) ?: bad("Ungültiges Ende: ${input.end}")
         val (start, end) = if (input.allDay) {
-            // Ganztägig: Mitternacht UTC, Ende exklusiv
+            // All-day: midnight UTC, end exclusive
             val ds = midnightUtc(s)
             val de = midnightUtc(e)
             ds to if (de <= ds) ds.plus(Duration.ofDays(1)) else de
@@ -464,7 +464,7 @@ class LocalApi(
         )
     }
 
-    /** Großschreiben, `RRULE:` entfernen und UNTIL wie der Server in UTC umrechnen. */
+    /** Upper-case, remove `RRULE:` and convert UNTIL to UTC like the server. */
     private fun normalizeRrule(rule: String, zone: ZoneId, allDay: Boolean): String {
         val parts = rule.removePrefix("RRULE:").removePrefix("rrule:").uppercase().split(';')
             .map { it.trim() }.filter { it.isNotEmpty() }
@@ -479,18 +479,18 @@ class LocalApi(
         if (v.endsWith("Z")) return v
         val utc = runCatching {
             val date = LocalDate.parse(v, DATE)
-            // Ein reines Datum schließt den ganzen Tag ein
+            // A plain date includes the whole day
             if (allDay) date.atStartOfDay(ZoneOffset.UTC).toInstant().plusSeconds(86_399)
             else date.atTime(23, 59, 59).atZone(zone).toInstant()
         }.recoverCatching {
             val local = LocalDateTime.parse(v, DATE_TIME)
             if (allDay) local.toLocalDate().atStartOfDay(ZoneOffset.UTC).toInstant().plusSeconds(86_399)
             else local.atZone(zone).toInstant()
-        }.getOrNull() ?: return v // wird beim Prüfen abgelehnt
+        }.getOrNull() ?: return v // rejected during validation
         return UNTIL_UTC.format(utc)
     }
 
-    // ---------- Adressbücher ----------
+    // ---------- Address books ----------
 
     override suspend fun addressBooks(): List<AddressBook> {
         if (data().addressBooks.isNullOrEmpty()) ensureInitialized()
@@ -539,7 +539,7 @@ class LocalApi(
         return text.toResponseBody("text/vcard; charset=utf-8".toMediaType())
     }
 
-    /** Wie `POST /addressbooks/{id}/import`: Kontakte mit gleicher UID werden aktualisiert. */
+    /** Like `POST /addressbooks/{id}/import`: contacts with the same UID are updated. */
     override suspend fun importAddressBook(id: String, vcf: RequestBody): ContactImportResult {
         data().addressBooks.orEmpty().firstOrNull { it.id == id } ?: notFound()
         val cards = VCard.parseCards(vcf.readText())
@@ -551,11 +551,11 @@ class LocalApi(
         for (raw in cards) {
             val card = VCard.normalizeImport(raw)
             val parsed = VCard.extract(card)
-            // Karten ohne UID erhalten eine aus dem Inhalt abgeleitete, damit ein erneuter Import keine Duplikate erzeugt
+            // Cards without a UID get one derived from their content, so importing again doesn't create duplicates
             val uid = parsed.uid.ifEmpty { stableUid(raw.serialize()) }
             val base = parsed.toInput().copy(
                 addressBookId = id,
-                // Ungültige Angaben verwerfen statt die ganze Karte
+                // Discard invalid values instead of the whole card
                 birthday = parsed.birthday.takeIf { Birthdays.parse(it) != null }.orEmpty(),
                 photo = parsed.photo?.takeIf { it.length <= MAX_PHOTO && it.startsWith("data:") } ?: "",
             ).normalizedInput()
@@ -591,7 +591,7 @@ class LocalApi(
         return n
     }
 
-    // ---------- Kontakte ----------
+    // ---------- Contacts ----------
 
     override suspend fun contacts(addressBookId: String?): List<Contact> =
         data().contacts.orEmpty().filter { addressBookId == null || it.addressBookId == addressBookId }
@@ -620,7 +620,7 @@ class LocalApi(
         store.savePhoto(id, "", null)
     }
 
-    /** Prüft und speichert einen Kontakt samt Foto (`null` = unverändert, `""` = entfernen). */
+    /** Validates and stores a contact including its photo (`null` = unchanged, `""` = remove). */
     private suspend fun save(id: String, uid: String, body: ContactInput, previous: Contact?): Contact {
         val input = body.normalizedInput()
         validateContact(input)
@@ -638,7 +638,7 @@ class LocalApi(
             urls = input.urls, birthday = input.birthday, note = input.note,
             categories = input.categories ?: previous?.categories.orEmpty(), hasPhoto = photo != null,
         )
-        // Foto zuerst, damit es zum neuen ETag schon da ist, wenn die Liste ihn zeigt
+        // Photo first, so it is already there for the new ETag when the list shows it
         store.savePhoto(id, contact.etag, photo)
         edit { d ->
             val list = d.contacts.orEmpty()
@@ -662,7 +662,7 @@ class LocalApi(
 
     private fun OfflineData.withBirthdays() = Birthdays.sync(this, ::newId, now())
 
-    // ---------- Hilfen ----------
+    // ---------- Helpers ----------
 
     private suspend fun RequestBody.readText(): String = Buffer().also { writeTo(it) }.readUtf8()
 
@@ -686,13 +686,13 @@ class LocalApi(
         private fun notFound(): Nothing = throw ApiException(404, "not_found", "Nicht gefunden")
         private fun unavailable(): Nothing = throw ApiException(400, "local_mode", "Im lokalen Modus nicht verfügbar")
 
-        /** UID im UUID-Format aus dem Inhalt einer Karte */
+        /** UID in UUID format from the content of a card */
         private fun stableUid(text: String): String {
             val h = MessageDigest.getInstance("SHA-256").digest(text.toByteArray()).joinToString("") { "%02x".format(it) }
             return "${h.substring(0, 8)}-${h.substring(8, 12)}-${h.substring(12, 16)}-${h.substring(16, 20)}-${h.substring(20, 32)}"
         }
 
-        /** Wie `ContactData::normalize` des Servers: Leerraum entfernen, leere Einträge weglassen, Namen bilden. */
+        /** Like the server's `ContactData::normalize`: trim whitespace, omit empty entries, build the name. */
         fun ContactInput.normalizedInput(): ContactInput {
             fun known(t: String): String {
                 val lower = t.trim().lowercase()
@@ -711,8 +711,8 @@ class LocalApi(
                     listOf(a.poBox, a.extended, a.street, a.locality, a.region, a.postalCode, a.country).any { it.isNotBlank() }
                 }.map { it.copy(type = known(it.type)) },
             )
-            // Spitzname hat Vorrang, sonst mit Namensteilen immer daraus bilden, sonst einen vorhandenen Namen
-            // behalten (wie im Backend)
+            // A nickname takes precedence; otherwise, with name parts, always build it from them; otherwise keep an existing
+            // name (as in the backend)
             val name = n.nickname.ifEmpty {
                 listOf(n.prefix, n.givenName, n.additionalNames, n.familyName, n.suffix)
                     .filter { it.isNotEmpty() }.joinToString(" ")

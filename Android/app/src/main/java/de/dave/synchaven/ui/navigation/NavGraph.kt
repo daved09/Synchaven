@@ -25,7 +25,7 @@ import de.dave.synchaven.ui.screens.TasksScreen
 
 @Composable
 fun SyncHavenNavGraph(navController: NavHostController, startLoggedIn: Boolean) {
-    // Wechsel zwischen den Hauptbereichen ersetzt den aktuellen Bereich; „Zurück“ führt zum Kalender
+    // Switching between the main sections replaces the current section; "Back" leads to the calendar
     val selectTab: (MainTab) -> Unit = { tab ->
         val route: Any = when (tab) {
             MainTab.CALENDAR -> CalendarRoute
@@ -38,15 +38,15 @@ fun SyncHavenNavGraph(navController: NavHostController, startLoggedIn: Boolean) 
             restoreState = true
         }
     }
-    // Einstellungen liegen über dem aktuellen Bereich (aus dem ⋮-Menü), „Zurück“ kehrt dorthin zurück
+    // Settings sit on top of the current section (from the ⋮ menu), "Back" returns there
     val openSettings: () -> Unit = { navController.navigate(SettingsRoute) { launchSingleTop = true } }
     NavHost(
         navController = navController,
         startDestination = if (startLoggedIn) CalendarRoute else LoginRoute,
         enterTransition = { fadeIn() },
         exitTransition = { fadeOut() },
-        // Zurück-Geste (Predictive Back, Material 3): Die aktuelle Seite schrumpft mit dem Finger und
-        // rückt zur Wischseite, die vorherige liegt unbewegt dahinter; beim Abschließen blendet sie aus.
+        // Back gesture (predictive back, Material 3): the current page shrinks with the finger and
+        // moves towards the swipe edge, the previous one sits still behind it; on completion it fades out.
         predictivePopEnterTransition = { EnterTransition.None },
         predictivePopExitTransition = { swipeEdge ->
             val pivotX = if (swipeEdge == BackEventCompat.EDGE_LEFT) 0.8f else 0.2f
@@ -97,7 +97,7 @@ fun SyncHavenNavGraph(navController: NavHostController, startLoggedIn: Boolean) 
             ContactEditScreen(
                 onClose = { navController.popBackStack() },
                 onCreated = { id ->
-                    // Neuer Kontakt: Editor durch die Detailansicht ersetzen
+                    // New contact: replace the editor with the detail view
                     navController.navigate(ContactDetailRoute(id)) {
                         popUpTo<ContactEditRoute> { inclusive = true }
                     }
@@ -107,5 +107,5 @@ fun SyncHavenNavGraph(navController: NavHostController, startLoggedIn: Boolean) 
     }
 }
 
-/** Bleibt während der Geste fast deckend und blendet erst gegen Ende aus. */
+/** Stays almost opaque during the gesture and only fades out towards the end. */
 private val LateFade = CubicBezierEasing(0.8f, 0f, 1f, 1f)

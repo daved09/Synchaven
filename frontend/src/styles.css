@@ -1,4 +1,4 @@
-/* Material 3 Typografie-Skala (Roboto) */
+/* Material 3 type scale (Roboto) */
 html, body { font-family: 'Roboto', system-ui, sans-serif; overflow: hidden; }
 .v-application { font-family: 'Roboto', system-ui, sans-serif; background: rgb(var(--v-theme-surface)); }
 .text-display-small { font-size: 36px; line-height: 44px; font-weight: 400; }
@@ -17,5 +17,5 @@ html, body { font-family: 'Roboto', system-ui, sans-serif; overflow: hidden; }
 button { font: inherit; color: inherit; background: none; border: none; cursor: pointer; }
 button:focus-visible { outline: 2px solid rgb(var(--v-theme-primary)); outline-offset: 1px; }
 
-/* Während ein Termin gezogen wird */
+/* While an event is being dragged */
 body.event-dragging, body.event-dragging * { cursor: grabbing !important; user-select: none; }

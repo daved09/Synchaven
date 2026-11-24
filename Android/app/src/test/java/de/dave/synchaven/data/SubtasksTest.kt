@@ -15,7 +15,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** Unteraufgaben: dieselben Regeln wie im Backend, im Cache, in der Warteschlange und in der Anzeige */
+/** Subtasks: the same rules as in the backend, in the cache, in the queue and in the display */
 class SubtasksTest {
     private val parent = Task("p", "l1", "Umzug", createdAt = "2026-11-20T10:00:00Z")
     private val sub1 = Task("s1", "l1", "Kartons", createdAt = "2026-11-20T10:01:00Z", parentId = "p")
@@ -27,7 +27,7 @@ class SubtasksTest {
     @Test
     fun parentIdIsOnlySentWhenSet() {
         val plain = AppJson.encodeToString(TaskInput.serializer(), TaskInput("l1", "A"))
-        // Fehlt das Feld, bleibt die Zuordnung auf dem Server erhalten – `null` würde sie aufheben
+        // If the field is missing, the assignment on the server is kept – `null` would remove it
         assertFalse(plain, plain.contains("parent_id"))
         val sub = AppJson.encodeToString(TaskInput.serializer(), TaskInput("l1", "A", parentId = "p"))
         assertTrue(sub, sub.contains("\"parent_id\":\"p\""))
@@ -63,7 +63,7 @@ class SubtasksTest {
         val reopened = done.withTaskCompleted("s1", false, "", set).associateBy { it.id }
         assertFalse(reopened.getValue("s1").completed)
         assertFalse(reopened.getValue("p").completed)
-        // Die andere Unteraufgabe bleibt erledigt
+        // The other subtask stays completed
         assertTrue(reopened.getValue("s2").completed)
     }
 

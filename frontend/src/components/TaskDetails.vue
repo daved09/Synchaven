@@ -11,7 +11,7 @@ const emit = defineEmits<{ edit: [task: Task]; delete: [task: Task]; toggle: [ta
 const tasks = useTasksStore()
 const notify = useNotifyStore()
 
-// Immer den aktuellen Stand aus dem Store zeigen (z. B. nach dem Abhaken)
+// Always show the current state from the store (e.g. after checking off)
 const task = computed(() => tasks.tasks.find((t) => t.id === props.taskId) ?? null)
 const list = computed(() => (task.value ? tasks.listById.get(task.value.list_id) : undefined))
 const due = computed(() => {

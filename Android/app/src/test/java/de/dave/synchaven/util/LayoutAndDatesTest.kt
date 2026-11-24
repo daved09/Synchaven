@@ -20,7 +20,7 @@ class LayoutAndDatesTest {
 
     @Test
     fun monthRangeCoversFullWeeks() {
-        // November 2026 beginnt an einem Sonntag → Raster ab Montag, 26.10.
+        // November 2026 starts on a Sunday → grid from Monday, Oct 26
         val r = viewRange(ViewMode.MONTH, LocalDate.of(2026, 11, 22), DayOfWeek.MONDAY)
         assertEquals(LocalDate.of(2026, 10, 26), r.start)
         assertEquals(0, r.days.size % 7)
@@ -31,7 +31,7 @@ class LayoutAndDatesTest {
     fun titles() {
         val date = LocalDate.of(2026, 11, 30)
         val week = viewRange(ViewMode.WEEK, date, DayOfWeek.MONDAY)
-        // KW 49 läuft vom 30.11. bis 6.12. – zwei Monate im Titel
+        // Week 49 runs from Nov 30 to Dec 6 – two months in the title
         assertEquals(
             UiText.Res(R.string.view_title_week, listOf(UiText.Res(R.string.month_range, listOf("Nov.", "Dez. 2026")), 49)),
             viewTitle(ViewMode.WEEK, date, week),
@@ -78,7 +78,7 @@ class LayoutAndDatesTest {
         val items = layoutRow(events, mon, 7)
         assertEquals(listOf(0, 1, 2, 3), items.map { it.lane })
         val clamped = clampRow(items, 7, 3)
-        // Zwei sichtbar, letzte Spur macht Platz für „+2“
+        // Two visible, the last lane makes room for "+2"
         assertEquals(2, clamped.visible.size)
         assertEquals(2, clamped.more[0])
     }

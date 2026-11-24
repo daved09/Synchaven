@@ -40,9 +40,9 @@ pub struct AppState {
     pub jwt: Arc<auth::JwtKeys>,
     pub dav_auth: Arc<dav::AuthCache>,
     pub push: Arc<push::WebPush>,
-    /// Einstellungen aus der Verwaltung (Registrierung, Gültigkeit der Anmeldung)
+    /// Settings from the admin page (registration, session lifetime)
     pub settings: Arc<settings::SettingsStore>,
-    /// Startzeitpunkt des Servers (für die Übersicht in der Verwaltung)
+    /// Server start time (for the overview in the admin page)
     pub started_at: chrono::DateTime<chrono::Utc>,
 }
 
@@ -100,18 +100,18 @@ async fn main() -> anyhow::Result<()> {
         CorsLayer::new().allow_origin(origins).allow_methods(Any).allow_headers(Any)
     };
 
-    // Single-Page-App: unbekannte Pfade liefern index.html aus.
+    // Single-page app: unknown paths serve index.html.
     let index = config.static_dir.join("index.html");
     let spa = ServeDir::new(&config.static_dir).fallback(ServeFile::new(index));
 
     let app = Router::new()
         .nest("/api", routes::api_router().layer(cors))
-        // CardDAV (DAVx⁵ u. a.)
+        // CardDAV (DAVx⁵ and others)
         .route("/.well-known/carddav", any(dav::well_known))
         .route("/dav", any(dav::handle))
         .route("/dav/", any(dav::handle))
         .route("/dav/{*path}", any(dav::handle))
-        // Manche Clients fragen zuerst die Startseite per PROPFIND an
+        // Some clients first query the start page via PROPFIND
         .route("/", get_service(spa.clone()).fallback(dav::handle))
         .fallback_service(spa)
         .layer(axum::middleware::from_fn(cache_headers))
@@ -125,8 +125,8 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-/// Gehashte Build-Dateien dürfen dauerhaft gecacht werden, alles andere (v. a. index.html)
-/// muss neu geprüft werden – sonst sehen Browser nach einem Update die alte Version.
+/// Hashed build files may be cached permanently, everything else (especially index.html)
+/// must be revalidated – otherwise browsers see the old version after an update.
 async fn cache_headers(req: axum::extract::Request, next: axum::middleware::Next) -> axum::response::Response {
     use axum::http::header::CACHE_CONTROL;
     let path = req.uri().path().to_owned();
@@ -157,7 +157,7 @@ async fn shutdown_signal() {
     tokio::select! { _ = ctrl_c => {}, _ = terminate => {} }
 }
 
-/// `synchaven healthcheck` – für den Docker-HEALTHCHECK (ohne curl im Image).
+/// `synchaven healthcheck` – for the Docker HEALTHCHECK (no curl in the image).
 async fn healthcheck() -> anyhow::Result<()> {
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     let bind: std::net::SocketAddr = std::env::var("BIND_ADDR")

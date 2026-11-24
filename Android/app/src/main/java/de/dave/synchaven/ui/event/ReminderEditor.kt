@@ -42,7 +42,7 @@ import de.dave.synchaven.util.FMT_TIME
 import de.dave.synchaven.util.Reminders
 import java.time.LocalTime
 
-/** Liste von Erinnerungen (Minuten vor Beginn) mit Entfernen-Knöpfen und einem Menü zum Hinzufügen. */
+/** List of reminders (minutes before the start) with remove buttons and a menu for adding. */
 @Composable
 fun ReminderEditor(reminders: List<Int>, allDay: Boolean, onChange: (List<Int>) -> Unit, modifier: Modifier = Modifier) {
     val res = LocalContext.current.resources

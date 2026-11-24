@@ -9,11 +9,11 @@ import de.dave.synchaven.toUiText
 import de.dave.synchaven.uiText
 import kotlinx.serialization.SerializationException
 
-/** Anzeigbare Fehlermeldung für Ausnahmen aus Netzwerk- und Datenschicht. */
+/** Displayable error message for exceptions from the network and data layer. */
 fun Throwable.userMessage(): UiText = when {
     this is ApiException -> when {
         status >= 500 -> uiText(R.string.error_server, status)
-        // Meldungen des Servers sind bereits anzeigbar (deutsch, siehe docs/API.md)
+        // Messages from the server are already displayable (German, see docs/API.md)
         serverMessage.isNotBlank() -> serverMessage.toUiText()
         else -> uiText(R.string.error_http, status)
     }
@@ -29,7 +29,7 @@ fun Throwable.userMessage(): UiText = when {
     else -> message?.toUiText() ?: uiText(R.string.error_unknown)
 }
 
-/** Android 17 blockiert Sockets ins lokale Netz mit EPERM, wenn ACCESS_LOCAL_NETWORK fehlt. */
+/** Android 17 blocks sockets to the local network with EPERM if ACCESS_LOCAL_NETWORK is missing. */
 private fun Throwable.isLocalNetworkDenied(): Boolean =
     generateSequence(this) { it.cause }.any { e ->
         val msg = e.message.orEmpty()

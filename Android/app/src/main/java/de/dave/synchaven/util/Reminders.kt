@@ -25,30 +25,30 @@ import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonPrimitive
 
 /**
- * Erinnerungen an Termine – dieselbe Semantik wie `backend/src/reminders.rs`: Minuten vor Beginn. Bei ganztägigen
- * Terminen bezieht sich der Wert auf Mitternacht in der Zeitzone des Geräts; negative Werte sind eine Uhrzeit am
- * Tag selbst (-540 = 09:00).
+ * Event reminders – the same semantics as `backend/src/reminders.rs`: minutes before the start. For all-day
+ * events the value refers to midnight in the device's time zone; negative values are a time on the
+ * day itself (-540 = 09:00).
  */
 object Reminders {
     const val MAX_COUNT = 5
     const val DAY = 1440
     const val MAX_BEFORE = 4 * 7 * DAY
 
-    /** Voreinstellung neuer Kalender (wie der Server): 15 Minuten vorher bzw. ganztägig am Tag selbst um 09:00 */
+    /** Preset for new calendars (like the server): 15 minutes before, or all-day on the day itself at 09:00 */
     val DEFAULT_TIMED = listOf(15)
     val DEFAULT_ALL_DAY = listOf(-(9 * 60))
 
     val TIMED_PRESETS = listOf(0, 5, 10, 15, 30, 60, 120, DAY, 2 * DAY, 7 * DAY)
     val ALL_DAY_PRESETS = listOf(allDayMinutes(0, 9), allDayMinutes(1, 9), allDayMinutes(1, 18), allDayMinutes(2, 9), allDayMinutes(7, 9))
 
-    /** Minuten für „[daysBefore] Tage vorher um [hour]:[minute]“ bei ganztägigen Terminen */
+    /** Minutes for "[daysBefore] days before at [hour]:[minute]" for all-day events */
     fun allDayMinutes(daysBefore: Int, hour: Int, minute: Int = 0) = daysBefore * DAY - (hour * 60 + minute)
 
     fun isValid(minutes: Int, allDay: Boolean) = minutes <= MAX_BEFORE && minutes >= if (allDay) -(DAY - 1) else 0
 
     fun sorted(list: List<Int>) = list.distinct().sorted()
 
-    /** Tage vorher, Stunde, Minute einer Erinnerung an einen ganztägigen Termin */
+    /** Days before, hour, minute of a reminder for an all-day event */
     fun splitAllDay(minutes: Int): Triple<Int, Int, Int> {
         val days = maxOf(0, Math.floorDiv(minutes + DAY - 1, DAY))
         val ofDay = days * DAY - minutes
@@ -76,7 +76,7 @@ object Reminders {
         }
     }
 
-    /** Wie die Prüfung des Servers; wirft [IllegalArgumentException] mit verständlicher Meldung. */
+    /** Like the server's validation; throws [IllegalArgumentException] with an understandable message. */
     fun validate(list: List<Int>, allDay: Boolean): List<Int> {
         val l = sorted(list)
         require(l.size <= MAX_COUNT) { "Höchstens $MAX_COUNT Erinnerungen pro Termin" }
@@ -87,20 +87,20 @@ object Reminders {
         return l
     }
 
-    /** Eine fällige Erinnerung an ein Vorkommen */
+    /** A due reminder for an occurrence */
     data class Due(
         val event: CalEvent,
-        /** Beginn des Vorkommens (ganztägig: Mitternacht UTC des Datums) */
+        /** Start of the occurrence (all-day: midnight UTC of the date) */
         val start: Instant,
         val end: Instant,
         val minutes: Int,
-        /** Zeitpunkt der Erinnerung */
+        /** Time of the reminder */
         val at: Instant,
     ) {
         val key get() = "${event.id}_${start.epochSecond}_$minutes"
     }
 
-    /** Alle Erinnerungen des Termins, deren Zeitpunkt in (from, to] liegt; [zone] bestimmt den Beginn ganztägiger Termine. */
+    /** All reminders of the event whose time lies in (from, to]; [zone] determines the start of all-day events. */
     fun due(ev: CalEvent, reminders: List<Int>, zone: ZoneId, from: Instant, to: Instant): List<Due> {
         if (reminders.isEmpty()) return emptyList()
         val start = parseInstant(ev.start) ?: return emptyList()
@@ -122,24 +122,24 @@ object Reminders {
         }
     }
 
-    /** Frühester Erinnerungszeitpunkt in (from, to] oder `null` */
+    /** Earliest reminder time in (from, to] or `null` */
     fun next(events: List<CalEvent>, calendars: List<Calendar>, zone: ZoneId, from: Instant, to: Instant): Instant? {
         val byId = calendars.associateBy { it.id }
         return events.asSequence().flatMap { due(it, it.effectiveReminders(byId[it.calendarId]), zone, from, to) }
             .minOfOrNull { it.at }
     }
 
-    /** Erinnerung an ganztägige Aufgaben: am Fälligkeitstag um 09:00 (wie der Server) */
+    /** Reminder for all-day tasks: on the due date at 09:00 (like the server) */
     const val TASK_ALL_DAY_MINUTE = 9 * 60
 
-    /** Eine fällige Erinnerung an eine Aufgabe */
+    /** A due reminder for a task */
     data class TaskDue(val task: Task, val at: Instant) {
         val key get() = "task_${task.id}_${task.due}"
     }
 
     /**
-     * Zeitpunkt der Erinnerung an eine offene Aufgabe (wie Google Tasks): zur Fälligkeit bzw. bei ganztägigen
-     * Aufgaben am Fälligkeitstag um 09:00 in [zone]; `null` bei erledigten Aufgaben und Aufgaben ohne Datum.
+     * Time of the reminder for an open task (like Google Tasks): at the due time, or for all-day
+     * tasks on the due date at 09:00 in [zone]; `null` for completed tasks and tasks without a date.
      */
     fun taskReminderAt(task: Task, zone: ZoneId): Instant? {
         if (task.completed) return null
@@ -149,27 +149,27 @@ object Reminders {
         } else due
     }
 
-    /** Erinnerungen an Aufgaben, deren Zeitpunkt in (from, to] liegt */
+    /** Reminders for tasks whose time lies in (from, to] */
     fun dueTasks(tasks: List<Task>, zone: ZoneId, from: Instant, to: Instant): List<TaskDue> =
         tasks.mapNotNull { t -> taskReminderAt(t, zone)?.takeIf { it > from && it <= to }?.let { TaskDue(t, it) } }
 
-    /** Frühester Erinnerungszeitpunkt einer Aufgabe in (from, to] oder `null` */
+    /** Earliest reminder time of a task in (from, to] or `null` */
     fun nextTask(tasks: List<Task>, zone: ZoneId, from: Instant, to: Instant): Instant? =
         dueTasks(tasks, zone, from, to).minOfOrNull { it.at }
 
     private fun parseInstant(s: String): Instant? = runCatching { java.time.OffsetDateTime.parse(s).toInstant() }.getOrNull()
 }
 
-/** Eigene Erinnerungen oder die Standard-Erinnerungen des Kalenders */
+/** Own reminders or the calendar's default reminders */
 fun CalEvent.effectiveReminders(calendar: Calendar?): List<Int> =
     reminders ?: calendar?.defaultReminders(allDay).orEmpty()
 
-/** Wert für [EventInput.reminders]: eigene Erinnerungen oder `null` für den Standard des Kalenders */
+/** Value for [EventInput.reminders]: own reminders or `null` for the calendar default */
 fun remindersField(list: List<Int>?): JsonElement = list?.let { l -> JsonArray(l.map { JsonPrimitive(it) }) } ?: JsonNull
 
 /**
- * Auswirkung von [EventInput.reminders] auf einen bestehenden Termin mit [current]: Feld fehlt → unverändert,
- * `null` → Kalender-Standard, Liste → eigene Erinnerungen.
+ * Effect of [EventInput.reminders] on an existing event with [current]: field missing → unchanged,
+ * `null` → calendar default, list → own reminders.
  */
 fun EventInput.applyReminders(current: List<Int>?): List<Int>? = when (val r = reminders) {
     null -> current
@@ -178,8 +178,8 @@ fun EventInput.applyReminders(current: List<Int>?): List<Int>? = when (val r = r
 }
 
 /**
- * Serialisiert [EventInput.reminders] so, dass `null` im JSON als [JsonNull] erhalten bleibt (Kalender-Standard)
- * statt als „Feld fehlt“ gelesen zu werden – wichtig für gespeicherte Offline-Änderungen.
+ * Serializes [EventInput.reminders] so that `null` is kept in the JSON as [JsonNull] (calendar default)
+ * instead of being read as "field missing" – important for stored offline changes.
  */
 object ReminderFieldSerializer : KSerializer<JsonElement?> {
     override val descriptor: SerialDescriptor = JsonElement.serializer().descriptor.nullable

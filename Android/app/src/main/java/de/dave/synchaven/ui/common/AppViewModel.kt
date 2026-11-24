@@ -10,7 +10,7 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import de.dave.synchaven.SyncHavenApp
 import de.dave.synchaven.di.AppContainer
 
-/** Erzeugt ein ViewModel mit Zugriff auf den [AppContainer] und die [CreationExtras] (für SavedStateHandle). */
+/** Creates a ViewModel with access to the [AppContainer] and the [CreationExtras] (for SavedStateHandle). */
 @Composable
 inline fun <reified VM : ViewModel> appViewModel(
     crossinline create: CreationExtras.(AppContainer) -> VM,

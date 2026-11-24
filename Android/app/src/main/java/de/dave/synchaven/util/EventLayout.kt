@@ -4,13 +4,13 @@ import java.time.Duration
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
 
-// Platzierung von Terminen in Wochenzeilen (Monat, Ganztägig-Leiste) und Tagesspalten.
+// Placement of events in week rows (month, all-day bar) and day columns.
 
 data class RowItem(
     val ev: ViewEvent,
-    /** Spalte (inklusive) */
+    /** Column (inclusive) */
     val start: Int,
-    /** Spalte (exklusive) */
+    /** Column (exclusive) */
     val end: Int,
     var lane: Int = 0,
     val contBefore: Boolean,
@@ -19,7 +19,7 @@ data class RowItem(
 
 private fun daysBetween(a: LocalDate, b: LocalDate) = ChronoUnit.DAYS.between(a, b).toInt()
 
-/** Verteilt Termine auf Spuren einer Zeile aus [n] Tagen ab [rowStart]. */
+/** Distributes events across lanes of a row of [n] days starting at [rowStart]. */
 fun layoutRow(events: List<ViewEvent>, rowStart: LocalDate, n: Int): List<RowItem> {
     val rowEnd = rowStart.plusDays(n.toLong())
     val items = events
@@ -56,12 +56,12 @@ fun layoutRow(events: List<ViewEvent>, rowStart: LocalDate, n: Int): List<RowIte
 class ClampedRow(val visible: List<RowItem>, val more: IntArray)
 
 /**
- * Begrenzt die Zeile auf [maxLanes] Spuren. Liefert die sichtbaren Einträge und je Tag
- * die Anzahl ausgeblendeter Termine (für „+N“).
+ * Limits the row to [maxLanes] lanes. Returns the visible entries and, per day,
+ * the number of hidden events (for "+N").
  */
 fun clampRow(items: List<RowItem>, n: Int, maxLanes: Int): ClampedRow {
     val hidden = items.filter { it.lane >= maxLanes }.toMutableSet()
-    // Die letzte Spur macht Platz für „+N“, wo an einem Tag etwas ausgeblendet ist
+    // The last lane makes room for "+N" where something is hidden on a day
     for (iteration in 0 until 5) {
         val overflowDays = hidden.flatMap { it.start until it.end }.toSet()
         var changed = false
@@ -80,14 +80,14 @@ fun clampRow(items: List<RowItem>, n: Int, maxLanes: Int): ClampedRow {
 
 data class TimedItem(
     val ev: ViewEvent,
-    /** Minuten ab Tagesbeginn */
+    /** Minutes from the start of the day */
     val top: Int,
     val height: Int,
     var col: Int = 0,
     var cols: Int = 1,
 )
 
-/** Überlappende Termine eines Tages nebeneinander anordnen. */
+/** Arrange overlapping events of a day side by side. */
 fun layoutDay(events: List<ViewEvent>, day: LocalDate, minHeight: Int = 20): List<TimedItem> {
     val dayStart = day.atStartOfDay()
     val dayEnd = dayStart.plusDays(1)

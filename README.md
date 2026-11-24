@@ -1,312 +1,312 @@
 # Synchaven
 
-Synchaven ist eine selbst gehostete Kalender- und Kontaktverwaltung mit **Rust-Backend** (axum + SQLite), **Vue-3-Weboberfläche im
-Material-3-Design** (Vuetify), einer **REST API** für eigene Clients wie eine Android-App und einem
-**CardDAV-Server** für die Kontakt-Synchronisierung mit DAVx⁵.
+Synchaven is a self-hosted calendar and contact manager with a **Rust backend** (axum + SQLite), a **Vue 3 web UI in
+Material 3 design** (Vuetify), a **REST API** for custom clients such as an Android app, and a
+**CardDAV server** for syncing contacts with DAVx⁵.
 
-## Funktionen
+## Features
 
-* Mehrbenutzerfähig mit Registrierung/Anmeldung (Argon2-Passwörter, JWT-Bearer-Tokens)
-* Mehrere farbige Kalender pro Benutzer, ein-/ausblendbar
-* Ganztägige, mehrtägige und zeitgebundene Termine
-* Wiederkehrende Termine (RFC 5545 RRULE: täglich, wöchentlich, monatlich, jährlich, benutzerdefiniert),
-  einzelne Vorkommen löschbar; korrekt über Sommer-/Winterzeitwechsel
-* **Erinnerungen** pro Termin und als Standard pro Kalender (voreingestellt 15 Minuten vorher, ganztägig am Tag um
-  09:00; auch für Geburtstage): als Push-Benachrichtigung im
-  Browser – auch bei geschlossenem Tab – und als Android-Benachrichtigung in der App
-* iCalendar-Import und -Export (.ics) – kompatibel mit Google Kalender, Outlook, Thunderbird, Apple
-* Ansichten: Monat, Woche, Tag, Terminliste mit Suche
-* **Aufgaben** wie im Google Kalender: mehrere farbige Aufgabenlisten, Aufgaben mit Fälligkeit (ganztägig oder mit
-  Uhrzeit) erscheinen im Kalender und lassen sich dort abhaken und per Drag & Drop verschieben; Aufgabenbereich mit
-  Schnelleingabe, auch für Aufgaben ohne Datum; **Unteraufgaben** (eine Ebene tief; eine erledigte Hauptaufgabe hakt
-  ihre Unteraufgaben mit ab); offene Aufgaben erinnern zur Fälligkeit (ganztägige um 09:00)
-* **Kontakte:** mehrere Adressbücher, Suche, Telefon/E-Mail/Adressen/Websites mit Typen und eigenen Bezeichnungen,
-  Geburtstag (auch ohne Jahr), Notizen, Kategorien (zum Filtern, umbenennbar; in DAVx⁵ als Kontaktgruppen), Fotos aus importierten oder synchronisierten Kontakten
-* **Geburtstagskalender:** Geburtstage aller Kontakte erscheinen automatisch als jährliche Termine im eigenen
-  Kalender „Geburtstage“ (mit Alter, sofern das Geburtsjahr bekannt ist) – auch für per DAVx⁵ synchronisierte Kontakte
-* vCard-Import und -Export (.vcf, auch per Drag & Drop) – vCard 2.1, 3.0 und 4.0, z. B. aus Android, iPhone,
-  Google Kontakte, Outlook, Thunderbird; erneuter Import erzeugt keine Duplikate
-* **Synchronisierung per CardDAV** mit DAVx⁵ (Android), Thunderbird und iOS – in beide Richtungen
-* Material 3 mit dynamischem Farbschema aus frei wählbarer Grundfarbe, Hell/Dunkel/System
-* Tastenkürzel: `M` `W` `T` `L` (Ansicht), `H` (heute), `←`/`→` (blättern), `C` (neuer Termin), `A` (neue Aufgabe), `/` (Suche)
+* Multi-user with registration/sign-in (Argon2 passwords, JWT bearer tokens)
+* Multiple colored calendars per user, can be shown/hidden
+* All-day, multi-day and timed events
+* Recurring events (RFC 5545 RRULE: daily, weekly, monthly, yearly, custom),
+  single occurrences can be deleted; correct across daylight saving time changes
+* **Reminders** per event and as a default per calendar (preset to 15 minutes before, all-day at 09:00 on the day;
+  also for birthdays): as a push notification in the
+  browser – even with the tab closed – and as an Android notification in the app
+* iCalendar import and export (.ics) – compatible with Google Calendar, Outlook, Thunderbird, Apple
+* Views: month, week, day, event list with search
+* **Tasks** like in Google Calendar: multiple colored task lists, tasks with a due date (all-day or with a
+  time) appear in the calendar and can be checked off and moved via drag & drop there; task panel with
+  quick entry, also for tasks without a date; **subtasks** (one level deep; completing a parent task also checks
+  off its subtasks); open tasks remind when due (all-day ones at 09:00)
+* **Contacts:** multiple address books, search, phone/email/addresses/websites with types and custom labels,
+  birthday (also without year), notes, categories (for filtering, renamable; contact groups in DAVx⁵), photos from imported or synced contacts
+* **Birthday calendar:** birthdays of all contacts automatically appear as yearly events in a separate
+  "Geburtstage" calendar (with age, if the birth year is known) – also for contacts synced via DAVx⁵
+* vCard import and export (.vcf, also via drag & drop) – vCard 2.1, 3.0 and 4.0, e.g. from Android, iPhone,
+  Google Contacts, Outlook, Thunderbird; importing again does not create duplicates
+* **Sync via CardDAV** with DAVx⁵ (Android), Thunderbird and iOS – in both directions
+* Material 3 with a dynamic color scheme from a freely selectable base color, light/dark/system
+* Keyboard shortcuts: `M` `W` `T` `L` (view), `H` (today), `←`/`→` (previous/next), `C` (new event), `A` (new task), `/` (search)
 
-## Start mit Docker
+## Running with Docker
 
-Zuerst das Image bauen, dann starten:
+First build the image, then start it:
 
 ```bash
 ./build.sh
 docker compose up -d
 ```
 
-Danach <http://localhost:8080> öffnen und ein Konto registrieren. Die Daten (SQLite-Datenbank und
-JWT-Secret) liegen im Volume `synchaven-data` unter `/data`.
+Then open <http://localhost:8080> and register an account. The data (SQLite database and
+JWT secret) is stored in the `synchaven-data` volume under `/data`.
 
-Statt des Volumes kann auch ein Verzeichnis des Hosts eingebunden werden (`./data:/data`). Dann `PUID` und
-`PGID` auf die IDs des Besitzers setzen (`id -u` / `id -g`): Der Container passt beim Start die Rechte von
-`/data` an und führt das Programm mit diesen IDs aus, nie als root. Wird der Container per `user:` gestartet,
-entfällt die Anpassung – das Verzeichnis muss dann diesem Benutzer gehören.
+Instead of the volume, a host directory can be mounted (`./data:/data`). In that case set `PUID` and
+`PGID` to the owner's IDs (`id -u` / `id -g`): on startup the container adjusts the ownership of
+`/data` and runs the program with these IDs, never as root. If the container is started with `user:`,
+this adjustment is skipped – the directory must then belong to that user.
 
-Nach Codeänderungen: `./build.sh && docker compose up -d` – Compose ersetzt den Container dann
-durch einen mit dem neuen Image.
+After code changes: `./build.sh && docker compose up -d` – Compose then replaces the container
+with one using the new image.
 
-### Build-Script
+### Build script
 
-`build.sh` braucht keine Parameter. Es baut das Image als
-`ghcr.io/daved09/synchaven:<version>`, wobei `<version>` aus `version.properties`
-(Eintrag `version=…`) stammt, und schreibt die Version als `SYNCHAVEN_VERSION` in `.env`. Diese Datei
-liest `docker compose` automatisch, daher startet Compose immer die zuletzt gebaute Version. Für eine
-neue Version nur `version` in `version.properties` erhöhen.
+`build.sh` takes no parameters. It builds the image as
+`ghcr.io/daved09/synchaven:<version>`, where `<version>` comes from `version.properties`
+(entry `version=…`), and writes the version as `SYNCHAVEN_VERSION` to `.env`. `docker compose` reads
+this file automatically, so Compose always starts the most recently built version. For a
+new version, just increase `version` in `version.properties`.
 
-Das Backend liest dieselbe Datei beim Kompilieren über `backend/build.rs` und meldet die Version unter
-`GET /api/info` – auch bei `cargo run` ohne `build.sh`. Die Version in `backend/Cargo.toml` ist nur ein
-Platzhalter (`0.0.0`).
+The backend reads the same file at compile time via `backend/build.rs` and reports the version at
+`GET /api/info` – also with `cargo run` without `build.sh`. The version in `backend/Cargo.toml` is only a
+placeholder (`0.0.0`).
 
-Hochladen in die Registry:
+Pushing to the registry:
 
 ```bash
 docker push ghcr.io/daved09/synchaven:1.0.0
 ```
 
-Auf einem anderen Rechner genügen `docker-compose.yml` und eine `.env` mit
-`SYNCHAVEN_VERSION=1.0.0` – das Image wird dann aus der Registry geladen.
+On another machine, `docker-compose.yml` and a `.env` with
+`SYNCHAVEN_VERSION=1.0.0` are enough – the image is then pulled from the registry.
 
-Ohne Compose:
+Without Compose:
 
 ```bash
 ./build.sh
 docker run -d --name synchaven -p 8080:8080 -v synchaven-data:/data ghcr.io/daved09/synchaven:1.0.0
 ```
 
-### Konfiguration (Umgebungsvariablen)
+### Configuration (environment variables)
 
-| Variable             | Standard          | Beschreibung |
+| Variable             | Default           | Description |
 |----------------------|-------------------|--------------|
-| `BIND_ADDR`          | `0.0.0.0:8080`    | Adresse/Port |
-| `DATA_DIR`           | `/data`           | Ablage für `synchaven.db` und `jwt_secret` |
-| `ALLOW_REGISTRATION` | `true`            | Neue Konten erlauben (Standard; in der Verwaltung änderbar) |
-| `TOKEN_TTL_DAYS`     | `30`              | Gültigkeit der Anmeldung (Standard; in der Verwaltung änderbar) |
-| `JWT_SECRET`         | *(automatisch)*   | Eigenes Secret (≥ 32 Zeichen) |
-| `CORS_ORIGINS`       | `*`               | Erlaubte Browser-Origins, kommagetrennt |
-| `VAPID_SUBJECT`      | `mailto:synchaven@example.org` | Kontaktadresse für Push-Dienste (`mailto:` oder `https:`) |
-| `RUST_LOG`           | `synchaven=info`  | Log-Level |
-| `PUID` / `PGID`      | `10001`           | Benutzer-/Gruppen-ID für Programm und `/data` (nur Docker) |
+| `BIND_ADDR`          | `0.0.0.0:8080`    | Address/port |
+| `DATA_DIR`           | `/data`           | Location of `synchaven.db` and `jwt_secret` |
+| `ALLOW_REGISTRATION` | `true`            | Allow new accounts (default; can be changed in the admin page) |
+| `TOKEN_TTL_DAYS`     | `30`              | Session lifetime (default; can be changed in the admin page) |
+| `JWT_SECRET`         | *(automatic)*     | Custom secret (≥ 32 characters) |
+| `CORS_ORIGINS`       | `*`               | Allowed browser origins, comma-separated |
+| `VAPID_SUBJECT`      | `mailto:synchaven@example.org` | Contact address for push services (`mailto:` or `https:`) |
+| `RUST_LOG`           | `synchaven=info`  | Log level |
+| `PUID` / `PGID`      | `10001`           | User/group ID for the program and `/data` (Docker only) |
 
-**Administrator** ist das erste Konto, das registriert wird. Das erste Konto lässt sich auch bei
-`ALLOW_REGISTRATION=false` anlegen. Administratoren finden unter *Konto → Verwaltung* die Adminseite:
+The **administrator** is the first account to be registered. The first account can also be created with
+`ALLOW_REGISTRATION=false`. Administrators find the admin page under *Account → Administration*:
 
-* **Übersicht:** Version, Laufzeit, Größe der Datenbank, Anzahl der Benutzer, Termine, Kontakte usw. und die
-  Serverkonfiguration aus den Umgebungsvariablen
-* **Benutzer:** Konten anlegen (auch bei geschlossener Registrierung), Name/E-Mail ändern, Passwort zurücksetzen,
-  Administratorrechte vergeben, Konten sperren und entsperren, auf allen Geräten abmelden und löschen. Ein gesperrtes
-  Konto kann sich weder anmelden noch per CardDAV synchronisieren. Das eigene Konto lässt sich nicht sperren, löschen
-  oder herabstufen – so bleibt immer ein Administrator übrig.
-* **Einstellungen:** Registrierung öffnen/schließen und Gültigkeit der Anmeldung. Gespeicherte Werte haben Vorrang vor
-  `ALLOW_REGISTRATION` und `TOKEN_TTL_DAYS`; solange nichts gespeichert ist, gelten die Umgebungsvariablen.
-* **Datensicherung:** Export und Import der ganzen Datenbank (siehe unten)
+* **Overview:** version, uptime, database size, number of users, events, contacts etc. and the
+  server configuration from the environment variables
+* **Users:** create accounts (also with registration closed), change name/email, reset password,
+  grant admin rights, disable and enable accounts, sign out on all devices and delete. A disabled
+  account can neither sign in nor sync via CardDAV. Your own account cannot be disabled, deleted
+  or demoted – so there is always an administrator left.
+* **Settings:** open/close registration and session lifetime. Stored values take precedence over
+  `ALLOW_REGISTRATION` and `TOKEN_TTL_DAYS`; as long as nothing is stored, the environment variables apply.
+* **Backup:** export and import of the whole database (see below)
 
-**Hinweis:** Für den Betrieb im Internet einen Reverse-Proxy mit HTTPS (z. B. Caddy, Traefik, nginx)
-vorschalten und nach dem Anlegen der eigenen Konten die Registrierung schließen (Verwaltung oder
+**Note:** When running on the internet, put a reverse proxy with HTTPS in front (e.g. Caddy, Traefik, nginx)
+and close registration after creating your own accounts (admin page or
 `ALLOW_REGISTRATION=false`).
 
-### Benachrichtigungen im Browser
+### Browser notifications
 
-Erinnerungen werden per Web Push verschickt: Unter *Konto → Einstellungen → Benachrichtigungen* lässt sich jeder
-Browser einzeln anmelden, dort gibt es auch eine Testbenachrichtigung. Voraussetzungen:
+Reminders are sent via Web Push: under *Account → Settings → Notifications* each browser can be
+subscribed individually; there is also a test notification. Requirements:
 
-* Die Weboberfläche muss über **HTTPS** aufgerufen werden (oder `localhost`) – sonst sperren Browser Benachrichtigungen.
-* Der Server muss die Push-Dienste der Browser erreichen (z. B. `fcm.googleapis.com`, `updates.push.services.mozilla.com`,
-  `web.push.apple.com`). Für einige Dienste sollte `VAPID_SUBJECT` eine echte Kontaktadresse sein.
-* iPhone/iPad (ab iOS 16.4): Synchaven zuerst über *Teilen → Zum Home-Bildschirm* installieren und dort öffnen.
+* The web UI must be accessed via **HTTPS** (or `localhost`) – otherwise browsers block notifications.
+* The server must be able to reach the browsers' push services (e.g. `fcm.googleapis.com`, `updates.push.services.mozilla.com`,
+  `web.push.apple.com`). For some services `VAPID_SUBJECT` should be a real contact address.
+* iPhone/iPad (iOS 16.4 or later): first install Synchaven via *Share → Add to Home Screen* and open it from there.
 
-Der Schlüssel des Servers (VAPID) liegt in `vapid_private_key` im Datenverzeichnis. Geht er verloren, müssen die
-Browser Benachrichtigungen neu einschalten.
+The server's key (VAPID) is stored in `vapid_private_key` in the data directory. If it is lost, the
+browsers have to enable notifications again.
 
-### Kontakte mit DAVx⁵ synchronisieren
+### Syncing contacts with DAVx⁵
 
-1. In DAVx⁵ auf **+** tippen und **Mit URL und Benutzername anmelden** wählen.
-2. Basis-URL `https://<server>/dav/` (die Startadresse funktioniert ebenfalls), Benutzername = E-Mail-Adresse,
-   Passwort = Anmeldepasswort.
-3. Konto anlegen und im Reiter **CardDAV** die Adressbücher aktivieren.
+1. In DAVx⁵, tap **+** and choose **Login with URL and user name**.
+2. Base URL `https://<server>/dav/` (the start address works as well), user name = email address,
+   password = sign-in password.
+3. Create the account and enable the address books in the **CardDAV** tab.
 
-Dieselben Angaben zeigt die Weboberfläche unter *Kontakte → Mit DAVx⁵ synchronisieren*. Da das Passwort bei
-jeder Anfrage mitgesendet wird, gehört der Server für den Zugriff über das Internet hinter HTTPS.
+The web UI shows the same details under *Contacts → Sync with DAVx⁵*. Since the password is sent with
+every request, the server must be behind HTTPS when accessed over the internet.
 
-### Sicherung
+### Backup
 
 ```bash
 docker run --rm -v synchaven-data:/data -v "$PWD":/backup debian:bookworm-slim \
   tar czf /backup/synchaven-backup.tgz -C /data .
 ```
 
-#### Export und Import als JSON
+#### Export and import as JSON
 
-Zusätzlich lässt sich die gesamte Datenbank (alle Benutzer, Kalender, Termine, Adressbücher, Kontakte, Aufgaben,
-Einstellungen der Verwaltung) als JSON exportieren – gedacht vor allem als Rückfallebene vor einem Update, falls eine
-Migration fehlschlägt. Die Termine im Geburtstagskalender fehlen darin; sie werden beim Import aus den Kontakten neu
-erzeugt. Auch die Push-Abonnements der Browser fehlen: Ein Browser mit eingeschalteten Benachrichtigungen meldet sich
-beim nächsten Öffnen der Weboberfläche wieder an.
+In addition, the whole database (all users, calendars, events, address books, contacts, tasks,
+admin settings) can be exported as JSON – mainly intended as a fallback before an update, in case a
+migration fails. The events in the birthday calendar are not included; they are regenerated from the contacts
+on import. The browsers' push subscriptions are not included either: a browser with notifications enabled
+re-subscribes the next time the web UI is opened.
 
-**In der Weboberfläche:** Als Administrator gibt es unter
-*Konto → Verwaltung → Datensicherung* die Knöpfe *Datenbank exportieren* und *Datenbank importieren*. Der Import
-ersetzt alle Daten aller Benutzer. Nach einer fehlgeschlagenen Migration: alte Datenbank zur Seite legen (siehe
-unten), Server starten, ein Konto registrieren (das erste Konto wird Administrator und geht auch bei
-`ALLOW_REGISTRATION=false`) und den Export importieren – das vorläufige Konto wird dabei durch die Konten aus dem
-Export ersetzt. Enthält der Export noch keinen Administrator (ältere Versionen), wird das älteste Konto einer.
+**In the web UI:** as an administrator, *Account → Administration → Backup* has the buttons
+*Export database* and *Import database*. The import replaces all data of all users. After a failed
+migration: set the old database aside (see below), start the server, register an account (the first
+account becomes administrator and also works with `ALLOW_REGISTRATION=false`) and import the export – the
+temporary account is replaced by the accounts from the export. If the export does not contain an
+administrator yet (older versions), the oldest account becomes one.
 
-**Auf der Kommandozeile** – der Export geht auch bei laufendem Server:
+**On the command line** – the export also works while the server is running:
 
 ```bash
 docker exec synchaven synchaven export > synchaven-export.json
 ```
 
-Der Import legt eine leere Datenbank mit dem Schema der aktuellen Version an und übernimmt die Daten. Spalten oder
-Tabellen, die es nicht mehr gibt, werden mit einer Warnung übersprungen, neue Spalten erhalten ihren Standardwert.
-Der Server muss dafür gestoppt sein. Vorgehen nach einer fehlgeschlagenen Migration:
+The import creates an empty database with the schema of the current version and loads the data. Columns or
+tables that no longer exist are skipped with a warning, new columns get their default value.
+The server must be stopped for this. Procedure after a failed migration:
 
 ```bash
 docker compose stop
-# Alte Datenbank zur Seite legen (synchaven.db, synchaven.db-wal, synchaven.db-shm)
+# Set the old database aside (synchaven.db, synchaven.db-wal, synchaven.db-shm)
 docker compose run --rm --no-deps --entrypoint sh Synchaven \
   -c 'mkdir -p /data/alt && mv /data/synchaven.db* /data/alt/'
 docker compose run --rm --no-deps -v "$PWD":/backup Synchaven import /backup/synchaven-export.json
 docker compose up -d
 ```
 
-Enthält die Datenbank schon Daten, bricht der Import ab; `import --replace …` löscht sie vorher. JWT-Secret und
-VAPID-Schlüssel liegen als Dateien in `/data` und sind nicht im Export – bleiben sie erhalten, bleiben auch
-Anmeldungen gültig und Browser können Benachrichtigungen ohne erneute Freigabe wieder anmelden. Ohne Docker: `DATA_DIR=./data synchaven export datei.json` bzw.
-`synchaven import datei.json`.
+If the database already contains data, the import aborts; `import --replace …` deletes it first. The JWT secret and
+VAPID key are files in `/data` and not part of the export – if they are kept, sign-ins stay
+valid and browsers can re-subscribe to notifications without granting permission again. Without Docker: `DATA_DIR=./data synchaven export file.json` or
+`synchaven import file.json`.
 
 ## REST API
 
-Die vollständige API-Referenz steht in [docs/API.md](docs/API.md). Kurzüberblick:
+The full API reference is in [docs/API.md](docs/API.md). Quick overview:
 
-| Bereich   | Endpunkte |
+| Area      | Endpoints |
 |-----------|-----------|
-| Konto     | `POST /api/auth/register`, `POST /api/auth/login`, `POST /api/auth/refresh`, `GET/PUT /api/auth/me` |
-| Kalender  | `GET/POST /api/calendars`, `GET/PUT/DELETE /api/calendars/{id}`, `GET …/export`, `POST …/import` |
-| Termine   | `GET /api/events?start&end`, `POST /api/events`, `GET/PUT/DELETE /api/events/{id}`, `POST /api/events/{id}/exdates` |
-| Aufgaben  | `GET/POST /api/task-lists`, `PUT/DELETE /api/task-lists/{id}`, `GET/POST /api/tasks`, `GET/PUT/DELETE /api/tasks/{id}`, `PUT /api/tasks/{id}/completed` |
-| Adressbücher | `GET/POST /api/addressbooks`, `PUT/DELETE /api/addressbooks/{id}`, `GET …/export`, `POST …/import` |
-| Kontakte  | `GET /api/contacts[?addressbook_id&q]`, `POST /api/contacts`, `GET/PUT/DELETE /api/contacts/{id}` |
-| CardDAV   | `/dav/` (Basic-Auth, siehe [docs/API.md](docs/API.md#carddav-davx-thunderbird-ios)) |
+| Account   | `POST /api/auth/register`, `POST /api/auth/login`, `POST /api/auth/refresh`, `GET/PUT /api/auth/me` |
+| Calendars | `GET/POST /api/calendars`, `GET/PUT/DELETE /api/calendars/{id}`, `GET …/export`, `POST …/import` |
+| Events    | `GET /api/events?start&end`, `POST /api/events`, `GET/PUT/DELETE /api/events/{id}`, `POST /api/events/{id}/exdates` |
+| Tasks     | `GET/POST /api/task-lists`, `PUT/DELETE /api/task-lists/{id}`, `GET/POST /api/tasks`, `GET/PUT/DELETE /api/tasks/{id}`, `PUT /api/tasks/{id}/completed` |
+| Address books | `GET/POST /api/addressbooks`, `PUT/DELETE /api/addressbooks/{id}`, `GET …/export`, `POST …/import` |
+| Contacts  | `GET /api/contacts[?addressbook_id&q]`, `POST /api/contacts`, `GET/PUT/DELETE /api/contacts/{id}` |
+| CardDAV   | `/dav/` (Basic auth, see [docs/API.md](docs/API.md#carddav-davx-thunderbird-ios)) |
 
-Wiederkehrende Termine werden vom Server in Einzelvorkommen expandiert, sodass Clients online keine eigene
-RRULE-Logik benötigen (die Android-App expandiert nur offline selbst, aus `GET /calendars/{id}/events`).
+The server expands recurring events into single occurrences, so clients don't need their own
+RRULE logic when online (the Android app only expands them itself when offline, from `GET /calendars/{id}/events`).
 
-## Android-App
+## Android app
 
-Unter `Android/` liegt eine native App (Kotlin, Jetpack Compose, Material 3) mit denselben Funktionen wie die
-Weboberfläche: Anmeldung/Registrierung, Monats-, Wochen-, Tages- und Listenansicht, Termine anlegen, bearbeiten,
-löschen (auch einzelne Vorkommen) und per langem Drücken verschieben, Wiederholungen, Suche, Kalender verwalten,
-.ics-Import/-Export, Kontakte mit Adressbüchern und .vcf-Import/-Export.
+`Android/` contains a native app (Kotlin, Jetpack Compose, Material 3) with the same features as the
+web UI: sign-in/registration, month, week, day and list views, creating, editing and
+deleting events (also single occurrences) and moving them by long-pressing, recurrence, search, managing calendars,
+.ics import/export, contacts with address books and .vcf import/export.
 
-**Aufgaben:** Aufgaben mit Fälligkeit erscheinen in Monat, Woche/Tag und Terminliste mit Abhak-Symbol (erledigte
-durchgestrichen); Antippen öffnet die Details mit *Als erledigt markieren*, in der Terminliste hakt das Symbol direkt
-ab, im Zeitraster lassen sie sich per langem Drücken verschieben. Aufgabenlisten werden in der Seitenleiste ein- und
-ausgeblendet, bearbeitet und angelegt; *Alle Aufgaben* öffnet den Aufgabenbereich mit Schnelleingabe und Erledigt-
-Bereich, und der Erstellen-Button bietet *Termin* oder *Aufgabe*. Auch im lokalen Modus
-verfügbar.
+**Tasks:** tasks with a due date appear in month, week/day and event list with a check-off icon (completed ones
+struck through); tapping opens the details with *Mark as completed*, in the event list the icon checks them off
+directly, and in the time grid they can be moved by long-pressing. Task lists are shown and hidden, edited
+and created in the drawer; *All tasks* opens the task panel with quick entry and a completed
+section, and the create button offers *Event* or *Task*. Also available in local
+mode.
 
-**Synchronisierung mit Android (ersetzt DAVx⁵):** Die App legt ein Android-Konto „Synchaven“ an und trägt Kalender
-und Kontakte selbst in den Android-Kalender und die Systemkontakte ein – über eigene SyncAdapter und die REST API,
-in beide Richtungen. Änderungen in der Kalender- oder Kontakte-App von Android werden hochgeladen, Änderungen auf
-dem Server periodisch (einstellbar, Standard stündlich) und nach jeder Änderung in der App übernommen. Einschalten
-unter *Einstellungen → Mit Android synchronisieren*, getrennt für Kalender und Kontakte. Das Passwort liegt dafür im
-Android-Konto, damit sich die Synchronisierung nach Ablauf des Tokens selbst neu anmelden kann.
+**Sync with Android (replaces DAVx⁵):** the app creates an Android account "Synchaven" and itself writes calendars
+and contacts into the Android calendar and the system contacts – via its own SyncAdapters and the REST API,
+in both directions. Changes in Android's calendar or contacts app are uploaded, changes on
+the server are taken over periodically (configurable, hourly by default) and after every change in the app. Enable it
+under *Settings → Sync with Android*, separately for calendars and contacts. For this, the password is stored in the
+Android account so the sync can sign in again by itself after the token expires.
 
-* Serien werden mit RRULE/EXDATE übertragen; ein auf dem Gerät geändertes oder abgesagtes Einzelvorkommen wird auf
-  dem Server zu einem eigenen Termin bzw. einer EXDATE der Serie (wie beim .ics-Import).
-* Der Geburtstagskalender ist auf dem Gerät schreibgeschützt.
-* Kontakte aller Adressbücher landen im Konto; auf dem Gerät neu angelegte Kontakte kommen ins erste Adressbuch.
-  Übertragen werden Name, Spitzname, Firma, Telefon, E-Mail, Adressen, Websites, Geburtstag, Notiz und Foto –
-  die Kontakte-App bietet für Synchaven-Kontakte nur diese Felder an.
-* Wer bisher DAVx⁵ für dieselben Adressbücher genutzt hat, sollte dort das Konto entfernen, sonst erscheinen
-  Kontakte doppelt.
+* Series are transferred with RRULE/EXDATE; a single occurrence modified or cancelled on the device becomes a
+  separate event or an EXDATE of the series on the server (as with .ics import).
+* The birthday calendar is read-only on the device.
+* Contacts of all address books end up in the account; contacts newly created on the device go into the first address book.
+  Name, nickname, company, phone, email, addresses, websites, birthday, note and photo are transferred –
+  the contacts app only offers these fields for Synchaven contacts.
+* Anyone who previously used DAVx⁵ for the same address books should remove the account there, otherwise
+  contacts appear twice.
 
-**Erinnerungen:** Die App zeigt Erinnerungen an Termine und fällige Aufgaben als Android-Benachrichtigung – geplant aus dem lokalen
-Cache, daher auch offline und im lokalen Modus. Ein- und ausschalten unter *Einstellungen → Benachrichtigungen*; ab
-Android 13 fragt die App einmal nach der Berechtigung. Änderungen aus der Weboberfläche kommen beim nächsten Abgleich
-an (beim Öffnen der App, spätestens etwa alle vier Stunden). In den Android-Kalender werden keine Erinnerungen
-übertragen, damit sie nicht doppelt erscheinen.
+**Reminders:** the app shows reminders for events and due tasks as Android notifications – scheduled from the local
+cache, so also offline and in local mode. Turn them on and off under *Settings → Notifications*; from
+Android 13 on the app asks for the permission once. Changes from the web UI arrive with the next sync
+(when opening the app, at the latest roughly every four hours). No reminders are transferred
+to the Android calendar, so they don't appear twice.
 
-**Offline-Betrieb:** Kalender, alle Termine (Serien mit RRULE/EXDATE), Adressbücher und Kontakte liegen zusätzlich in
-einem lokalen Cache auf dem Gerät; Kontaktfotos werden beim Öffnen eines Kontakts gespeichert. Ist der Server nicht
-erreichbar (unterwegs, Server aus), zeigt die App die gespeicherten Daten – Vorkommen von Serien und das Alter im
-Geburtstagskalender berechnet sie dann selbst – und ein Hinweis über der Navigationsleiste macht den Offline-Zustand
-sichtbar. Termine und Kontakte lassen sich auch offline anlegen, bearbeiten, verschieben und löschen, Kalender ein- und
-ausblenden und die Standardansicht wechseln; ebenso Aufgaben anlegen, bearbeiten, abhaken und löschen und
-Aufgabenlisten ein-/ausblenden. Diese Änderungen landen in einer Warteschlange und werden in Reihenfolge
-übertragen, sobald der Server wieder erreichbar ist (bei Netzwechsel, beim Öffnen der App, jede Minute im Vordergrund
-oder über *Einstellungen → Offline-Daten → Jetzt abgleichen*); danach lädt die App alles neu. Lehnt der Server eine
-Änderung ab (z. B. weil der Termin inzwischen gelöscht wurde), wird sie verworfen und das angezeigt. Nur online gehen:
-Kalender, Adressbücher und Aufgabenlisten anlegen/löschen, Import/Export, Profil. Beim Abmelden wird der Cache gelöscht; läuft nur das
-Token ab, bleibt er erhalten und ausstehende Änderungen werden nach der erneuten Anmeldung übertragen.
+**Offline mode:** calendars, all events (series with RRULE/EXDATE), address books and contacts are additionally stored in
+a local cache on the device; contact photos are saved when a contact is opened. If the server is not
+reachable (on the go, server off), the app shows the stored data – it then computes occurrences of series and the age in the
+birthday calendar itself – and a notice above the navigation bar makes the offline state
+visible. Events and contacts can also be created, edited, moved and deleted offline, calendars shown and
+hidden and the default view changed; likewise tasks can be created, edited, checked off and deleted and
+task lists shown/hidden. These changes go into a queue and are transferred in order
+as soon as the server is reachable again (on network change, when opening the app, every minute in the foreground
+or via *Settings → Offline data → Sync now*); afterwards the app reloads everything. If the server rejects a
+change (e.g. because the event has been deleted in the meantime), it is discarded and this is shown. Online only:
+creating/deleting calendars, address books and task lists, import/export, profile. Signing out deletes the cache; if only the
+token expires, it is kept and pending changes are transferred after signing in again.
 
-**Ohne Server (lokaler Modus):** Mit *Ohne Server verwenden* auf dem Anmeldebildschirm funktioniert die App ganz
-ohne Weboberfläche. Kalender, Termine, Aufgaben, Adressbücher und Kontakte liegen dann nur auf dem Gerät (`filesDir/local/`,
-damit in den Android-Sicherungen enthalten) – mit allen Funktionen: Kalender, Aufgabenlisten und Adressbücher verwalten, Serien,
-Geburtstagskalender aus den Kontakten, .ics- und .vcf-Import/-Export und die Synchronisierung mit dem Android-Kalender
-und den Systemkontakten (Konto „Synchaven (lokal)“). Technisch ersetzt `data/local/LocalApi.kt` die REST API: Sie
-speichert im selben lokalen Speicher wie der Offline-Cache und prüft Eingaben wie der Server; iCalendar, vCard und
-Geburtstage sind Portierungen aus `backend/src`. Beim vCard-Import bleiben nur die Felder erhalten, die die App kennt.
-*Einstellungen → Mit Server verbinden* wechselt zur Anmeldung; die lokalen Daten bleiben auf dem Gerät und sind beim
-nächsten *Ohne Server verwenden* wieder da – auf einen Server übertragen werden sie nicht (dafür: Export und Import; Aufgaben sind darin nicht
-enthalten).
+**Without a server (local mode):** with *Use without server* on the sign-in screen the app works entirely
+without the web UI. Calendars, events, tasks, address books and contacts are then stored only on the device (`filesDir/local/`,
+so included in Android backups) – with all features: managing calendars, task lists and address books, series,
+birthday calendar from the contacts, .ics and .vcf import/export and sync with the Android calendar
+and the system contacts (account "Synchaven (lokal)"). Technically, `data/local/LocalApi.kt` replaces the REST API: it
+stores data in the same local storage as the offline cache and validates input like the server; iCalendar, vCard and
+birthdays are ports from `backend/src`. On vCard import, only the fields the app knows are kept.
+*Settings → Connect to server* switches to sign-in; the local data stays on the device and is back the
+next time *Use without server* is chosen – it is not transferred to a server (use export and import for that; tasks are not
+included).
 
-Beim ersten Start die Adresse des Servers eintragen (z. B. `http://homeserver.local:8080`) oder *Ohne Server verwenden*
-wählen. Unverschlüsseltes HTTP ist für Server im Heimnetz erlaubt; selbst installierte Zertifizierungsstellen werden
-akzeptiert.
+On first start, enter the server address (e.g. `http://homeserver.local:8080`) or choose *Use without server*.
+Unencrypted HTTP is allowed for servers on the home network; user-installed certificate authorities are
+accepted.
 
 ```bash
 cd Android
 ./gradlew assembleRelease          # → app/build/outputs/apk/release/SyncHaven.apk
-./gradlew testDebugUnitTest        # Unit-Tests der Datums-, Wiederholungs-, Kontakt-, Sync-, Offline- und Dateiformat-Logik
+./gradlew testDebugUnitTest        # unit tests for date, recurrence, contact, sync, offline and file format logic
 ```
 
-Aufbau: `data/` (Retrofit-API, Repositories, DataStore für Sitzung und Einstellungen), `data/offline/` (lokaler
-Cache je Konto, Warteschlange offline gemachter Änderungen, Abgleich mit dem Server), `data/local/` (lokaler Modus
-ohne Server: LocalApi, iCalendar, vCard, Geburtstage), `ui/<bereich>/`
-(Compose-Bildschirme mit je einem ViewModel), `util/` (Portierung der Hilfslogik aus `frontend/src/utils`),
-`sync/` (Android-Konto, SyncAdapter für CalendarContract und ContactsContract).
+Structure: `data/` (Retrofit API, repositories, DataStore for session and settings), `data/offline/` (local
+cache per account, queue of changes made offline, sync with the server), `data/local/` (local mode
+without a server: LocalApi, iCalendar, vCard, birthdays), `ui/<area>/`
+(Compose screens with one ViewModel each), `util/` (port of the helper logic from `frontend/src/utils`),
+`sync/` (Android account, SyncAdapters for CalendarContract and ContactsContract).
 
-## Entwicklung
+## Development
 
-Voraussetzungen: Rust (stable), Node.js ≥ 20.
+Requirements: Rust (stable), Node.js ≥ 20.
 
 ```bash
 # Backend (http://localhost:8080)
 cd backend && cargo run
 
-# Frontend mit Hot-Reload (http://localhost:5173, leitet /api an das Backend weiter)
+# Frontend with hot reload (http://localhost:5173, proxies /api to the backend)
 cd frontend && npm install && npm run dev
 ```
 
-Tests und Prüfungen:
+Tests and checks:
 
 ```bash
 cd backend && cargo test
 cd frontend && npm run typecheck && npm run build
 ```
 
-## Projektstruktur
+## Project structure
 
 ```
 backend/            Rust (axum, sqlx/SQLite, rrule, jsonwebtoken, argon2, quick-xml)
-  migrations/       SQL-Schema (wird beim Start automatisch angewendet)
-  src/routes/       REST-Endpunkte (auth, calendars, events, ical, contacts)
-  src/recurrence.rs Expansion wiederkehrender Termine
-  src/ical.rs       iCalendar-Import/-Export
-  src/vcard.rs      vCard lesen/schreiben (inkl. 2.1-Import), verlustfreies Bearbeiten
-  src/contacts.rs   Speicherung von Adressbüchern und Kontakten
-  src/birthdays.rs  Geburtstagskalender aus den Kontakten
-  src/dav.rs        CardDAV-Server für DAVx⁵ & Co.
+  migrations/       SQL schema (applied automatically on startup)
+  src/routes/       REST endpoints (auth, calendars, events, ical, contacts)
+  src/recurrence.rs Expansion of recurring events
+  src/ical.rs       iCalendar import/export
+  src/vcard.rs      Reading/writing vCards (incl. 2.1 import), lossless editing
+  src/contacts.rs   Storage of address books and contacts
+  src/birthdays.rs  Birthday calendar from the contacts
+  src/dav.rs        CardDAV server for DAVx⁵ & co.
 frontend/           Vue 3 + Vuetify 3 (Material 3) + Pinia
-  src/components/   Monats-, Wochen-/Tages-, Listenansicht, Kontaktdetails, Dialoge
-  src/views/        Anmeldung, Kalender, Kontakte
-  src/plugins/      Vuetify-Setup und M3-Farbschema-Generator
-Android/            Android-App (Kotlin, Jetpack Compose, Material 3, MVVM)
-docs/API.md         API-Referenz
-Dockerfile          Mehrstufiger Build → schlankes Debian-Image
+  src/components/   Month, week/day and list views, contact details, dialogs
+  src/views/        Sign-in, calendar, contacts
+  src/plugins/      Vuetify setup and M3 color scheme generator
+Android/            Android app (Kotlin, Jetpack Compose, Material 3, MVVM)
+docs/API.md         API reference
+Dockerfile          Multi-stage build → slim Debian image
 ```

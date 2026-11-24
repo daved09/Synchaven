@@ -10,13 +10,13 @@ import de.dave.synchaven.data.store.LOCAL_USER
 import android.provider.CalendarContract
 import android.provider.ContactsContract
 
-/** Kontotyp, unter dem Android die synchronisierten Kalender und Kontakte führt (siehe res/xml/authenticator.xml). */
+/** Account type under which Android keeps the synced calendars and contacts (see res/xml/authenticator.xml). */
 const val ACCOUNT_TYPE = "de.dave.synchaven"
 
-/** Typ des Bearer-Tokens im AccountManager */
+/** Type of the bearer token in the AccountManager */
 const val TOKEN_TYPE = "synchaven"
 
-/** Synchronisierte Bereiche – je ein SyncAdapter. */
+/** Synced areas – one SyncAdapter each. */
 enum class SyncKind(val authority: String) {
     CALENDAR(CalendarContract.AUTHORITY),
     CONTACTS(ContactsContract.AUTHORITY);
@@ -26,7 +26,7 @@ enum class SyncKind(val authority: String) {
     }
 }
 
-/** Laufzeitberechtigungen je Bereich */
+/** Runtime permissions per area */
 val SyncKind.permissions: Array<String>
     get() = when (this) {
         SyncKind.CALENDAR -> arrayOf(Manifest.permission.READ_CALENDAR, Manifest.permission.WRITE_CALENDAR)
@@ -37,9 +37,9 @@ fun Context.hasPermissions(kind: SyncKind) =
     kind.permissions.all { ContextCompat.checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED }
 
 /**
- * Zugriff auf das Android-Konto der App. Das Token liegt im AccountManager und wird vor Ablauf erneuert
- * (`/auth/refresh`), damit die Synchronisierung ohne geöffnete App weiterläuft. Wurde bei der Anmeldung ein
- * Passwort eingegeben, liegt es ebenfalls dort – als Rückfall, falls das Token doch abgelaufen ist.
+ * Access to the app's Android account. The token is stored in the AccountManager and renewed before it expires
+ * (`/auth/refresh`), so the sync keeps running without the app being open. If a password was entered at
+ * sign-in, it is stored there as well – as a fallback in case the token has expired after all.
  */
 class SyncAccounts(context: Context) {
     private val am = AccountManager.get(context)
@@ -60,10 +60,10 @@ class SyncAccounts(context: Context) {
     fun serverUrl(account: Account): String? = am.getUserData(account, Keys.SERVER)
     fun userId(account: Account): String? = am.getUserData(account, Keys.USER_ID)
 
-    /** Konto des lokalen Modus: synchronisiert mit den Daten der App statt mit einem Server */
+    /** Account of the local mode: syncs with the app's data instead of with a server */
     fun isLocal(account: Account): Boolean = serverUrl(account).isNullOrEmpty() && userId(account) == LOCAL_USER
 
-    /** E-Mail-Adresse für die Anmeldung (der Kontoname bleibt bei einer Änderung der Adresse gleich). */
+    /** Email address for sign-in (the account name stays the same if the address changes). */
     fun email(account: Account): String = am.getUserData(account, Keys.EMAIL) ?: account.name
 
     fun password(account: Account): String? = am.getPassword(account)
@@ -71,23 +71,23 @@ class SyncAccounts(context: Context) {
 
     fun setToken(account: Account, token: String?) = am.setAuthToken(account, TOKEN_TYPE, token)
 
-    /** Ablauf des Tokens (Epoch-Millisekunden), `null` wenn unbekannt */
+    /** Expiry of the token (epoch milliseconds), `null` if unknown */
     fun tokenExpiresAt(account: Account): Long? = am.getUserData(account, Keys.TOKEN_EXPIRES)?.toLongOrNull()
 
-    /** Speichert Token und Ablauf aus der Antwort von Login/Refresh (`expires_at` im RFC-3339-Format). */
+    /** Stores the token and expiry from the login/refresh response (`expires_at` in RFC 3339 format). */
     fun setToken(account: Account, token: String, expiresAt: String) {
         setToken(account, token)
         val ms = runCatching { java.time.Instant.parse(expiresAt).toEpochMilli() }.getOrNull()
         am.setUserData(account, Keys.TOKEN_EXPIRES, ms?.toString())
     }
 
-    /** Wurde nach dem Anlegen des Kontos schon einmal nach den Berechtigungen gefragt? */
+    /** Have the permissions already been requested once after creating the account? */
     fun onboarded(account: Account): Boolean = am.getUserData(account, Keys.ONBOARDED) == "1"
     fun setOnboarded(account: Account) = am.setUserData(account, Keys.ONBOARDED, "1")
     fun setPassword(account: Account, password: String) = am.setPassword(account, password)
     fun setEmail(account: Account, email: String) = am.setUserData(account, Keys.EMAIL, email)
 
-    /** Intervall der automatischen Synchronisierung in Minuten, 0 = nur bei Änderungen und von Hand */
+    /** Interval of the automatic sync in minutes, 0 = only on changes and manually */
     fun intervalMinutes(account: Account): Int =
         am.getUserData(account, Keys.INTERVAL)?.toIntOrNull() ?: DEFAULT_INTERVAL_MINUTES
 
@@ -103,14 +103,14 @@ class SyncAccounts(context: Context) {
     }
 
     /**
-     * Legt das Konto an oder aktualisiert es. Ein Konto eines anderen Benutzers oder Servers wird vorher
-     * entfernt – Android löscht dabei dessen Kalender und Kontakte vom Gerät.
+     * Creates or updates the account. An account of another user or server is removed
+     * first – Android then deletes its calendars and contacts from the device.
      */
     fun createOrUpdate(
         serverUrl: String, userId: String, email: String, password: String?, token: String, expiresAt: String,
     ): Account {
         account()?.let { existing ->
-            // Im lokalen Modus ist die Adresse leer – AccountManager liefert sie dann ggf. als null
+            // In local mode the address is empty – AccountManager may then return it as null
             if (serverUrl(existing).orEmpty() == serverUrl && userId(existing) == userId) {
                 if (password != null) setPassword(existing, password)
                 setToken(existing, token, expiresAt)
@@ -131,7 +131,7 @@ class SyncAccounts(context: Context) {
         return account
     }
 
-    /** Entfernt das Konto samt aller synchronisierten Kalender und Kontakte auf diesem Gerät. */
+    /** Removes the account including all synced calendars and contacts on this device. */
     fun remove() {
         am.getAccountsByType(ACCOUNT_TYPE).forEach { am.removeAccountExplicitly(it) }
     }

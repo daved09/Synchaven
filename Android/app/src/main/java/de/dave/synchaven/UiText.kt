@@ -7,20 +7,20 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalResources
 
 /**
- * Text für die UI, der erst dort aufgelöst wird, wo Ressourcen verfügbar sind (in Compose).
- * So brauchen ViewModels, Datenschicht und Hilfslogik keinen Context und bleiben ohne Android testbar.
+ * Text for the UI that is only resolved where resources are available (in Compose).
+ * This way ViewModels, the data layer and helper logic need no Context and stay testable without Android.
  */
 sealed interface UiText {
-    /** Fertiger Text, z. B. eine Fehlermeldung des Servers oder ein Name */
+    /** Ready-made text, e.g. an error message from the server or a name */
     data class Plain(val value: String) : UiText
 
-    /** String-Ressource mit optionalen Formatargumenten (auch verschachtelte [UiText]) */
+    /** String resource with optional format arguments (also nested [UiText]) */
     data class Res(@StringRes val id: Int, val args: List<Any> = emptyList()) : UiText
 
-    /** Plural-Ressource; [args] sind die vollständigen Formatargumente (meist beginnend mit [count]) */
+    /** Plural resource; [args] are the complete format arguments (usually starting with [count]) */
     data class Plural(@PluralsRes val id: Int, val count: Int, val args: List<Any> = listOf(count)) : UiText
 
-    /** Mehrere Texte, verbunden mit dem Trennzeichen aus [separator] */
+    /** Several texts, joined with the separator from [separator] */
     data class Join(val parts: List<UiText>, @StringRes val separator: Int = R.string.list_separator) : UiText
 
     fun resolve(resources: Resources): String = when (this) {

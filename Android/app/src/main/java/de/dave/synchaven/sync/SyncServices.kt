@@ -25,8 +25,8 @@ import kotlinx.coroutines.runBlocking
 private const val TAG = "SyncAdapter"
 
 /**
- * SyncAdapter für Kalender bzw. Kontakte. Android ruft ihn periodisch, nach Änderungen in der Kalender- oder
- * Kontakte-App (Upload) und auf Anforderung der App auf. Ergebnis und Fehler landen am Konto (siehe [SyncAccounts]).
+ * SyncAdapter for calendars or contacts. Android calls it periodically, after changes in the calendar or
+ * contacts app (upload) and when the app requests it. Result and errors are stored on the account (see [SyncAccounts]).
  */
 private class SyncAdapter(context: Context, private val kind: SyncKind) :
     AbstractThreadedSyncAdapter(context, true, false) {
@@ -35,11 +35,11 @@ private class SyncAdapter(context: Context, private val kind: SyncKind) :
         account: Account, extras: Bundle, authority: String, provider: ContentProviderClient, syncResult: SyncResult,
     ) {
         if (account.type != ACCOUNT_TYPE) return
-        // Android fragt so nach, ob das Konto synchronisiert werden soll – das entscheidet die App selbst
+        // This is how Android asks whether the account should be synced – the app decides that itself
         if (extras.getBoolean(ContentResolver.SYNC_EXTRAS_INITIALIZE)) return
         val accounts = SyncAccounts(context)
         val res = context.resources
-        // Lokaler Modus: kein Server, die Synchronisierung liest und schreibt direkt die Daten der App
+        // Local mode: no server, the sync reads and writes the app's data directly
         val container = if (accounts.isLocal(account)) (context.applicationContext as SyncHavenApp).container else null
         val eventsBefore = container?.offlineStore?.data?.value?.events
         val error: String? = try {
@@ -60,8 +60,8 @@ private class SyncAdapter(context: Context, private val kind: SyncKind) :
             }
         } catch (e: Exception) {
             if (e.isCancellation()) {
-                // Android hat die Synchronisierung abgebrochen (z. B. weil sie gleichzeitig neu angestoßen wurde) –
-                // kein Fehler, der SyncManager holt sie nach
+                // Android cancelled the sync (e.g. because it was triggered again at the same time) –
+                // not an error, the SyncManager will run it later
                 Log.i(TAG, "${kind.name}: abgebrochen")
                 return
             }
@@ -69,12 +69,12 @@ private class SyncAdapter(context: Context, private val kind: SyncKind) :
         }
         Log.i(TAG, "${kind.name}: $syncResult${error?.let { " – $it" }.orEmpty()}")
         if (container != null && container.offlineStore.data.value.events != eventsBefore) {
-            // Änderungen aus dem Android-Kalender bzw. Geburtstage aus geänderten Kontakten: Ansichten der App und
-            // den Android-Kalender nachziehen
+            // Changes from the Android calendar or birthdays from changed contacts: update the app's views and
+            // the Android calendar
             container.calendarRepository.refreshViews()
             if (kind == SyncKind.CONTACTS) container.syncController.requestSync(SyncKind.CALENDAR)
         }
-        // Das Konto kann während der Synchronisierung entfernt worden sein
+        // The account may have been removed during the sync
         if (accounts.account() == account) accounts.recordResult(account, kind, error)
     }
 
@@ -107,7 +107,7 @@ private class SyncAdapter(context: Context, private val kind: SyncKind) :
     }
 }
 
-/** Abbruch durch den SyncManager: der Sync-Thread wurde unterbrochen. */
+/** Cancelled by the SyncManager: the sync thread was interrupted. */
 private fun Throwable.isCancellation(): Boolean =
     Thread.currentThread().isInterrupted || generateSequence(this) { it.cause }.any {
         it is InterruptedException || it is java.io.InterruptedIOException && it !is java.net.SocketTimeoutException ||
@@ -125,8 +125,8 @@ class ContactsSyncService : Service() {
 }
 
 /**
- * Minimaler Authenticator: Konten entstehen bei der Anmeldung in der App. „Konto hinzufügen“ in den
- * Android-Einstellungen öffnet deshalb die App.
+ * Minimal authenticator: accounts are created when signing in to the app. "Add account" in the
+ * Android settings therefore opens the app.
  */
 private class Authenticator(private val context: Context) : AbstractAccountAuthenticator(context) {
     override fun addAccount(

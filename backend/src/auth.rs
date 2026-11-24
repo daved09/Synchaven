@@ -1,4 +1,4 @@
-//! Passwort-Hashing, JWT-Erzeugung und der `AuthUser`-Extractor.
+//! Password hashing, JWT creation and the `AuthUser` extractor.
 
 use argon2::{
     password_hash::{rand_core::OsRng, PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
@@ -31,7 +31,7 @@ impl JwtKeys {
         }
     }
 
-    /// Stellt ein Token aus, das `ttl_days` Tage gültig ist (Einstellung der Verwaltung).
+    /// Issues a token that is valid for `ttl_days` days (admin setting).
     pub fn issue(&self, user_id: &str, ttl_days: i64) -> Result<(String, chrono::DateTime<Utc>), AppError> {
         let now = Utc::now();
         let exp = now + Duration::days(ttl_days);
@@ -41,7 +41,7 @@ impl JwtKeys {
         Ok((token, exp))
     }
 
-    /// Benutzer-ID und Ausstellungszeitpunkt (Unix-Sekunden) eines gültigen Tokens
+    /// User ID and issue time (Unix seconds) of a valid token
     fn verify(&self, token: &str) -> Result<(String, i64), AppError> {
         decode::<Claims>(token, &self.decoding, &Validation::default())
             .map(|d| (d.claims.sub, d.claims.iat))
@@ -63,7 +63,7 @@ pub fn verify_password(password: &str, hash: &str) -> bool {
         .unwrap_or(false)
 }
 
-/// Angemeldeter Benutzer, ermittelt aus `Authorization: Bearer <token>`.
+/// Signed-in user, determined from `Authorization: Bearer <token>`.
 pub struct AuthUser {
     pub id: String,
 }
@@ -83,8 +83,8 @@ impl FromRequestParts<AppState> for AuthUser {
             .ok_or_else(|| AppError::Unauthorized("Bearer-Token erwartet".into()))?;
         let (id, issued_at) = state.jwt.verify(token.trim())?;
 
-        // Sicherstellen, dass der Benutzer noch existiert (z. B. nach Löschung), nicht gesperrt ist
-        // und das Token nicht durch „Überall abmelden“ oder ein zurückgesetztes Passwort widerrufen wurde.
+        // Make sure the user still exists (e.g. after deletion), is not disabled
+        // and the token has not been revoked by "sign out everywhere" or a password reset.
         let row: Option<(bool, Option<i64>)> =
             sqlx::query_as("SELECT disabled, tokens_valid_after FROM users WHERE id = ?")
                 .bind(&id)

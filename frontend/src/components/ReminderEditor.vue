@@ -4,7 +4,7 @@ import {
   ALL_DAY_PRESETS, MAX_REMINDERS, TIMED_PRESETS, allDayMinutes, describeReminder, isValidReminder, sortReminders,
 } from '@/utils/reminders'
 
-/** Liste der Erinnerungen (Minuten vor Beginn) */
+/** List of reminders (minutes before the start) */
 const list = defineModel<number[]>({ required: true })
 const props = defineProps<{ allDay: boolean; disabled?: boolean }>()
 

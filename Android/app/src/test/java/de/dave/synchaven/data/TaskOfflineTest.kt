@@ -16,7 +16,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** Aufgaben im Offline-Cache: Mapping der API, lokale Anwendung von Änderungen und die Warteschlange */
+/** Tasks in the offline cache: API mapping, local application of changes and the queue */
 class TaskOfflineTest {
     private fun input(title: String, due: String? = null, allDay: Boolean = true, completed: Boolean? = null) =
         TaskInput(listId = "l1", title = title, due = due, allDay = allDay, completed = completed)
@@ -46,20 +46,20 @@ class TaskOfflineTest {
         assertTrue(json, json.contains("\"list_id\":\"l1\""))
         assertTrue(json, json.contains("\"all_day\":false"))
         assertTrue(json, json.contains("\"due\":\"2026-11-24T08:30:00Z\""))
-        // Ohne `completed` bleibt der Status auf dem Server erhalten
+        // Without `completed` the status on the server is kept
         assertTrue(json, json.contains("\"completed\":null"))
-        // Bearbeiten aus einer vorhandenen Aufgabe lässt den Status ebenfalls unverändert
+        // Editing from an existing task also leaves the status unchanged
         assertNull(Task("t1", "l1", "A", completed = true).toInput().completed)
     }
 
     @Test
     fun localTaskMatchesServerNormalization() {
-        // Ganztägig: Mitternacht UTC des Tages
+        // All-day: midnight UTC of the day
         val allDay = input("A", "2026-11-24T15:30:00Z").toLocalTask("x")
         assertEquals("2026-11-24T00:00:00Z", allDay.due)
-        // Mit Uhrzeit bleibt der Zeitpunkt
+        // With a time, the point in time is kept
         assertEquals("2026-11-24T15:30:00Z", input("A", "2026-11-24T15:30:00Z", allDay = false).toLocalTask("x").due)
-        // Ohne Datum immer ganztägig; Titel wird getrimmt
+        // Without a date always all-day; the title is trimmed
         val noDate = input("  Einkaufen ", allDay = false).toLocalTask("x")
         assertTrue(noDate.allDay)
         assertNull(noDate.due)
@@ -78,7 +78,7 @@ class TaskOfflineTest {
         assertNull(reopened.completedAt)
     }
 
-    // ---------- Lokale Anwendung ----------
+    // ---------- Local application ----------
 
     private val base = OfflineData(
         taskLists = listOf(TaskList("l1", "Meine Aufgaben", openCount = 9), TaskList("l2", "Einkauf", visible = false)),
@@ -105,12 +105,12 @@ class TaskOfflineTest {
         assertFalse(byId.getValue("t2").completed)
         assertNull(byId.getValue("t2").completedAt)
         assertEquals("2026-11-23T09:00:00Z", byId.getValue("local-1").createdAt)
-        // Offene Aufgaben je Liste aus den Einträgen: local-1 und t2 offen, t1 erledigt
+        // Open tasks per list from the entries: local-1 and t2 open, t1 completed
         assertEquals(listOf(2, 0), data.taskLists!!.map { it.openCount })
         assertTrue(data.taskLists[1].visible)
         assertEquals("#1A73E8", data.taskLists[1].color)
 
-        // Neu vom Server geladen: die ausstehenden Änderungen bleiben eingerechnet, ohne doppelt zu zählen
+        // Reloaded from the server: pending changes stay applied without being counted twice
         val reloaded = data.copy(tasks = base.tasks, taskLists = base.taskLists).withPending().withPending()
         assertEquals(data.tasks, reloaded.tasks)
         assertEquals(data.taskLists, reloaded.taskLists)
@@ -124,13 +124,13 @@ class TaskOfflineTest {
 
     @Test
     fun withoutTaskDataNothingIsInvented() {
-        // Lokaler Modus / älterer Server: Aufgaben bleiben `null`
+        // Local mode / older server: tasks stay `null`
         val data = OfflineData().withPending().recount()
         assertNull(data.tasks)
         assertNull(data.taskLists)
     }
 
-    // ---------- Warteschlange ----------
+    // ---------- Queue ----------
 
     @Test
     fun editingAndCompletingOfflineCreatedTaskChangesTheCreate() {
@@ -167,7 +167,7 @@ class TaskOfflineTest {
             ),
             ops,
         )
-        // Löschen verwirft alle Änderungen an der Aufgabe, nicht aber die der Liste
+        // Deleting discards all changes to the task, but not those to the list
         assertEquals(
             listOf(PendingOp.UpdateTaskList("l1", TaskListInput("X", visible = true)), PendingOp.DeleteTask("t1")),
             ops.enqueue(PendingOp.DeleteTask("t1")),
@@ -203,7 +203,7 @@ class TaskOfflineTest {
         ))
         val json = AppJson.encodeToString(OfflineData.serializer(), data)
         assertEquals(data, AppJson.decodeFromString(OfflineData.serializer(), json))
-        // Ältere Caches ohne Aufgaben bleiben lesbar
+        // Older caches without tasks stay readable
         assertNull(AppJson.decodeFromString(OfflineData.serializer(), """{"outbox":[]}""").tasks)
     }
 }

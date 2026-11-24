@@ -40,7 +40,7 @@ const renameFrom = ref('')
 const renameTo = ref('')
 const renaming = ref(false)
 
-// --- Auswahl über die URL (?book=…|?category=…&id=…), damit Links und „Zurück“ funktionieren ---
+// --- Selection via the URL (?book=…|?category=…&id=…), so links and "Back" work ---
 const bookFilter = computed(() => (route.query.book as string | undefined) ?? null)
 const categoryFilter = computed(() => (route.query.category as string | undefined) ?? null)
 const selectedId = computed(() => (route.query.id as string | undefined) ?? null)
@@ -99,12 +99,12 @@ onMounted(async () => {
 })
 onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 
-// Gelöschte oder unbekannte Auswahl entfernen
+// Remove a deleted or unknown selection
 watch(() => [selectedId.value, contacts.list.length], () => {
   if (selectedId.value && !contacts.loading && contacts.list.length && !selected.value) select(null)
 })
 
-// --- Kontakte ---
+// --- Contacts ---
 function newContact() {
   editId.value = null
   editorOpen.value = true
@@ -129,7 +129,7 @@ async function deleteContact(c: Contact) {
   }
 }
 
-// --- Adressbücher ---
+// --- Address books ---
 function newBook() {
   editBook.value = null
   bookDialog.value = true
@@ -199,7 +199,7 @@ function onDrop(e: DragEvent) {
   importFiles(files, currentBook.value ?? contacts.books[0] ?? null)
 }
 
-// --- Kategorien ---
+// --- Categories ---
 function openRename(name: string) {
   renameFrom.value = name
   renameTo.value = name
@@ -235,7 +235,7 @@ async function deleteCategory(name: string, count: number) {
   }
 }
 
-// --- Tastenkürzel ---
+// --- Keyboard shortcuts ---
 const anyDialog = () => editorOpen.value || bookDialog.value || davOpen.value || renameOpen.value || !!accountMenu.value?.dialogOpen
 function onKey(e: KeyboardEvent) {
   const t = e.target as HTMLElement

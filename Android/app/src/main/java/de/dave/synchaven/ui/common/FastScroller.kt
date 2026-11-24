@@ -46,11 +46,11 @@ private val BarWidth = 28.dp
 private val BubbleSize = 56.dp
 
 /**
- * Buchstabenleiste am rechten Rand einer gruppierten Liste: Tippen oder Ziehen springt zur
- * Gruppe, beim Ziehen zeigt eine Blase den aktuellen Buchstaben.
+ * Letter bar at the right edge of a grouped list: tapping or dragging jumps to the
+ * group; while dragging, a bubble shows the current letter.
  *
- * @param current Index der gerade oben sichtbaren Gruppe (wird hervorgehoben)
- * @param onSelect wird mit dem Index der gewählten Gruppe aufgerufen
+ * @param current index of the group currently visible at the top (is highlighted)
+ * @param onSelect is called with the index of the selected group
  */
 @Composable
 fun LetterFastScroller(
@@ -69,8 +69,8 @@ fun LetterFastScroller(
     var barHeight by remember { mutableIntStateOf(0) }
 
     BoxWithConstraints(modifier.fillMaxHeight()) {
-        // Passen nicht alle Buchstaben untereinander, wird nur jeder n-te angezeigt;
-        // die Auswahl per Finger verteilt sich trotzdem auf alle Buchstaben.
+        // If not all letters fit below each other, only every n-th one is shown;
+        // selection with the finger still covers all letters.
         val step = if (letters.isEmpty()) 1 else ceil(letters.size * MinRowHeight.value / maxHeight.value).toInt().coerceAtLeast(1)
         val shown = letters.indices.filter { it % step == 0 }
         val rowHeight = (maxHeight / shown.size.coerceAtLeast(1)).coerceAtMost(RowHeight)

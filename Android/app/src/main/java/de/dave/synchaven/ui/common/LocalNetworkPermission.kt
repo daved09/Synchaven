@@ -13,18 +13,18 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 
-/** API-Level von Android 17, das die Laufzeitberechtigung ACCESS_LOCAL_NETWORK eingeführt hat. */
+/** API level of Android 17, which introduced the ACCESS_LOCAL_NETWORK runtime permission. */
 private const val ANDROID_17 = 37
 
-/** true, wenn die App unter Android 17+ (noch) nicht ins lokale Netz darf. */
+/** true if the app is not (yet) allowed to access the local network on Android 17+. */
 fun needsLocalNetworkPermission(context: Context): Boolean =
     Build.VERSION.SDK_INT >= ANDROID_17 &&
         ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_LOCAL_NETWORK) !=
         PackageManager.PERMISSION_GRANTED
 
 /**
- * Liefert eine Funktion, die ACCESS_LOCAL_NETWORK bei Bedarf anfragt und danach [onResult] aufruft
- * (sofort mit `true`, wenn die Berechtigung schon erteilt oder nicht nötig ist).
+ * Returns a function that requests ACCESS_LOCAL_NETWORK if needed and then calls [onResult]
+ * (immediately with `true` if the permission is already granted or not needed).
  */
 @Composable
 fun rememberLocalNetworkPermissionRequest(onResult: (granted: Boolean) -> Unit): () -> Unit {

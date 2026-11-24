@@ -1,6 +1,6 @@
 [package]
 name = "synchaven"
-version = "0.0.0" # Platzhalter – die Version steht in version.properties (siehe build.rs)
+version = "0.0.0" # Placeholder – the version is in version.properties (see build.rs)
 edition = "2021"
 description = "Synchaven – Kalender- und Kontakt-Backend mit REST API und CardDAV"
 

@@ -6,10 +6,10 @@ import android.provider.ContactsContract.CommonDataKinds.Phone
 import android.provider.ContactsContract.CommonDataKinds.StructuredPostal
 import android.provider.ContactsContract.CommonDataKinds.Website
 
-// Typen von Telefonnummern, E-Mail-Adressen, Adressen und Websites zwischen API (`mobile`, `home`, `work`,
-// `fax`, `pager`, `other` oder eigene Bezeichnung) und ContactsContract. Nur Konstanten – ohne Android testbar.
+// Types of phone numbers, email addresses, addresses and websites between the API (`mobile`, `home`, `work`,
+// `fax`, `pager`, `other` or a custom label) and ContactsContract. Constants only – testable without Android.
 
-/** Typ und eigene Bezeichnung für eine Datenzeile in ContactsContract */
+/** Type and custom label for a data row in ContactsContract */
 data class AndroidType(val type: Int, val label: String? = null)
 
 private fun custom(label: String) = AndroidType(BaseTypes.TYPE_CUSTOM, label)
@@ -24,7 +24,7 @@ fun phoneTypeToAndroid(type: String): AndroidType = when (type.trim().lowercase(
     else -> custom(type.trim())
 }
 
-/** [typeLabel] liefert die Bezeichnung, die Android für Typen ohne Entsprechung in der API anzeigt. */
+/** [typeLabel] returns the label Android shows for types without a counterpart in the API. */
 fun phoneTypeFromAndroid(type: Int, label: String?, typeLabel: (Int) -> String): String = when (type) {
     Phone.TYPE_MOBILE -> "mobile"
     Phone.TYPE_HOME -> "home"
@@ -84,8 +84,8 @@ private val BASIC_DATE = Regex("""^(\d{4})(\d{2})(\d{2})$""")
 private val NO_YEAR = Regex("""^--(\d{2})-?(\d{2})$""")
 
 /**
- * Geburtstag aus ContactsContract (`1990-05-12`, `--05-12`, `19900512`, auch mit Uhrzeit) im Format der API
- * (`YYYY-MM-DD` oder `--MM-DD`); leer, wenn er sich nicht lesen lässt.
+ * Birthday from ContactsContract (`1990-05-12`, `--05-12`, `19900512`, also with time) in the API's format
+ * (`YYYY-MM-DD` or `--MM-DD`); empty if it can't be read.
  */
 fun normalizeBirthday(value: String?): String {
     val v = value?.trim().orEmpty()
@@ -96,11 +96,11 @@ fun normalizeBirthday(value: String?): String {
     val month = m.toInt()
     val day = d.toInt()
     if (month !in 1..12 || day !in 1..31) return ""
-    // 1604 ist die Apple-Konvention für „ohne Jahr“
+    // 1604 is the Apple convention for "without year"
     return if (y.isEmpty() || y == "1604" || y == "0000") "--$m-$d" else "$y-$m-$d"
 }
 
-/** Adresse in Zeilen wie im Adressfeld eines Briefs – für FORMATTED_ADDRESS */
+/** Address in lines as in the address field of a letter – for FORMATTED_ADDRESS */
 fun formatAddress(
     street: String, extended: String, poBox: String, postalCode: String, locality: String, region: String, country: String,
 ): String = listOf(

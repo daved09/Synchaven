@@ -31,7 +31,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-/** Zustand des Dialogs „Profil bearbeiten“ */
+/** State of the "Edit profile" dialog */
 data class ProfileForm(
     val name: String = "",
     val email: String = "",
@@ -41,7 +41,7 @@ data class ProfileForm(
     val error: UiText? = null,
 )
 
-/** Zustand des Dialogs „Synchronisierung einrichten“ (Passwort für das Android-Konto) */
+/** State of the "Set up sync" dialog (password for the Android account) */
 data class SyncSetupForm(
     val password: String = "",
     val saving: Boolean = false,
@@ -57,7 +57,7 @@ class SettingsViewModel(
 ) : ViewModel() {
     val messages = UiMessages()
 
-    /** Stand des Offline-Caches */
+    /** State of the offline cache */
     val offline: StateFlow<OfflineStatus> = offlineSync.status
 
     fun syncOfflineNow() = offlineSync.requestSync()
@@ -71,7 +71,7 @@ class SettingsViewModel(
     private val _serverInfo = MutableStateFlow<ServerInfo?>(null)
     val serverInfo = _serverInfo.asStateFlow()
 
-    /** `null` = Dialog geschlossen */
+    /** `null` = dialog closed */
     private val _profile = MutableStateFlow<ProfileForm?>(null)
     val profile = _profile.asStateFlow()
 
@@ -79,7 +79,7 @@ class SettingsViewModel(
         viewModelScope.launch {
             if (sessionStore.current?.local == true) return@launch
             runCatching { auth.currentServerInfo() }.onSuccess { _serverInfo.value = it }
-            // Name/E-Mail könnten in der Weboberfläche geändert worden sein
+            // Name/email may have been changed in the web UI
             runCatching { auth.me() }
         }
     }
@@ -88,7 +88,7 @@ class SettingsViewModel(
         viewModelScope.launch { settingsStore.update(transform) }
     }
 
-    /** Die Standardansicht gehört zum Benutzerkonto */
+    /** The default view belongs to the user account */
     fun setDefaultView(mode: ViewMode) {
         viewModelScope.launch {
             runCatching { auth.setDefaultView(mode) }.onFailure { messages.send(it.userMessage()) }
@@ -139,18 +139,18 @@ class SettingsViewModel(
         }
     }
 
-    // ---------- Synchronisierung mit Android ----------
+    // ---------- Sync with Android ----------
 
     val sync: StateFlow<SyncState> = syncController.state
 
-    /** `null` = Dialog geschlossen */
+    /** `null` = dialog closed */
     private val _syncSetup = MutableStateFlow<SyncSetupForm?>(null)
     val syncSetup = _syncSetup.asStateFlow()
 
-    /** Konto entfernt (Android-Einstellungen) oder Berechtigung entzogen? */
+    /** Account removed (Android settings) or permission revoked? */
     fun refreshSync() = syncController.refresh()
 
-    /** Ohne Konto: aus der Sitzung anlegen. Mit Konto (Anmeldung fehlgeschlagen): Passwort abfragen. */
+    /** Without an account: create it from the session. With an account (sign-in failed): ask for the password. */
     fun openSyncSetup() {
         if (sync.value.accountName != null) {
             _syncSetup.value = SyncSetupForm()
@@ -176,7 +176,7 @@ class SettingsViewModel(
             runCatching { auth.setupSync(form.password) }
                 .onSuccess {
                     _syncSetup.value = null
-                    // War die Synchronisierung schon eingeschaltet (Passwort erneuert), gleich nachholen
+                    // If the sync was already turned on (password renewed), catch up right away
                     syncController.requestSync(manual = true)
                     messages.send(uiText(R.string.msg_sync_set_up))
                 }
@@ -184,7 +184,7 @@ class SettingsViewModel(
         }
     }
 
-    /** Die Berechtigungen hat der Bildschirm bereits eingeholt. */
+    /** The screen has already obtained the permissions. */
     fun enableSync(kind: SyncKind) {
         viewModelScope.launch(Dispatchers.IO) { syncController.enable(kind) }
     }

@@ -11,9 +11,9 @@ import java.text.Normalizer
 import java.time.LocalDate
 import java.time.Period
 
-// Hilfen für Kontakte (wie utils/contact.ts im Web).
+// Helpers for contacts (like utils/contact.ts on the web).
 
-/** Auswahlmöglichkeit mit Anzeigetext und gespeichertem Wert */
+/** Option with display text and stored value */
 data class TypeOption(val title: UiText, val value: String)
 
 val PHONE_TYPES = listOf(
@@ -26,20 +26,20 @@ val OTHER_TYPES = listOf(
     TypeOption(uiText(R.string.type_other), "other"),
 )
 
-/** Anzeigetext eines Typs; eigene Bezeichnungen werden unverändert angezeigt. */
+/** Display text of a type; custom labels are shown unchanged. */
 fun typeLabel(type: String, phone: Boolean = false): UiText =
     (if (phone) PHONE_TYPES else OTHER_TYPES).firstOrNull { it.value == type }?.title
         ?: if (type.isBlank()) uiText(R.string.type_other) else type.toUiText()
 
-/** Name aus den Namensteilen (wie im Backend) */
+/** Name from the name parts (as in the backend) */
 fun Contact.partsName(): String =
     listOf(prefix, givenName, additionalNames, familyName, suffix)
         .map { it.trim() }.filter { it.isNotEmpty() }.joinToString(" ")
 
-/** Eigener Name: der Spitzname, falls eingetragen, sonst der Name aus den Namensteilen (wie im Backend) */
+/** Own name: the nickname, if set, otherwise the name from the name parts (as in the backend) */
 fun Contact.ownName(): String = nickname.trim().ifEmpty { partsName() }
 
-/** Anzeigename aus Spitzname, Namensteilen, Firma, E-Mail oder Telefon (wie im Backend) */
+/** Display name from nickname, name parts, company, email or phone (as in the backend) */
 fun Contact.derivedName(): String {
     val name = ownName()
     return (listOf(name, organization.trim()) + emails.map { it.value.trim() } + phones.map { it.value.trim() })
@@ -47,18 +47,18 @@ fun Contact.derivedName(): String {
 }
 
 /**
- * Anzeigename: der Spitzname, falls eingetragen, sonst immer aus den Namensteilen, falls vorhanden (wie im
- * Backend); leer, wenn der Kontakt weder Name noch Firma, E-Mail oder Telefon hat
+ * Display name: the nickname, if set, otherwise always from the name parts, if present (as in the
+ * backend); empty if the contact has neither a name nor company, email or phone
  */
 fun Contact.displayName(): String = ownName().ifEmpty { fullName.trim().ifEmpty { derivedName() } }
 
 /**
- * Eigentlicher Name ohne Spitzname (für den Kopf der Detailansicht, unter dem der Spitzname eigens steht):
- * Namensteile, sonst Firma, E-Mail oder Telefon, sonst der Anzeigename
+ * Actual name without nickname (for the header of the detail view, below which the nickname is shown separately):
+ * name parts, otherwise company, email or phone, otherwise the display name
  */
 fun Contact.realName(): String = partsName().ifEmpty { copy(nickname = "").derivedName().ifEmpty { displayName() } }
 
-/** Anzeigename mit Platzhalter für Kontakte ohne Namen */
+/** Display name with a placeholder for contacts without a name */
 fun Contact.displayNameText(): UiText = displayName().ifBlank { null }?.toUiText() ?: uiText(R.string.contact_no_name)
 
 fun Contact.initials(): String {
@@ -79,7 +79,7 @@ fun Contact.avatarColor(): String {
     return AVATAR_COLORS[(h % AVATAR_COLORS.size.toUInt()).toInt()]
 }
 
-/** Buchstabe für die Gruppierung der Liste */
+/** Letter for grouping the list */
 fun Contact.groupLetter(): String {
     val first = displayName().trim().take(1).uppercase(LOCALE)
     val base = Normalizer.normalize(first, Normalizer.Form.NFD).replace(Regex("\\p{Mn}+"), "")
@@ -102,10 +102,10 @@ fun Contact.matches(query: String): Boolean {
     return digits.length >= 3 && phones.any { it.value.replace(Regex("[^\\d+]"), "").contains(digits) }
 }
 
-/** Gleiche Kategorie (ohne Groß-/Kleinschreibung, wie im Backend) */
+/** Same category (case-insensitive, as in the backend) */
 fun sameCategory(a: String, b: String) = a.lowercase(LOCALE) == b.lowercase(LOCALE)
 
-/** Wie `clean_categories` des Servers: Leerraum zusammenfassen, leere und doppelte Einträge entfernen. */
+/** Like the server's `clean_categories`: collapse whitespace, remove empty and duplicate entries. */
 fun cleanCategories(list: List<String>): List<String> {
     val out = mutableListOf<String>()
     for (raw in list) {
@@ -134,7 +134,7 @@ fun PostalAddress.mapQuery(): String =
 fun TypedValue.websiteUrl(): String =
     if (Regex("^[a-z][a-z0-9+.-]*:", RegexOption.IGNORE_CASE).containsMatchIn(value)) value else "https://$value"
 
-// ---------- Geburtstag ----------
+// ---------- Birthday ----------
 
 private val ISO_DATE = Regex("""^(\d{4})-(\d{2})-(\d{2})$""")
 private val NO_YEAR = Regex("""^--(\d{2})-(\d{2})$""")
@@ -147,7 +147,7 @@ fun birthdayToInput(b: String): String {
     return b
 }
 
-/** `12.5.1990` / `12.05.` / `1990-05-12` → gespeichertes Format; `null` bei ungültiger Eingabe */
+/** `12.5.1990` / `12.05.` / `1990-05-12` → stored format; `null` for invalid input */
 fun birthdayFromInput(s: String): String? {
     val t = s.trim()
     if (t.isEmpty()) return ""

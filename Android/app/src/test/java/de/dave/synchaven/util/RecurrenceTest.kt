@@ -24,7 +24,7 @@ class RecurrenceTest {
 
     @Test
     fun monthlyByWeekday() {
-        // 30.11.2026 ist der letzte Montag im November
+        // Nov 30, 2026 is the last Monday in November
         val last = LocalDate.of(2026, 11, 30)
         assertEquals(-1, weekdayOrdinal(last))
         val form = RecurrenceForm(freq = Freq.MONTHLY, monthlyMode = MonthlyMode.WEEKDAY)

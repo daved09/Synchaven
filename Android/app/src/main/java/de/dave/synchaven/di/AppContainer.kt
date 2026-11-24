@@ -26,7 +26,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 
-/** Einfacher manueller Abhängigkeitscontainer. */
+/** Simple manual dependency container. */
 class AppContainer(context: Context) {
     val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val dataStore = AppDataStore(context, appScope)
@@ -34,19 +34,19 @@ class AppContainer(context: Context) {
     val settingsStore = SettingsStore(dataStore)
     val syncController = SyncController(context)
 
-    // Ein 401 bei angemeldeter Sitzung bedeutet: Token abgelaufen → zur Anmeldung zurück
+    // A 401 with a signed-in session means: token expired → back to sign-in
     private val httpClient = NetworkFactory.okHttp(sessionStore, BuildConfig.DEBUG) {
         appScope.launch { sessionStore.clear() }
     }
-    /** Lokaler Cache aller Daten des angemeldeten Kontos, damit die App auch offline funktioniert */
+    /** Local cache of all data of the signed-in account, so the app also works offline */
     val offlineStore = OfflineStore(context, appScope)
 
-    /** „Server“ des lokalen Modus – auch für die Synchronisierung mit Android (siehe sync/SyncApi.kt) */
+    /** "Server" of the local mode – also for the sync with Android (see sync/SyncApi.kt) */
     val localApi = LocalApi(offlineStore) { sessionStore.current?.defaultView?.apiValue ?: ViewMode.MONTH.apiValue }
     private val api = SessionApi(NetworkFactory.api(httpClient), localApi) { sessionStore.current?.local == true }
     val offlineSync: OfflineSync = OfflineSync(
         context, api, offlineStore, sessionStore, appScope,
-        // Nach dem Übertragen offline gemachter Änderungen
+        // After transferring changes made offline
         onEventsChanged = { calendarRepository.eventsChanged() },
         onContactsChanged = { syncController.requestSync(SyncKind.CONTACTS) },
     )
@@ -57,19 +57,19 @@ class AppContainer(context: Context) {
     val calendarRepository: CalendarRepository = CalendarRepository(api, offlineStore, offlineSync, appScope,
         onServerChanged = { syncController.requestSync(SyncKind.CALENDAR) })
 
-    // Kontaktänderungen ändern auch den Geburtstagskalender
+    // Contact changes also change the birthday calendar
     val contactRepository = ContactRepository(api, offlineStore, offlineSync, appScope, onContactsChanged = {
         calendarRepository.birthdaysChanged()
         syncController.requestSync(SyncKind.CONTACTS)
     })
-    /** Aufgabenlisten und Aufgaben (nur mit Server, nicht im lokalen Modus) */
+    /** Task lists and tasks (only with a server, not in local mode) */
     val taskRepository = TaskRepository(api, offlineStore, offlineSync, appScope)
     val fileTransfer = FileTransfer(context)
 
     init {
-        // Der Cache gehört zum angemeldeten Konto
+        // The cache belongs to the signed-in account
         appScope.launch {
-            var lastUser: String? = "\u0000" // noch nichts geöffnet
+            var lastUser: String? = "\u0000" // nothing opened yet
             sessionStore.state.collect { state ->
                 val session = (state as? SessionState.LoggedIn)?.session
                 val user = session?.let { if (it.local) LOCAL_ACCOUNT else it.serverUrl + "|" + it.userId }
@@ -79,7 +79,7 @@ class AppContainer(context: Context) {
                     if (session?.local == true) runCatching { localApi.ensureInitialized() }
                     else if (user != null) offlineSync.requestSync()
                     lastUser = user
-                    // Angemeldet, aber noch kein Android-Konto (z. B. nach einem Update): anlegen
+                    // Signed in, but no Android account yet (e.g. after an update): create it
                     if (user != null) runCatching { authRepository.ensureSyncAccount() }
                 }
             }

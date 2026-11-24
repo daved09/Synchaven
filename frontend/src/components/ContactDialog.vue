@@ -23,8 +23,8 @@ const saving = ref(false)
 const form = ref<ContactData>(emptyContact())
 const bookId = ref('')
 /**
- * Name einer Karte ohne Namensteile (z. B. importiert mit nur FN) – bleibt erhalten, solange keine Namensteile
- * eingetragen werden. Sonst bildet der Server den Namen immer aus den Namensteilen.
+ * Name of a card without name parts (e.g. imported with only FN) – kept as long as no name parts
+ * are entered. Otherwise the server always builds the name from the name parts.
  */
 const keptName = ref('')
 const showMore = ref(false)
@@ -59,7 +59,7 @@ const autoName = computed(() => derivedName(form.value))
 const bookItems = computed(() => contacts.books.map((b) => ({ title: b.name, value: b.id })))
 const categoryItems = computed(() => contacts.categories.map((c) => c.name))
 
-/** Leere und doppelte Einträge (ohne Groß-/Kleinschreibung) entfernen; vorhandene Schreibweise übernehmen. */
+/** Remove empty and duplicate entries (case-insensitive); keep the existing spelling. */
 function setCategories(list: string[]) {
   const out: string[] = []
   for (const raw of list) {
@@ -139,7 +139,7 @@ async function save() {
             </div>
           </div>
 
-          <!-- Firma -->
+          <!-- Company -->
           <div class="d-flex ga-2 align-start">
             <v-icon icon="mdi-domain" class="mt-4 field-icon" />
             <div class="flex-1-1">
@@ -160,7 +160,7 @@ async function save() {
             add-text="E-Mail-Adresse hinzufügen" default-type="home"
           />
 
-          <!-- Adressen -->
+          <!-- Addresses -->
           <div v-for="(a, i) in form.addresses" :key="i" class="d-flex ga-2 align-start">
             <v-icon icon="mdi-map-marker-outline" class="mt-4 field-icon" :class="{ invisible: i > 0 }" />
             <div class="flex-1-1">

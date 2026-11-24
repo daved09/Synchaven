@@ -87,7 +87,7 @@ import de.dave.synchaven.util.toLocal
 import java.time.LocalDate
 import java.time.LocalTime
 
-/** Symbol einer Aufgabe: leerer Kreis oder Haken */
+/** Icon of a task: empty circle or check mark */
 @Composable
 fun TaskCheckIcon(completed: Boolean, tint: Color, modifier: Modifier = Modifier, size: Dp = 24.dp) {
     Icon(
@@ -98,10 +98,10 @@ fun TaskCheckIcon(completed: Boolean, tint: Color, modifier: Modifier = Modifier
     )
 }
 
-/** Textdekoration erledigter Aufgaben */
+/** Text decoration of completed tasks */
 fun taskDecoration(completed: Boolean): TextDecoration? = if (completed) TextDecoration.LineThrough else null
 
-/** Lange Fälligkeit für die Details: „Montag, 24. November 2026 · 09:30“ */
+/** Long due date for the details: "Montag, 24. November 2026 · 09:30" */
 @Composable
 private fun longDue(task: Task): String {
     val d = task.dueLocal() ?: return stringResource(R.string.task_no_date)
@@ -109,19 +109,19 @@ private fun longDue(task: Task): String {
     return if (task.allDay) day else stringResource(R.string.task_due_long_time, day, d.format(FMT_TIME))
 }
 
-/** Details einer Aufgabe mit Abhaken, Bearbeiten und Löschen */
+/** Details of a task with check off, edit and delete */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TaskDetailsSheet(
     task: Task,
     list: TaskList?,
-    /** Alle Aufgaben – für Hauptaufgabe und Unteraufgaben */
+    /** All tasks – for the parent task and subtasks */
     tasks: List<Task>,
     onToggle: () -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
     onDismiss: () -> Unit,
-    /** Andere Aufgabe zeigen (Haupt- oder Unteraufgabe) */
+    /** Show another task (parent or subtask) */
     onOpen: (Task) -> Unit,
     onToggleSubtask: (Task) -> Unit,
     onAddSubtask: (String) -> Unit,
@@ -208,7 +208,7 @@ fun TaskDetailsSheet(
     }
 }
 
-/** Unteraufgaben in den Details: abhaken, öffnen und neue per Eingabefeld anlegen */
+/** Subtasks in the details: check off, open and create new ones via an input field */
 @Composable
 private fun SubtaskSection(
     subtasks: List<Task>,
@@ -221,7 +221,7 @@ private fun SubtaskSection(
     fun submit() {
         if (title.isNotBlank()) {
             onAdd(title)
-            title = "" // Feld bleibt für die nächste Unteraufgabe
+            title = "" // field stays for the next subtask
         }
     }
     Column(Modifier.fillMaxWidth()) {
@@ -270,8 +270,8 @@ private fun DetailLine(icon: androidx.compose.ui.graphics.vector.ImageVector, te
 }
 
 /**
- * Aufgabe anlegen ([task] = null) oder bearbeiten. Neue Aufgaben beginnen in [defaultListId] und – falls gesetzt –
- * ganztägig am [defaultDate]. Der Status (erledigt/offen) bleibt beim Bearbeiten unverändert.
+ * Create ([task] = null) or edit a task. New tasks start in [defaultListId] and – if set –
+ * all-day on [defaultDate]. The status (completed/open) stays unchanged when editing.
  */
 @Composable
 fun TaskEditDialog(
@@ -281,7 +281,7 @@ fun TaskEditDialog(
     defaultDate: LocalDate?,
     onSave: (TaskInput) -> Unit,
     onDismiss: () -> Unit,
-    /** Anzahl der Unteraufgaben von [task] – für den Hinweis beim Listenwechsel */
+    /** Number of subtasks of [task] – for the hint when changing the list */
     subtaskCount: Int = 0,
 ) {
     val initialDue = task?.dueLocal()
@@ -308,7 +308,7 @@ fun TaskEditDialog(
                     value = notes, onValueChange = { notes = it }, label = { Text(stringResource(R.string.task_notes)) },
                     minLines = 2, modifier = Modifier.fillMaxWidth(),
                 )
-                // Fälligkeit: Datum und optional Uhrzeit
+                // Due date: date and optional time
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     AssistChip(
                         onClick = { pickDate = true },
@@ -383,13 +383,13 @@ fun TaskEditDialog(
     }
 }
 
-/** Farbpunkt einer Aufgabenliste */
+/** Color dot of a task list */
 @Composable
 fun ListDot(color: String?, size: Dp = 12.dp) {
     Box(Modifier.size(size).background(parseHexColor(color ?: "#1A73E8"), CircleShape))
 }
 
-/** Aufgabenliste anlegen ([list] = null) oder umbenennen/umfärben */
+/** Create ([list] = null) or rename/recolor a task list */
 @Composable
 fun TaskListDialog(list: TaskList?, onSave: (TaskListInput) -> Unit, onDismiss: () -> Unit) {
     var name by rememberSaveable { mutableStateOf(list?.name.orEmpty()) }

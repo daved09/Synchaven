@@ -9,8 +9,8 @@ import java.time.ZoneId
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 
-// Umrechnung zwischen Terminen der REST API und den Spalten von CalendarContract.Events.
-// Ohne Android-Abhängigkeiten, damit sie in Unit-Tests geprüft werden kann.
+// Conversion between events of the REST API and the columns of CalendarContract.Events.
+// Without Android dependencies, so it can be checked in unit tests.
 
 private const val DAY_MS = 86_400_000L
 
@@ -18,7 +18,7 @@ private val UTC_DATE_TIME = DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss'Z'").
 private val LOCAL_DATE_TIME = DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss")
 private val BASIC_DATE = DateTimeFormatter.BASIC_ISO_DATE
 
-/** Prüfsumme der synchronisierten Felder eines Termins – ändert sie sich, wird der lokale Termin neu geschrieben. */
+/** Checksum of an event's synced fields – if it changes, the local event is rewritten. */
 fun CalEvent.syncHash(): String = sha1(
     listOf(
         calendarId, title, description, location, start, end, allDay.toString(), timezone, rrule.orEmpty(),
@@ -29,16 +29,16 @@ fun CalEvent.syncHash(): String = sha1(
 fun sha1(text: String): String =
     MessageDigest.getInstance("SHA-1").digest(text.toByteArray()).joinToString("") { "%02x".format(it) }
 
-/** Spaltenwerte eines Termins für den Android-Kalender. */
+/** Column values of an event for the Android calendar. */
 data class AndroidEventTimes(
     val dtStart: Long,
-    /** nur bei Einzelterminen */
+    /** only for single events */
     val dtEnd: Long?,
-    /** nur bei Serien (RFC 2445, z. B. `P3600S` oder `P1D`) */
+    /** only for series (RFC 2445, e.g. `P3600S` or `P1D`) */
     val duration: String?,
     val timezone: String,
     val rrule: String?,
-    /** EXDATE-Spalte, z. B. `20261207T080000Z,20261214T080000Z` */
+    /** EXDATE column, e.g. `20261207T080000Z,20261214T080000Z` */
     val exdate: String?,
 )
 
@@ -56,7 +56,7 @@ fun CalEvent.toAndroidTimes(): AndroidEventTimes {
         dtStart = start,
         dtEnd = if (recurring) null else end,
         duration = duration,
-        // Ganztägige Termine führt Android in UTC
+        // Android keeps all-day events in UTC
         timezone = if (allDay) "UTC" else timezone.ifBlank { "UTC" },
         rrule = rrule?.takeIf { recurring },
         exdate = if (recurring) formatExdates(exdates.map { Instant.parse(it) }) else null,
@@ -67,8 +67,8 @@ fun formatExdates(dates: List<Instant>): String? =
     dates.takeIf { it.isNotEmpty() }?.joinToString(",") { UTC_DATE_TIME.format(it) }
 
 /**
- * Liest die EXDATE-Spalte: `[TZID;]wert,wert…`, auch mehrere Zeilen. Werte in UTC (`…Z`), lokaler Zeit
- * (`TZID` bzw. Zeitzone des Termins) oder als Datum (dann zur Uhrzeit des Serienbeginns).
+ * Reads the EXDATE column: `[TZID;]value,value…`, also multiple lines. Values in UTC (`…Z`), local time
+ * (`TZID` or the event's time zone) or as a date (then at the time of the series start).
  */
 fun parseExdates(value: String?, eventTimezone: String, dtStart: Long, allDay: Boolean): List<Instant> {
     if (value.isNullOrBlank()) return emptyList()
@@ -103,7 +103,7 @@ private fun zoneOrUtc(id: String): ZoneId = runCatching { ZoneId.of(id.trim()) }
 
 private val DURATION = Regex("""^([+-])?P(?:(\d+)W)?(?:(\d+)D)?(?:T?(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?$""")
 
-/** Dauer nach RFC 2445 (`PT1H30M`, `P1D`, `P2W`, auch Androids `P3600S` ohne `T`) in Millisekunden, `null` wenn ungültig. */
+/** Duration according to RFC 2445 (`PT1H30M`, `P1D`, `P2W`, also Android's `P3600S` without `T`) in milliseconds, `null` if invalid. */
 fun parseDurationMillis(value: String?): Long? {
     val m = DURATION.matchEntire(value?.trim()?.uppercase() ?: return null) ?: return null
     val (sign, w, d, h, min, s) = m.destructured
@@ -112,20 +112,20 @@ fun parseDurationMillis(value: String?): Long? {
     return seconds * 1000 * (if (sign == "-") -1 else 1)
 }
 
-/** Ende eines lokalen Termins aus DTEND oder DTSTART + DURATION. */
+/** End of a local event from DTEND or DTSTART + DURATION. */
 fun androidEventEnd(dtStart: Long, dtEnd: Long?, duration: String?, allDay: Boolean): Long =
     dtEnd?.takeIf { it >= dtStart }
         ?: parseDurationMillis(duration)?.takeIf { it >= 0 }?.let { dtStart + it }
         ?: (if (allDay) dtStart + DAY_MS else dtStart)
 
-/** Zeitpunkt für die API: ganztägige Termine immer als Mitternacht UTC des Datums. */
+/** Point in time for the API: all-day events always as midnight UTC of the date. */
 fun apiTime(millis: Long, allDay: Boolean): String {
     val instant = Instant.ofEpochMilli(millis)
     return if (allDay) instant.atOffset(ZoneOffset.UTC).toLocalDate().atStartOfDay().toInstant(ZoneOffset.UTC).toString()
     else instant.toString()
 }
 
-/** Farbe `#RRGGBB` als ARGB-Wert für CALENDAR_COLOR */
+/** Color `#RRGGBB` as an ARGB value for CALENDAR_COLOR */
 fun parseColor(hex: String, fallback: Int = 0xFF6750A4.toInt()): Int {
     val v = hex.trim().removePrefix("#")
     if (v.length != 6) return fallback

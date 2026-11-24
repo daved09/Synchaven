@@ -36,7 +36,7 @@ android {
     }
 }
 
-// Die Release-APK heißt SyncHaven.apk statt app-release.apk.
+// The release APK is called SyncHaven.apk instead of app-release.apk.
 @Suppress("UnstableApiUsage")
 androidComponents {
     onVariants(selector().withBuildType("release")) { variant ->

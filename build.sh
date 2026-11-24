@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Baut das Docker-Image von Synchaven als
+# Builds the Synchaven Docker image as
 #   ghcr.io/daved09/synchaven:<version>
-# Die Version stammt aus version.properties (Schlüssel "version"). Das Backend liest sie beim
-# Kompilieren selbst (backend/build.rs); hier dient sie als Image-Tag und wird als
-# SYNCHAVEN_VERSION in .env hinterlegt, damit `docker compose up -d` genau dieses Image startet.
+# The version comes from version.properties (key "version"). The backend reads it itself at
+# compile time (backend/build.rs); here it serves as the image tag and is stored as
+# SYNCHAVEN_VERSION in .env so that `docker compose up -d` starts exactly this image.
 
 set -euo pipefail
 
@@ -16,7 +16,7 @@ if ! command -v docker >/dev/null 2>&1; then
     exit 1
 fi
 
-# ---------- Version aus version.properties lesen ----------
+# ---------- Read the version from version.properties ----------
 if [[ ! -f version.properties ]]; then
     echo "Fehler: version.properties fehlt." >&2
     exit 1
@@ -27,7 +27,7 @@ if [[ -z "$VERSION" ]]; then
     echo "Fehler: Kein Eintrag 'version=…' in version.properties gefunden." >&2
     exit 1
 fi
-# Erlaubte Zeichen für einen Docker-Tag
+# Allowed characters for a Docker tag
 if ! [[ "$VERSION" =~ ^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$ ]]; then
     echo "Fehler: Version '${VERSION}' ist als Docker-Tag ungültig (erlaubt: A-Z a-z 0-9 _ . -)." >&2
     exit 1
@@ -45,8 +45,8 @@ docker build \
     --label "org.opencontainers.image.created=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
     .
 
-# ---------- Version für docker-compose.yml hinterlegen ----------
-# Andere Einträge in .env bleiben erhalten
+# ---------- Store the version for docker-compose.yml ----------
+# Other entries in .env are kept
 if [[ -f .env ]] && grep -q '^SYNCHAVEN_VERSION=' .env; then
     sed -i "s/^SYNCHAVEN_VERSION=.*/SYNCHAVEN_VERSION=${VERSION}/" .env
 else

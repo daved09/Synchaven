@@ -1,4 +1,4 @@
-// Datumshilfen – alle Berechnungen in der lokalen Zeitzone des Browsers.
+// Date helpers – all computations in the browser's local time zone.
 
 export const LOCALE = 'de-DE'
 export const browserTimeZone = () => Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
@@ -35,7 +35,7 @@ export function diffDays(a: Date, b: Date): number {
 
 const pad = (n: number) => String(n).padStart(2, '0')
 
-/** YYYY-MM-DD in lokaler Zeit */
+/** YYYY-MM-DD in local time */
 export function dayKey(d: Date): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 }
@@ -53,7 +53,7 @@ export function combine(date: string, time: string): Date {
   return d
 }
 
-/** Ganztägige Termine werden als Mitternacht UTC übertragen */
+/** All-day events are transferred as midnight UTC */
 export function allDayToLocal(iso: string): Date {
   return new Date(+iso.slice(0, 4), +iso.slice(5, 7) - 1, +iso.slice(8, 10))
 }
@@ -78,7 +78,7 @@ export function weekdayNames(weekStartsOn: number, style: 'short' | 'narrow' | '
   return Array.from({ length: 7 }, (_, i) => fmt(addDays(base, i), { weekday: style }))
 }
 
-/** ISO-8601-Kalenderwoche */
+/** ISO 8601 calendar week */
 export function isoWeek(d: Date): number {
   const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()))
   const day = t.getUTCDay() || 7
@@ -87,7 +87,7 @@ export function isoWeek(d: Date): number {
   return Math.ceil(((t.getTime() - yearStart.getTime()) / 86_400_000 + 1) / 7)
 }
 
-/** Lesbarer Zeitraum eines Termins, z. B. "Mo., 23. Nov. · 09:00 – 10:00" */
+/** Readable time range of an event, e.g. "Mo., 23. Nov. · 09:00 – 10:00" */
 export function describeSpan(start: Date, end: Date, allDay: boolean): string {
   const day = (d: Date) => fmt(d, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
   if (allDay) {

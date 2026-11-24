@@ -22,12 +22,12 @@ export interface EventPreset {
 }
 
 const open = defineModel<boolean>({ required: true })
-/** Vorläufige Karte des neuen Termins, wird beim Bearbeiten laufend aktualisiert */
+/** Draft card of the new event, updated continuously while editing */
 const draft = defineModel<EventDraft | null>('draft', { default: null })
 const props = defineProps<{
   eventId: string | null
   preset: EventPreset | null
-  /** Element, neben dem der Dialog erscheint (die vorläufige Karte); sonst mittig */
+  /** Element next to which the dialog appears (the draft card); otherwise centered */
   anchor?: HTMLElement | null
 }>()
 
@@ -53,7 +53,7 @@ const timezone = ref(browserTimeZone())
 const exdates = ref<string[]>([])
 const rec = ref<RecurrenceForm>(emptyForm(new Date()))
 const isSeries = ref(false)
-/** Eigene Erinnerungen; `null` = Standard des Kalenders */
+/** Own reminders; `null` = calendar default */
 const ownReminders = ref<number[] | null>(null)
 
 const start = computed(() => (allDay.value ? parseDayKey(startDate.value) ?? new Date() : combine(startDate.value, startTime.value)))
@@ -63,13 +63,13 @@ function fill(s: Date, e: Date, isAllDay: boolean) {
   allDay.value = isAllDay
   startDate.value = dayKey(s)
   startTime.value = timeKey(s)
-  // Ganztägig: Enddatum wird inklusiv angezeigt
+  // All-day: the end date is shown inclusive
   const shownEnd = isAllDay ? addDays(e, -1) : e
   endDate.value = dayKey(shownEnd < s ? s : shownEnd)
   endTime.value = timeKey(e)
 }
 
-/** Neben der vorläufigen Karte statt mittig; wird beim Öffnen festgelegt, damit der Dialog nicht umspringt */
+/** Next to the draft card instead of centered; fixed on opening so the dialog doesn't jump */
 const anchored = ref(false)
 
 watch(open, async (v) => {
@@ -110,14 +110,14 @@ watch(open, async (v) => {
     isSeries.value = false
     ownReminders.value = null
   }
-  // Erst nach dem Befüllen: sonst meldet das geleerte Titelfeld sofort einen Fehler
+  // Only after filling in: otherwise the cleared title field immediately reports an error
   await nextTick()
   formRef.value?.resetValidation()
-  // autofocus greift nur beim ersten Öffnen
+  // autofocus only works the first time the dialog opens
   focusTitle()
 })
-/** Fokus ins Titelfeld, solange nichts anderes im Dialog fokussiert ist. Am Ziel ausgerichtet ist
- * der Dialog die ersten Frames noch unsichtbar, daher einige Frames lang erneut versuchen. */
+/** Focus the title field as long as nothing else in the dialog is focused. When aligned to the target,
+ * the dialog is still invisible for the first frames, so retry for a few frames. */
 function focusTitle(tries = 10) {
   const content = (titleRef.value?.$el as HTMLElement | undefined)?.closest('.v-overlay__content')
   if (!open.value || !content) return
@@ -127,7 +127,7 @@ function focusTitle(tries = 10) {
   if (tries > 0 && !content.contains(document.activeElement)) requestAnimationFrame(() => focusTitle(tries - 1))
 }
 
-/** Beim Verschieben des Beginns bleibt die Dauer erhalten. */
+/** When moving the start, the duration is kept. */
 function changeStart(date: string | null, time: string | null) {
   const oldStart = start.value
   const duration = end.value.getTime() - oldStart.getTime()
@@ -143,7 +143,7 @@ function changeStart(date: string | null, time: string | null) {
 const liveDraft = computed<EventDraft | null>(() => {
   if (!open.value || props.eventId || !startDate.value || !endDate.value) return null
   const s = start.value
-  // Ganztägig ist das Ende im Formular inklusiv; ungültige Enden mit Mindestdauer anzeigen
+  // All-day: the end is inclusive in the form; show invalid ends with the minimum duration
   const e = allDay.value ? addDays(end.value, 1) : end.value
   const min = allDay.value ? addDays(s, 1) : addMinutes(s, 15)
   return { start: s, end: e < min ? min : e, allDay: allDay.value, title: title.value, calendarId: calendarId.value }
@@ -152,7 +152,7 @@ watch(liveDraft, (d) => (draft.value = d))
 
 const endError = computed(() => (startDate.value && endDate.value && end.value < start.value ? 'Ende liegt vor dem Beginn' : ''))
 
-/** Beschriftung des Wiederholungs-Knopfs, z. B. "Wöchentlich am Sa" */
+/** Label of the recurrence button, e.g. "Wöchentlich am Sa" */
 const recurrenceLabel = computed(() => {
   if (rec.value.freq === 'CUSTOM') return 'Benutzerdefiniert'
   return describeRRule(buildRRule(rec.value, start.value), start.value) || 'Wiederholt sich nicht'
@@ -162,7 +162,7 @@ const recurrenceMenu = ref(false)
 const anchoredProps = {
   locationStrategy: 'connected',
   location: 'end center',
-  // v-dialog richtet sonst die Mitte des Dialogs am Ziel aus
+  // otherwise v-dialog aligns the center of the dialog with the target
   origin: 'auto',
   offset: 12,
   contentClass: 'event-dialog-anchored',
@@ -174,13 +174,13 @@ const calendarDefaults = computed(() => {
   const cal = calendars.byId.get(calendarId.value)
   return (allDay.value ? cal?.default_all_day_reminders : cal?.default_reminders) ?? []
 })
-/** Angezeigte Erinnerungen; eine Änderung macht aus dem Kalender-Standard eigene Erinnerungen */
+/** Displayed reminders; a change turns the calendar default into own reminders */
 const reminders = computed({
   get: () => ownReminders.value ?? calendarDefaults.value,
   set: (v: number[]) => (ownReminders.value = v),
 })
-// Erinnerungen an ganztägige Termine haben eine andere Bedeutung – beim Umschalten auf den Standard zurück
-// (synchron, damit das Befüllen beim Laden nicht als Umschalten zählt)
+// Reminders for all-day events have a different meaning – reset to the default when toggling
+// (synchronously, so filling in on load doesn't count as toggling)
 watch(allDay, () => {
   if (!loading.value) ownReminders.value = null
 }, { flush: 'sync' })
@@ -338,13 +338,13 @@ async function save() {
 </template>
 
 <style>
-/* Am Ziel ausgerichtet: ohne den Außenabstand, den v-dialog für die mittige Anzeige setzt */
+/* Aligned to the target: without the margin v-dialog sets for centered display */
 .v-dialog > .v-overlay__content.event-dialog-anchored { margin: 0; }
 </style>
 
 <style scoped>
 .dot { display: inline-block; width: 12px; height: 12px; border-radius: 6px; flex: 0 0 12px; }
-/* Zeile mit Symbol links, wie in kompakten Kalender-Dialogen üblich */
+/* Row with an icon on the left, as usual in compact calendar dialogs */
 .row { display: grid; grid-template-columns: 24px minmax(0, 1fr); column-gap: 16px; align-items: start; margin-bottom: 12px; }
 .row-icon { margin-top: 8px; opacity: .7; }
 .time { flex: 0 0 120px; }

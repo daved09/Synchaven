@@ -9,16 +9,16 @@ import { useSettingsStore, type ViewMode } from './settings'
 
 export const LIST_DAYS = 60
 
-/** Aktuelle Ansicht und angezeigter Zeitraum */
+/** Current view and displayed range */
 export const useViewStore = defineStore('view', () => {
   const { settings } = useSettingsStore()
   const auth = useAuthStore()
   const notify = useNotifyStore()
   const mode = ref<ViewMode>(auth.user?.default_view ?? settings.defaultView)
-  /** Ansicht wurde bereits bewusst gewählt (Benutzer oder URL) – die Standardansicht überschreibt sie nicht mehr */
+  /** The view has already been chosen deliberately (user or URL) – the default view no longer overrides it */
   let pinned = false
 
-  // Standardansicht aus dem Benutzerkonto übernehmen, sobald es geladen oder geändert ist
+  // Take over the default view from the user account as soon as it is loaded or changed
   watch(() => auth.user?.default_view, (v) => {
     if (!v) return
     settings.defaultView = v
@@ -27,7 +27,7 @@ export const useViewStore = defineStore('view', () => {
   const date = ref<Date>(startOfDay(new Date()))
   const search = ref('')
 
-  /** Tage, die die aktuelle Ansicht für das Datum `d` zeigt (für Monat: ganze Wochen) */
+  /** Days the current view shows for the date `d` (for month: whole weeks) */
   function rangeOf(d: Date): { start: Date; end: Date } {
     switch (mode.value) {
       case 'month': {
@@ -47,7 +47,7 @@ export const useViewStore = defineStore('view', () => {
     }
   }
   const range = computed(() => rangeOf(date.value))
-  /** Datum des um `n` Zeiträume verschobenen Zeitraums */
+  /** Date of the range shifted by `n` periods */
   function shift(d: Date, n: number): Date {
     return mode.value === 'month' ? addMonths(d, n)
       : mode.value === 'week' ? addDays(d, 7 * n)
@@ -85,12 +85,12 @@ export const useViewStore = defineStore('view', () => {
     date.value = startOfDay(d)
     if (m) show(m)
   }
-  /** Zeigt eine Ansicht, ohne die Standardansicht zu ändern */
+  /** Shows a view without changing the default view */
   function show(m: ViewMode) {
     mode.value = m
     pinned = true
   }
-  /** Vom Benutzer gewählte Ansicht – wird zugleich als Standardansicht im Benutzerkonto gespeichert */
+  /** View chosen by the user – also saved as the default view in the user account */
   function select(m: ViewMode) {
     show(m)
     if (auth.user && auth.user.default_view !== m) auth.update({ default_view: m }).catch((e) => notify.fail(e))

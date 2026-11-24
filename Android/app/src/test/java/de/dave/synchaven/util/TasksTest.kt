@@ -14,7 +14,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** Aufgaben in den Kalenderansichten und der Aufgabenliste */
+/** Tasks in the calendar views and the task list */
 class TasksTest {
     private val berlin = ZoneId.of("Europe/Berlin")
 
@@ -22,13 +22,13 @@ class TasksTest {
     fun dueForApiFollowsTheEventTimeModel() {
         assertNull(taskDue(null, LocalTime.of(9, 0), berlin))
         assertEquals("2026-11-24T00:00:00Z", taskDue(LocalDate.of(2026, 11, 24), null, berlin))
-        // 09:30 in Berlin (Winterzeit) = 08:30 UTC
+        // 09:30 in Berlin (winter time) = 08:30 UTC
         assertEquals("2026-11-24T08:30:00Z", taskDue(LocalDate.of(2026, 11, 24), LocalTime.of(9, 30), berlin))
     }
 
     @Test
     fun allDayTaskIsOneDayInTheCalendar() {
-        // Ganztägig: der Tag bleibt derselbe, unabhängig von der Zeitzone des Geräts
+        // All-day: the day stays the same, regardless of the device's time zone
         val ev = Task("t1", "l1", "Steuer", due = "2026-11-25T00:00:00Z", allDay = true)
             .toViewEvent("#0B57D0", ZoneId.of("America/New_York"))!!
         assertEquals(LocalDateTime.of(2026, 11, 25, 0, 0), ev.start)
@@ -85,7 +85,7 @@ class TasksTest {
         val today = now.toLocalDate()
         val yesterday = Task("t", "l", "x", due = "2026-11-22T00:00:00Z")
         val todayAllDay = Task("t", "l", "x", due = "2026-11-23T00:00:00Z")
-        // 10:00 Berlin = 09:00 UTC, also vor 12:00
+        // 10:00 Berlin = 09:00 UTC, so before 12:00
         val todayMorning = Task("t", "l", "x", due = "2026-11-23T09:00:00Z", allDay = false)
         assertTrue(yesterday.isOverdue(now, berlin))
         assertFalse(todayAllDay.isOverdue(now, berlin))

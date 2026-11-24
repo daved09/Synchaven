@@ -27,7 +27,7 @@ data class ContactDetailUiState(
     val photo: Bitmap? = null,
     val addressBookName: String = "",
     val error: UiText? = null,
-    /** Kontakt gelöscht → Bildschirm schließen */
+    /** Contact deleted → close the screen */
     val deleted: Boolean = false,
 )
 
@@ -42,7 +42,7 @@ class ContactDetailViewModel(
 
     init {
         load()
-        // Nach dem Bearbeiten (Liste im Repository geändert) neu laden
+        // Reload after editing (list changed in the repository)
         viewModelScope.launch { repo.contacts.drop(1).collect { if (!_state.value.deleted) load(quiet = true) } }
     }
 

@@ -30,11 +30,11 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import de.dave.synchaven.R
 import de.dave.synchaven.reminders.ReminderNotifier
 
-/** Erinnerungen ein-/ausschalten; weist auf fehlende Berechtigungen hin. */
+/** Turn reminders on/off; points out missing permissions. */
 @Composable
 fun NotificationSection(enabled: Boolean, onToggle: (Boolean) -> Unit) {
     val context = LocalContext.current
-    // Nach der Rückkehr aus den Android-Einstellungen neu prüfen
+    // Check again after returning from the Android settings
     var refresh by remember { mutableIntStateOf(0) }
     LifecycleResumeEffect(Unit) {
         refresh++

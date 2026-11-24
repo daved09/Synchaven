@@ -9,7 +9,7 @@ import java.util.UUID
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
-/** Präfix vorläufiger IDs von Terminen, Kontakten und Aufgaben, die offline angelegt und noch nicht übertragen wurden. */
+/** Prefix of temporary IDs of events, contacts and tasks that were created offline and not yet transferred. */
 const val LOCAL_ID_PREFIX = "local-"
 
 fun newLocalId(): String = LOCAL_ID_PREFIX + UUID.randomUUID()
@@ -17,12 +17,12 @@ fun newLocalId(): String = LOCAL_ID_PREFIX + UUID.randomUUID()
 fun isLocalId(id: String) = id.startsWith(LOCAL_ID_PREFIX)
 
 /**
- * Offline vorgenommene Änderung, die beim nächsten Kontakt zum Server übertragen wird. Die Warteschlange
- * wird in Reihenfolge abgearbeitet; [enqueue] fasst Änderungen am selben Objekt zusammen.
+ * Change made offline that is transferred on the next contact with the server. The queue
+ * is processed in order; [enqueue] coalesces changes to the same object.
  */
 @Serializable
 sealed interface PendingOp {
-    /** ID des betroffenen Termins, Kontakts oder Kalenders */
+    /** ID of the affected event, contact or calendar */
     val targetId: String
 
     @Serializable @SerialName("event_create")
@@ -40,7 +40,7 @@ sealed interface PendingOp {
         override val targetId get() = id
     }
 
-    /** Ein Vorkommen einer Serie entfällt */
+    /** An occurrence of a series is removed */
     @Serializable @SerialName("event_exdate")
     data class AddExdate(val id: String, val occurrenceStart: String) : PendingOp {
         override val targetId get() = id
@@ -61,13 +61,13 @@ sealed interface PendingOp {
         override val targetId get() = id
     }
 
-    /** Name, Farbe oder Sichtbarkeit eines Kalenders */
+    /** Name, color or visibility of a calendar */
     @Serializable @SerialName("calendar_update")
     data class UpdateCalendar(val id: String, val input: CalendarInput) : PendingOp {
         override val targetId get() = id
     }
 
-    /** [createdAt]: Zeitpunkt der Anlage, damit die Aufgabe bis zur Übertragung richtig einsortiert wird */
+    /** [createdAt]: creation time, so the task is sorted correctly until it is transferred */
     @Serializable @SerialName("task_create")
     data class CreateTask(val localId: String, val input: TaskInput, val createdAt: String = "") : PendingOp {
         override val targetId get() = localId
@@ -78,7 +78,7 @@ sealed interface PendingOp {
         override val targetId get() = id
     }
 
-    /** Abhaken oder wieder öffnen; [at] ist der Zeitpunkt des Abhakens (bis der Server seinen liefert) */
+    /** Check off or reopen; [at] is the time of checking off (until the server provides its own) */
     @Serializable @SerialName("task_completed")
     data class SetTaskCompleted(val id: String, val completed: Boolean, val at: String = "") : PendingOp {
         override val targetId get() = id
@@ -89,13 +89,13 @@ sealed interface PendingOp {
         override val targetId get() = id
     }
 
-    /** Name, Farbe oder Sichtbarkeit einer Aufgabenliste */
+    /** Name, color or visibility of a task list */
     @Serializable @SerialName("task_list_update")
     data class UpdateTaskList(val id: String, val input: TaskListInput) : PendingOp {
         override val targetId get() = id
     }
 
-    /** Standardansicht des Kalenders im Benutzerkonto */
+    /** The calendar's default view in the user account */
     @Serializable @SerialName("default_view")
     data class SetDefaultView(val view: String) : PendingOp {
         override val targetId get() = ""
@@ -115,9 +115,9 @@ private fun PendingOp.sameTarget(other: PendingOp) = targetId == other.targetId 
     ((isEventOp() && other.isEventOp()) || (isContactOp() && other.isContactOp()) || (isTaskOp() && other.isTaskOp()))
 
 /**
- * Hängt [op] an die Warteschlange an und fasst sie mit früheren Änderungen am selben Objekt zusammen:
- * Bearbeiten eines offline angelegten Objekts ändert dessen Anlage, Löschen entfernt sie ganz, eine neuere
- * Bearbeitung ersetzt die ältere. Die ersten [frozen] Einträge werden gerade übertragen und bleiben unverändert.
+ * Appends [op] to the queue and coalesces it with earlier changes to the same object:
+ * editing an object created offline changes its creation, deleting removes it entirely, a newer
+ * edit replaces the older one. The first [frozen] entries are currently being transferred and stay unchanged.
  */
 fun List<PendingOp>.enqueue(op: PendingOp, frozen: Int = 0): List<PendingOp> {
     val head = take(frozen)
@@ -141,7 +141,7 @@ private fun List<PendingOp>.merge(op: PendingOp): List<PendingOp> = when (op) {
         }
         when (target) {
             is PendingOp.CreateEvent -> map { if (it === target) target.copy(input = target.input.withExdate()) else it }
-            // Die Bearbeitung ersetzt beim Übertragen ohnehin alle EXDATEs
+            // The edit replaces all EXDATEs anyway when transferred
             is PendingOp.UpdateEvent -> map { if (it === target) target.copy(input = target.input.withExdate()) else it }
             else -> this + op
         }
@@ -150,7 +150,7 @@ private fun List<PendingOp>.merge(op: PendingOp): List<PendingOp> = when (op) {
     is PendingOp.UpdateContact -> {
         val create = firstOrNull { it is PendingOp.CreateContact && it.localId == op.id } as PendingOp.CreateContact?
         if (create != null) {
-            // Foto: `null` heißt „unverändert“ – das Foto der Anlage bleibt dann erhalten
+            // Photo: `null` means "unchanged" – the photo of the creation is then kept
             val input = if (op.input.photo == null) op.input.copy(photo = create.input.photo) else op.input
             map { if (it === create) PendingOp.CreateContact(op.id, input) else it }
         } else {
@@ -162,7 +162,7 @@ private fun List<PendingOp>.merge(op: PendingOp): List<PendingOp> = when (op) {
 
     is PendingOp.UpdateTask -> {
         val create = firstOrNull { it is PendingOp.CreateTask && it.localId == op.id } as PendingOp.CreateTask?
-        // Ein bereits eingereihtes Abhaken bleibt erhalten, wenn die Bearbeitung den Status nicht setzt
+        // A queued check-off is kept if the edit doesn't set the status
         if (create != null) map { if (it === create) create.copy(input = op.input.copy(completed = op.input.completed ?: create.input.completed)) else it }
         else filterNot { it is PendingOp.UpdateTask && it.id == op.id } + op
     }
@@ -190,10 +190,10 @@ private fun List<PendingOp>.merge(op: PendingOp): List<PendingOp> = when (op) {
     is PendingOp.SetDefaultView -> filterNot { it is PendingOp.SetDefaultView } + op
 }
 
-/** Ersetzt nach dem Übertragen einer Anlage die vorläufige ID in den übrigen Änderungen. */
+/** After a creation has been transferred, replaces the temporary ID in the remaining changes. */
 fun List<PendingOp>.remap(localId: String, serverId: String): List<PendingOp> = map { op ->
     when {
-        // Offline angelegte Unteraufgaben einer offline angelegten Hauptaufgabe
+        // Subtasks created offline under a parent task created offline
         op is PendingOp.CreateTask && op.input.parentId == localId -> op.copy(input = op.input.copy(parentId = serverId))
         op is PendingOp.UpdateTask && op.input.parentId == localId ->
             op.copy(id = if (op.id == localId) serverId else op.id, input = op.input.copy(parentId = serverId))

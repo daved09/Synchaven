@@ -1,4 +1,4 @@
-//! REST-Endpunkte für Adressbücher und Kontakte inkl. vCard-Import/-Export.
+//! REST endpoints for address books and contacts incl. vCard import/export.
 
 use std::collections::HashMap;
 
@@ -21,7 +21,7 @@ use crate::{
     AppState,
 };
 
-// ---------- Datentypen ----------
+// ---------- Data types ----------
 
 #[derive(Serialize)]
 pub struct AddressBook {
@@ -58,12 +58,12 @@ pub struct Contact {
     id: String,
     addressbook_id: String,
     uid: String,
-    /// Ändert sich mit jeder Änderung der vCard (auch des Fotos) – für die Synchronisierung
+    /// Changes with every change of the vCard (also of the photo) – for syncing
     etag: String,
     #[serde(flatten)]
     data: ContactData,
     has_photo: bool,
-    /// Nur bei Einzelabfrage: Foto als data:-URL
+    /// Only for single queries: photo as a data: URL
     #[serde(skip_serializing_if = "Option::is_none")]
     photo: Option<String>,
     created_at: DateTime<Utc>,
@@ -91,10 +91,10 @@ impl Contact {
 #[derive(Deserialize)]
 pub struct ContactInput {
     addressbook_id: String,
-    /// Neues Foto als data:-URL, `""` entfernt es, fehlt das Feld, bleibt das Foto unverändert.
+    /// New photo as a data: URL, `""` removes it; if the field is missing, the photo stays unchanged.
     #[serde(default)]
     photo: Option<String>,
-    /// Fehlt das Feld (ältere Clients), bleiben die Kategorien unverändert.
+    /// If the field is missing (older clients), the categories stay unchanged.
     #[serde(default)]
     categories: Option<Vec<String>>,
     #[serde(flatten)]
@@ -102,13 +102,13 @@ pub struct ContactInput {
 }
 
 impl ContactInput {
-    /// Formulardaten; ohne Feld `categories` die bisherigen Kategorien.
+    /// Form data; without a `categories` field, the existing categories.
     fn data(self, old: &[String]) -> ContactData {
         ContactData { categories: self.categories.unwrap_or_else(|| old.to_vec()), ..self.data }
     }
 }
 
-/// REV auf den aktuellen Zeitpunkt setzen.
+/// Set REV to the current time.
 fn touch(card: &mut vcard::Card) {
     card.lines.retain(|l| l.name != "REV");
     card.lines.push(vcard::Line::new("REV", vcard::rev_value(time::now())));
@@ -124,7 +124,7 @@ fn apply_photo(card: &mut vcard::Card, photo: Option<&str>) -> AppResult<()> {
     }
 }
 
-// ---------- Adressbücher ----------
+// ---------- Address books ----------
 
 fn validate_book(input: &AddressBookInput) -> AppResult<String> {
     let name = input.name.trim();
@@ -196,7 +196,7 @@ pub async fn update_book(
 
 pub async fn delete_book(State(state): State<AppState>, auth: AuthUser, Path(id): Path<String>) -> AppResult<StatusCode> {
     contacts::owned_book(&state.db, &auth.id, &id).await?;
-    // Kontakte werden per ON DELETE CASCADE mitgelöscht.
+    // Contacts are deleted along with it via ON DELETE CASCADE.
     sqlx::query("DELETE FROM addressbooks WHERE id = ?").bind(&id).execute(&state.db).await?;
     Ok(StatusCode::NO_CONTENT)
 }
@@ -230,8 +230,8 @@ pub async fn export_book(
     ))
 }
 
-/// Importiert eine .vcf-Datei (beliebig viele Karten, vCard 2.1/3.0/4.0).
-/// Kontakte mit bereits vorhandener UID werden aktualisiert.
+/// Imports a .vcf file (any number of cards, vCard 2.1/3.0/4.0).
+/// Contacts with an existing UID are updated.
 pub async fn import_book(
     State(state): State<AppState>,
     auth: AuthUser,
@@ -247,8 +247,8 @@ pub async fn import_book(
     let mut skipped = Vec::new();
     let mut tx = state.db.begin().await?;
     for card in cards {
-        // Karten ohne UID (z. B. vCard-2.1-Exporte von Handys) erhalten eine aus dem Inhalt
-        // abgeleitete UID, damit ein erneuter Import derselben Datei keine Duplikate erzeugt.
+        // Cards without a UID (e.g. vCard 2.1 exports from phones) get a UID derived from
+        // their content, so importing the same file again doesn't create duplicates.
         let h = contacts::etag_of(&card.serialize());
         let stable_uid = || format!("{}-{}-{}-{}-{}", &h[..8], &h[8..12], &h[12..16], &h[16..20], &h[20..32]);
         let card = vcard::normalize_import(card, stable_uid);
@@ -283,7 +283,7 @@ pub async fn import_book(
     })))
 }
 
-// ---------- Kontakte ----------
+// ---------- Contacts ----------
 
 async fn owned_contact(state: &AppState, user_id: &str, id: &str) -> AppResult<ContactRow> {
     sqlx::query_as::<_, ContactRow>(
@@ -396,7 +396,7 @@ pub async fn update(
 
     let mut tx = state.db.begin().await?;
     if input_book != row.addressbook_id {
-        // In ein anderes Adressbuch verschieben
+        // Move to another address book
         contacts::owned_book(&state.db, &auth.id, &input_book).await?;
         if contacts::find_by_uid(&mut tx, &input_book, &idx.uid).await?.is_some() {
             return Err(AppError::Conflict("Der Kontakt existiert im Ziel-Adressbuch bereits".into()));
@@ -430,17 +430,17 @@ pub async fn delete(State(state): State<AppState>, auth: AuthUser, Path(id): Pat
     Ok(StatusCode::NO_CONTENT)
 }
 
-// ---------- Kategorien ----------
+// ---------- Categories ----------
 
 #[derive(Deserialize)]
 pub struct CategoryInput {
     name: String,
-    /// Nur beim Umbenennen
+    /// Only when renaming
     #[serde(default)]
     new_name: String,
 }
 
-/// Benennt eine Kategorie in allen Kontakten des Benutzers um (`new_name = None`: entfernt sie).
+/// Renames a category in all of the user's contacts (`new_name = None`: removes it).
 async fn rewrite_category(state: &AppState, user_id: &str, name: &str, new_name: Option<&str>) -> AppResult<Json<Value>> {
     let name = name.trim().to_lowercase();
     if name.is_empty() {
@@ -449,7 +449,7 @@ async fn rewrite_category(state: &AppState, user_id: &str, name: &str, new_name:
     if new_name.is_some_and(|n| n.trim().is_empty() || n.trim().chars().count() > 100) {
         return Err(AppError::BadRequest("Der Name muss 1–100 Zeichen lang sein".into()));
     }
-    // Die Kategorien stehen im Suchtext – Vorauswahl, geprüft wird an der Karte.
+    // The categories are part of the search text – a pre-selection, the actual check is done on the card.
     let pattern = format!("%{}%", name.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_"));
     let rows = sqlx::query_as::<_, ContactRow>(
         "SELECT c.* FROM contacts c JOIN addressbooks b ON b.id = c.addressbook_id

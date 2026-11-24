@@ -18,7 +18,7 @@ const emit = defineEmits<{
   create: [start: Date, allDay: boolean]
   openDay: [day: Date]
   move: [ev: ViewEvent, newStart: Date]
-  /** Aufgabe abhaken oder wieder öffnen */
+  /** Check off a task or reopen it */
   toggle: [ev: ViewEvent]
 }>()
 
@@ -54,7 +54,7 @@ function onAllDayClick(e: MouseEvent) {
   emit('create', props.days[Math.max(0, Math.min(idx, props.days.length - 1))], true)
 }
 
-// --- Drag & Drop ---
+// --- Drag & drop ---
 interface DragState { ev: ViewEvent; bar: boolean; lane: number; start: Date }
 const drag = ref<DragState | null>(null)
 let lastPointer: PointerEvent | null = null
@@ -71,7 +71,7 @@ function onTimedDown(e: PointerEvent, ev: ViewEvent, colIdx: number) {
   const y0 = e.clientY
   const scroll0 = scroller.value!.scrollTop
   const startMin = (ev.startDate.getTime() - startOfDay(ev.startDate).getTime()) / 60_000
-  // Bei mehrtägigen Terminen bezieht sich die Spalte auf den angeklickten Abschnitt
+  // For multi-day events the column refers to the clicked segment
   const grabDay = diffDays(props.days[colIdx], ev.startDate)
   const update = (m: PointerEvent) => {
     lastPointer = m
@@ -149,7 +149,7 @@ const today = new Date()
 
 <template>
   <div class="tg">
-    <!-- Kopfzeile mit Wochentagen -->
+    <!-- Header row with weekdays -->
     <div class="tg-head">
       <div class="gutter text-label-small kw">
         <template v-if="days.length > 1">KW {{ isoWeek(days[0]) }}</template>
@@ -162,7 +162,7 @@ const today = new Date()
       </div>
     </div>
 
-    <!-- Ganztägige und mehrtägige Termine -->
+    <!-- All-day and multi-day events -->
     <div class="tg-allday">
       <div class="gutter text-label-small allday-label">ganztägig</div>
       <div
@@ -213,7 +213,7 @@ const today = new Date()
       </div>
     </div>
 
-    <!-- Zeitraster -->
+    <!-- Time grid -->
     <div ref="scroller" class="tg-scroll" @scroll="onScrollDuringDrag?.()">
       <div class="tg-body" :style="{ height: `${24 * HOUR}px` }">
         <div class="gutter hours">
@@ -300,7 +300,7 @@ const today = new Date()
 .head-day.today .num { background: rgb(var(--v-theme-primary)); color: rgb(var(--v-theme-on-primary)); }
 .tg-allday { border-bottom: 1px solid rgb(var(--v-theme-outline-variant)); }
 .allday-label { color: rgb(var(--v-theme-outline)); text-align: right; padding: 6px 8px 0 0; font-size: 10px; }
-/* Tagestrennlinien; Vuetifys Reset setzt background-repeat global auf no-repeat */
+/* Day separator lines; Vuetify's reset sets background-repeat to no-repeat globally */
 .allday-area {
   position: relative; flex: 1; cursor: pointer;
   background-image: linear-gradient(to right, rgb(var(--v-theme-outline-variant)) 1px, transparent 1px);
@@ -323,7 +323,7 @@ const today = new Date()
 .col {
   flex: 1; position: relative; min-width: 0; cursor: pointer;
   border-left: 1px solid rgb(var(--v-theme-outline-variant));
-  /* Stundenlinien */
+  /* Hour lines */
   background-image: linear-gradient(to bottom, rgb(var(--v-theme-outline-variant)) 1px, transparent 1px);
   background-repeat: repeat-y;
 }
@@ -336,7 +336,7 @@ const today = new Date()
 .ev:hover { filter: brightness(1.08); z-index: 2; }
 .ev, .bar { user-select: none; }
 .ev.dragging, .bar.dragging { opacity: .35; }
-/* Vorläufige Karte beim Anlegen */
+/* Draft card when creating */
 .ev.draft, .bar.draft { z-index: 3; box-shadow: 0 4px 12px rgba(0, 0, 0, .3); cursor: default; }
 .ghost { z-index: 4; pointer-events: none; box-shadow: 0 4px 12px rgba(0, 0, 0, .3); cursor: grabbing; }
 .ev:focus-visible { outline: 2px solid rgb(var(--v-theme-primary)); z-index: 2; }
@@ -344,7 +344,7 @@ const today = new Date()
 .ev.cont-before { border-top-left-radius: 0; border-top-right-radius: 0; }
 .ev.cont-after { border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
 .ev-title { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-/* Aufgaben: Abhak-Symbol vor dem Titel, erledigte durchgestrichen */
+/* Tasks: check-off icon before the title, completed ones struck through */
 .task-check { display: inline-flex; vertical-align: -2px; margin-right: 4px; border-radius: 50%; }
 .task-check:hover { background: rgba(0, 0, 0, .15); }
 .ev.done, .bar.done { opacity: .6; }

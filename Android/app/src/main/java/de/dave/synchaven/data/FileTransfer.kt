@@ -6,10 +6,10 @@ import java.io.IOException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-/** Eine vom Benutzer gewählte Datei ließ sich nicht öffnen. */
+/** A file chosen by the user could not be opened. */
 class FileAccessException(val write: Boolean) : IOException(if (write) "cannot write file" else "cannot read file")
 
-/** Liest und schreibt vom Benutzer gewählte Dateien (Storage Access Framework) für Import und Export. */
+/** Reads and writes files chosen by the user (Storage Access Framework) for import and export. */
 class FileTransfer(context: Context) {
     private val resolver = context.applicationContext.contentResolver
 

@@ -67,7 +67,7 @@ async function request<T>(method: string, path: string, opts: Options = {}): Pro
       const data = await res.json()
       code = data.error ?? code
       message = data.message ?? message
-    } catch { /* kein JSON */ }
+    } catch { /* no JSON */ }
     if (res.status === 401 && token && !path.startsWith('/auth/login')) onUnauthorized()
     throw new ApiError(res.status, code, message)
   }

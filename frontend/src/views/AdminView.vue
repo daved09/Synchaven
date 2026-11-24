@@ -24,7 +24,7 @@ const tabs = [
 ] as const
 type Tab = (typeof tabs)[number]['value']
 
-// Reiter in der URL (?tab=…), damit Neu laden und „Zurück“ funktionieren
+// Tab in the URL (?tab=…), so reloading and "Back" work
 const tab = computed<Tab>({
   get: () => (tabs.some((t) => t.value === route.query.tab) ? route.query.tab as Tab : 'overview'),
   set: (v) => router.replace({ query: v === 'overview' ? {} : { tab: v } }),

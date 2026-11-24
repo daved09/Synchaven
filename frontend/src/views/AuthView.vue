@@ -21,7 +21,7 @@ const formRef = ref()
 onMounted(async () => {
   try {
     allowRegistration.value = (await api.info()).allow_registration
-  } catch { /* Server evtl. nicht erreichbar – Fehler zeigt sich beim Absenden */ }
+  } catch { /* server may be unreachable – the error shows up on submit */ }
 })
 
 async function submit() {

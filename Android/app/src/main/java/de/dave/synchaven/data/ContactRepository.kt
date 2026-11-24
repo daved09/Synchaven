@@ -22,10 +22,10 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
 
 /**
- * Adressbücher und Kontakte. Die Kontaktliste (ohne Fotos) liegt im [OfflineStore], Fotos werden beim Öffnen
- * eines Kontakts zwischengespeichert. Ohne Verbindung landen Änderungen in der Warteschlange von [OfflineSync].
- * [onContactsChanged] wird nach jeder Kontaktänderung auf dem Server aufgerufen, weil der Server daraus den
- * Geburtstagskalender ableitet.
+ * Address books and contacts. The contact list (without photos) is kept in the [OfflineStore]; photos are cached
+ * when a contact is opened. Without a connection, changes go into the queue of [OfflineSync].
+ * [onContactsChanged] is called after every contact change on the server, because the server derives the
+ * birthday calendar from it.
  */
 class ContactRepository(
     private val api: SyncHavenApi,
@@ -40,7 +40,7 @@ class ContactRepository(
     val contacts: StateFlow<List<Contact>?> =
         store.data.map { it.contacts }.stateIn(scope, SharingStarted.Eagerly, null)
 
-    /** Lädt Adressbücher und Kontakte; ohne Verbindung genügt der Cache. */
+    /** Loads address books and contacts; without a connection the cache is enough. */
     suspend fun loadAll() {
         sync.read(cached = { d -> Unit.takeIf { d.addressBooks != null && d.contacts != null } }) {
             val books = apiCall { api.addressBooks() }
@@ -64,7 +64,7 @@ class ContactRepository(
         sync.mergeServer { it.copy(addressBooks = books) }
     }
 
-    /** Kontakt mit Foto – vom Server oder (ohne Verbindung bzw. mit ausstehenden Änderungen) aus dem Cache. */
+    /** Contact with photo – from the server or (without a connection or with pending changes) from the cache. */
     suspend fun contact(id: String): Contact {
         store.awaitReady()
         val rid = store.data.value.resolve(id)
@@ -80,7 +80,7 @@ class ContactRepository(
         return if (c.photo != null) c else c.copy(photo = cachedPhoto(c))
     }
 
-    /** Foto aus einer noch nicht übertragenen Änderung, sonst das zwischengespeicherte zum aktuellen Stand */
+    /** Photo from a change not yet transferred, otherwise the cached one for the current state */
     private suspend fun cachedPhoto(c: Contact): String? {
         val pending = store.data.value.outbox.lastOrNull { op ->
             (op is PendingOp.CreateContact && op.localId == c.id && op.input.photo != null) ||
@@ -135,7 +135,7 @@ class ContactRepository(
         )
     }
 
-    // ---------- Adressbücher (nur mit Verbindung zum Server) ----------
+    // ---------- Address books (only with a connection to the server) ----------
 
     suspend fun createAddressBook(input: AddressBookInput): AddressBook =
         sync.online { apiCall { api.createAddressBook(input) } }.also { runCatching { reloadAddressBooks() } }
@@ -158,7 +158,7 @@ class ContactRepository(
         sync.online { apiCall { api.importAddressBook(id, vcf.toRequestBody("text/vcard; charset=utf-8".toMediaType())) } }
             .also { onContactsChanged(); runCatching { loadAll() } }
 
-    /** Übernimmt einen vom Server gelieferten Kontakt (ohne Foto) in den Cache. */
+    /** Takes a contact returned by the server (without photo) into the cache. */
     private suspend fun patchContact(c: Contact) {
         val plain = c.copy(photo = null)
         sync.mergeServer { d ->

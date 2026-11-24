@@ -25,7 +25,7 @@ class RRuleExpanderTest {
 
     @Test
     fun weeklyKeepsLocalTimeAcrossDst() {
-        // 09:00 Berlin (Winterzeit = 08:00 UTC), nach der Umstellung am 29.03. liegt 09:00 bei 07:00 UTC
+        // 09:00 Berlin (winter time = 08:00 UTC), after the change on March 29, 09:00 is 07:00 UTC
         val occ = expand("2026-03-16T08:00:00Z", "2026-03-16T09:00:00Z", "FREQ=WEEKLY;COUNT=4",
             "2026-03-16T08:00:00Z", "2026-04-15T00:00:00Z", zone = berlin)
         assertEquals(4, occ.size)
@@ -36,7 +36,7 @@ class RRuleExpanderTest {
     fun exdatesAndRange() {
         val occ = expand("2026-01-01T10:00:00Z", "2026-01-01T12:00:00Z", "FREQ=DAILY",
             "2026-01-02T11:00:00Z", "2026-01-05T00:00:00Z", exdates = setOf(utc("2026-01-03T10:00:00Z")))
-        // 02.01. (läuft noch bis 12:00), 03.01. ausgenommen, 04.01.
+        // Jan 2 (still running until 12:00), Jan 3 excluded, Jan 4
         assertEquals(listOf(utc("2026-01-02T10:00:00Z"), utc("2026-01-04T10:00:00Z")), occ)
     }
 
@@ -59,7 +59,7 @@ class RRuleExpanderTest {
 
     @Test
     fun weeklyByDayWithInterval() {
-        // Montag, 23.11.2026; alle zwei Wochen Mo und Mi
+        // Monday, Nov 23, 2026; every two weeks on Mon and Wed
         val occ = expand("2026-11-23T17:00:00Z", "2026-11-23T18:00:00Z", "FREQ=WEEKLY;INTERVAL=2;BYDAY=MO,WE",
             "2026-11-23T00:00:00Z", "2026-12-15T00:00:00Z")
         assertEquals(
@@ -74,7 +74,7 @@ class RRuleExpanderTest {
             "2026-11-01T00:00:00Z", "2027-02-01T00:00:00Z")
         assertEquals(listOf("2026-11-30", "2026-12-28", "2027-01-25"), last.map { it.toString().take(10) })
 
-        // 31. nur in Monaten, die einen haben
+        // The 31st only in months that have one
         val day31 = expand("2026-01-31T09:00:00Z", "2026-01-31T10:00:00Z", "FREQ=MONTHLY",
             "2026-01-01T00:00:00Z", "2026-06-01T00:00:00Z")
         assertEquals(listOf("2026-01-31", "2026-03-31", "2026-05-31"), day31.map { it.toString().take(10) })
@@ -89,7 +89,7 @@ class RRuleExpanderTest {
 
     @Test
     fun birthdayOnLeapDay() {
-        // Geburtstagskalender: 29.02. → letzter Tag im Februar
+        // Birthday calendar: Feb 29 → last day in February
         val occ = expand("2024-02-29T00:00:00Z", "2024-03-01T00:00:00Z", "FREQ=YEARLY;BYMONTH=2;BYMONTHDAY=-1",
             "2026-01-01T00:00:00Z", "2029-01-01T00:00:00Z", allDay = true)
         assertEquals(listOf("2026-02-28", "2027-02-28", "2028-02-29"), occ.map { it.toString().take(10) })

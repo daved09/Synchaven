@@ -49,7 +49,7 @@ import de.dave.synchaven.ui.viewmodels.SyncSetupForm
 import java.time.Instant
 import java.time.ZoneId
 
-/** Auswahl für das Intervall in Minuten, 0 = nur bei Änderungen und von Hand */
+/** Choice of the interval in minutes, 0 = only on changes and manually */
 private val INTERVALS = listOf(15, 30, 60, 120, 240, 720, 1440, 0)
 
 @Composable
@@ -60,7 +60,7 @@ private fun intervalLabel(minutes: Int): String = when {
     else -> pluralStringResource(R.plurals.sync_interval_minutes, minutes, minutes)
 }
 
-/** Abschnitt „Mit Android synchronisieren“ der Einstellungen. */
+/** "Sync with Android" section of the settings. */
 @Composable
 fun SyncSection(
     state: SyncState,
@@ -111,7 +111,7 @@ fun SyncSection(
             trailingContent = {
                 Switch(s.enabled, onCheckedChange = { on -> if (on) requestEnable(kind) else confirmDisable = kind })
             },
-            // Fehlt eine Berechtigung, holt ein Tipp sie erneut ein
+            // If a permission is missing, a tap requests it again
             modifier = Modifier.clickable {
                 if (!s.enabled) requestEnable(kind)
                 else if (!context.hasPermissions(kind)) requestEnable(kind)
@@ -181,7 +181,7 @@ private fun SyncStatusText(s: KindSyncState) {
     }
 }
 
-/** Passwort für das Android-Konto, wenn sich die Synchronisierung nicht mehr anmelden kann. */
+/** Password for the Android account when the sync can no longer sign in. */
 @Composable
 fun SyncSetupDialog(
     form: SyncSetupForm,

@@ -18,22 +18,22 @@ ROOT = Path(__file__).resolve().parents[2]
 FONT = ROOT / "frontend/node_modules/@fontsource/roboto/files/roboto-latin-700-normal.woff2"
 RES = ROOT / "Android/app/src/main/res"
 
-# Farben wie im Web-Favicon (frontend/public/favicon.svg)
+# Colors as in the web favicon (frontend/public/favicon.svg)
 BACKGROUND = "#FFFFFF"
 BODY = "#6750A4"
 HEADER = "#4F378B"
 RINGS = "#21005D"
 DIGITS = "#FFFFFF"
 
-# Geometrie im 108×108-Raster des adaptiven Icons (sichtbarer Bereich: Kreis r=33 um 54,54)
-CARD = (28, 30, 80, 80)          # links, oben, rechts, unten
+# Geometry in the 108×108 grid of the adaptive icon (visible area: circle r=33 around 54,54)
+CARD = (28, 30, 80, 80)          # left, top, right, bottom
 CARD_R = 9
 HEADER_BOTTOM = 44
 RING_W, RING_TOP, RING_BOTTOM = 5, 26, 36
 RING_X = (38, 65)
-MONO_INNER = (32, 44, 76, 76)    # Innenfläche der Umriss-Variante (themed icons)
+MONO_INNER = (32, 44, 76, 76)    # inner area of the outline variant (themed icons)
 MONO_INNER_R = 5
-DIGIT_HEIGHT = 20                # Versalhöhe der Ziffern
+DIGIT_HEIGHT = 20                # cap height of the digits
 DIGIT_CENTER_Y = 61.5
 
 VECTOR_HEAD = """<?xml version="1.0" encoding="utf-8"?>
@@ -47,8 +47,8 @@ VECTOR_HEAD = """<?xml version="1.0" encoding="utf-8"?>
 
 
 def vector(*paths: tuple[str, str], fill_type: str = "evenOdd") -> str:
-    # Kalenderformen brauchen evenOdd (Aussparungen), Ziffern nonZero: Roboto-Glyphen wie die 8
-    # bestehen aus überlappenden Konturen, die evenOdd als Loch darstellen würde.
+    # Calendar shapes need evenOdd (cut-outs), digits nonZero: Roboto glyphs such as the 8
+    # consist of overlapping contours that evenOdd would render as a hole.
     body = "".join(
         f'    <path\n        android:fillColor="{color}"\n'
         f'        android:fillType="{fill_type}"\n'
@@ -94,7 +94,7 @@ def calendar_colored() -> str:
 
 
 def calendar_mono() -> str:
-    # Rahmen + Kopfleiste als eine Form: Außenkontur minus Innenfläche (evenOdd)
+    # Frame + header bar as one shape: outer contour minus inner area (evenOdd)
     return vector(
         ("#FF000000", rounded_rect(*CARD, CARD_R) + rounded_rect(*MONO_INNER, MONO_INNER_R)),
         ("#FF000000", rings()),
@@ -122,7 +122,7 @@ def digits(font: TTFont, text: str) -> str:
     scale = DIGIT_HEIGHT / cap
     names = [cmap[ord(ch)] for ch in text]
 
-    # Tinten-Breite für die Zentrierung
+    # Ink width for centering
     from fontTools.pens.boundsPen import BoundsPen
     x, xmin, xmax = 0.0, None, None
     for n in names:
@@ -141,7 +141,7 @@ def digits(font: TTFont, text: str) -> str:
     pen = SVGPathPen(glyphs, ntos=fmt)
     x = 0.0
     for n in names:
-        # Schrift-Koordinaten (y nach oben) → Vektor-Koordinaten (y nach unten)
+        # Font coordinates (y up) → vector coordinates (y down)
         tp = TransformPen(pen, (scale, 0, 0, -scale, left + x * scale, baseline))
         glyphs[n].draw(tp)
         x += glyphs[n].width

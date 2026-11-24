@@ -1,63 +1,65 @@
 # Synchaven REST API (v1)
 
-Basis-URL: `http://<host>:8080/api` · Format: JSON (UTF-8) · Zeitangaben: RFC 3339 / ISO 8601.
+Base URL: `http://<host>:8080/api` · Format: JSON (UTF-8) · Times: RFC 3339 / ISO 8601.
 
-## Authentifizierung
+The server's user-facing texts (error messages, names of default calendars, lists and address books) are in German.
 
-Alle Endpunkte außer `/info`, `/auth/register` und `/auth/login` benötigen den Header
+## Authentication
+
+All endpoints except `/info`, `/auth/register` and `/auth/login` require the header
 
 ```
 Authorization: Bearer <token>
 ```
 
-Tokens sind JWTs (HS256) und standardmäßig 30 Tage gültig (`TOKEN_TTL_DAYS`, in der Verwaltung änderbar). Bei
-abgelaufenem oder ungültigem Token antwortet der Server mit `401` – die App sollte dann zur Anmeldung zurückkehren.
-Das gilt auch, wenn ein Administrator das Konto gesperrt, überall abgemeldet oder sein Passwort zurückgesetzt hat.
+Tokens are JWTs (HS256) and valid for 30 days by default (`TOKEN_TTL_DAYS`, can be changed in the admin page). If the
+token is expired or invalid, the server responds with `401` – the app should then return to sign-in.
+This also applies when an administrator has disabled the account, signed it out everywhere or reset its password.
 
-## Fehlerformat
+## Error format
 
 ```json
 { "error": "bad_request", "message": "Der Titel muss 1–500 Zeichen lang sein" }
 ```
 
-| HTTP | `error`        | Bedeutung                                  |
+| HTTP | `error`        | Meaning                                    |
 |------|----------------|--------------------------------------------|
-| 400  | `bad_request`  | Ungültige Eingabe (`message` ist anzeigbar) |
-| 401  | `unauthorized` | Nicht angemeldet / falsches Passwort / Konto gesperrt / Anmeldung beendet |
-| 403  | `forbidden`    | z. B. Registrierung deaktiviert, Login eines gesperrten Kontos |
-| 404  | `not_found`    | Nicht vorhanden oder gehört anderem Benutzer|
-| 409  | `conflict`     | E-Mail bereits registriert                  |
-| 500  | `internal`     | Serverfehler                                |
+| 400  | `bad_request`  | Invalid input (`message` can be displayed) |
+| 401  | `unauthorized` | Not signed in / wrong password / account disabled / session ended |
+| 403  | `forbidden`    | e.g. registration disabled, sign-in of a disabled account |
+| 404  | `not_found`    | Does not exist or belongs to another user  |
+| 409  | `conflict`     | Email already registered                   |
+| 500  | `internal`     | Server error                               |
 
-## Zeitmodell
+## Time model
 
-* **Zeitgebundene Termine**: `start`/`end` sind absolute Zeitpunkte (in Antworten immer UTC, `…Z`).
-  Eingaben dürfen beliebige Offsets haben (`2026-11-23T09:00:00+01:00`).
-  `timezone` (IANA, z. B. `Europe/Berlin`) bestimmt, in welcher Zeitzone Wiederholungen berechnet
-  werden – ein wöchentlicher Termin um 09:00 bleibt so auch nach der Zeitumstellung um 09:00.
-* **Ganztägige Termine** (`all_day: true`): `start`/`end` sind Mitternacht **UTC** des Datums,
-  `end` ist **exklusiv**. Ein eintägiger Termin am 24.12.: `start = 2026-12-24T00:00:00Z`,
-  `end = 2026-12-25T00:00:00Z`. Clients lesen nur den Datumsteil.
-* **Wiederholungen**: `rrule` ist eine RFC-5545-RRULE ohne Präfix, z. B. `FREQ=WEEKLY;BYDAY=MO,WE;COUNT=10`.
-  `UNTIL` darf als Datum (`UNTIL=20261231`) übergeben werden und wird serverseitig in UTC umgerechnet.
-  `exdates` enthält Startzeitpunkte ausgelassener Vorkommen.
+* **Timed events**: `start`/`end` are absolute points in time (always UTC in responses, `…Z`).
+  Input may use any offset (`2026-11-23T09:00:00+01:00`).
+  `timezone` (IANA, e.g. `Europe/Berlin`) determines the time zone in which recurrences are computed
+  – so a weekly event at 09:00 stays at 09:00 after a DST change.
+* **All-day events** (`all_day: true`): `start`/`end` are midnight **UTC** of the date,
+  `end` is **exclusive**. A one-day event on Dec 24: `start = 2026-12-24T00:00:00Z`,
+  `end = 2026-12-25T00:00:00Z`. Clients only read the date part.
+* **Recurrence**: `rrule` is an RFC 5545 RRULE without prefix, e.g. `FREQ=WEEKLY;BYDAY=MO,WE;COUNT=10`.
+  `UNTIL` may be passed as a date (`UNTIL=20261231`) and is converted to UTC on the server.
+  `exdates` contains the start times of skipped occurrences.
 
 ---
 
-## Allgemein
+## General
 
 ### `GET /info`
 ```json
 { "name": "Synchaven", "version": "1.0.0", "api_version": 1, "allow_registration": true }
 ```
 
-## Konto
+## Account
 
 ### `POST /auth/register` → `201`
 ```json
-{ "email": "anna@example.com", "password": "mind. 8 Zeichen", "name": "Anna" }
+{ "email": "anna@example.com", "password": "at least 8 characters", "name": "Anna" }
 ```
-Antwort (auch bei Login):
+Response (also for login):
 ```json
 {
   "token": "eyJ…",
@@ -66,89 +68,89 @@ Antwort (auch bei Login):
   "user": { "id": "…", "email": "anna@example.com", "name": "Anna", "default_view": "month", "created_at": "…", "is_admin": false }
 }
 ```
-`default_view` ist die Standardansicht des Kalenders (`month`, `week`, `day` oder `list`). Weboberfläche und App
-speichern dort die zuletzt gewählte Ansicht. `is_admin` ist `true` für Administratoren – zunächst das erste registrierte
-Konto, weitere vergibt die Verwaltung. Für neue Konten wird automatisch der Kalender „Persönlich“ angelegt. Ist die
-Registrierung geschlossen (Verwaltung bzw. `ALLOW_REGISTRATION=false`), lässt sich nur das erste Konto einer leeren
-Datenbank registrieren (`allow_registration` in `/info` zeigt, ob es gerade geht). Ein gesperrtes Konto erhält beim
-Login mit richtigem Passwort `403`.
+`default_view` is the calendar's default view (`month`, `week`, `day` or `list`). The web UI and the app
+store the last selected view there. `is_admin` is `true` for administrators – initially the first registered
+account; further ones are granted in the admin page. For new accounts the calendar "Persönlich" (personal) is created
+automatically. If registration is closed (admin page or `ALLOW_REGISTRATION=false`), only the first account of an
+empty database can be registered (`allow_registration` in `/info` shows whether it is currently possible). A disabled
+account gets `403` when signing in with the correct password.
 
 ### `POST /auth/login`
 ```json
 { "email": "anna@example.com", "password": "…" }
 ```
 
-### `POST /auth/refresh` → wie Login
-Liefert ein neues Token (gleiche Antwort wie `/auth/login`) für eine noch gültige Anmeldung. Die Android-App erneuert
-so das Token ihrer Synchronisierung, ohne das Passwort zu speichern.
+### `POST /auth/refresh` → like login
+Returns a new token (same response as `/auth/login`) for a session that is still valid. The Android app uses this
+to renew the token of its sync without storing the password.
 
 ### `GET /auth/me` → `User`
 
 ### `PUT /auth/me` → `User`
-Alle Felder optional. Für Änderung von `email` oder `new_password` ist `current_password` Pflicht.
+All fields optional. `current_password` is required for changing `email` or `new_password`.
 ```json
-{ "name": "Anna B.", "email": "neu@example.com", "current_password": "…", "new_password": "…", "default_view": "week" }
+{ "name": "Anna B.", "email": "new@example.com", "current_password": "…", "new_password": "…", "default_view": "week" }
 ```
 
-## Kalender
+## Calendars
 
 `Calendar`:
 ```json
 {
-  "id": "uuid", "name": "Arbeit", "color": "#0B57D0", "description": "",
+  "id": "uuid", "name": "Work", "color": "#0B57D0", "description": "",
   "visible": true, "kind": "default",
   "default_reminders": [10], "default_all_day_reminders": [900],
   "created_at": "…", "updated_at": "…"
 }
 ```
 
-`kind` ist `default` oder `birthdays`. Jeder Benutzer hat genau einen **Geburtstagskalender** („Geburtstage“), den
-der Server automatisch anlegt und aus den Kontakten befüllt: Für jeden Kontakt mit Geburtstag gibt es einen
-ganztägigen, jährlichen Termin (`🎂 Name`, am 29.02. Geborene in Nicht-Schaltjahren am 28.02.). Änderungen an
-Kontakten – über die API oder CardDAV – werden sofort übernommen. Name, Farbe und Sichtbarkeit lassen sich ändern;
-Löschen, Import sowie Anlegen, Bearbeiten und Löschen einzelner Termine werden mit `400` abgelehnt.
+`kind` is `default` or `birthdays`. Every user has exactly one **birthday calendar** ("Geburtstage"), which
+the server creates automatically and fills from the contacts: for each contact with a birthday there is an
+all-day, yearly event (`🎂 Name`; people born on Feb 29 appear on Feb 28 in non-leap years). Changes to
+contacts – via the API or CardDAV – are applied immediately. Name, color and visibility can be changed;
+deleting, importing as well as creating, editing and deleting single events are rejected with `400`.
 
-| Methode | Pfad                         | Body              | Antwort        |
+| Method  | Path                         | Body              | Response       |
 |---------|------------------------------|-------------------|----------------|
 | GET     | `/calendars`                 | –                 | `Calendar[]`   |
 | POST    | `/calendars`                 | `CalendarInput`   | `201 Calendar` |
 | GET     | `/calendars/{id}`            | –                 | `Calendar`     |
 | PUT     | `/calendars/{id}`            | `CalendarInput`   | `Calendar`     |
-| DELETE  | `/calendars/{id}`            | –                 | `204` (inkl. aller Termine) |
-| GET     | `/calendars/{id}/events`     | –                 | `Event[]` (Serien nicht expandiert) |
+| DELETE  | `/calendars/{id}`            | –                 | `204` (incl. all events) |
+| GET     | `/calendars/{id}/events`     | –                 | `Event[]` (series not expanded) |
 | GET     | `/calendars/{id}/export`     | –                 | `text/calendar` (.ics) |
-| POST    | `/calendars/{id}/import?timezone=Europe/Berlin` | .ics-Datei als Body (`text/calendar`) | `{ "imported": 12, "skipped": [] }` |
+| POST    | `/calendars/{id}/import?timezone=Europe/Berlin` | .ics file as body (`text/calendar`) | `{ "imported": 12, "skipped": [] }` |
 
-`CalendarInput`: `{ "name": "Arbeit", "color": "#0B57D0", "description": "", "visible": true, "default_reminders": [10], "default_all_day_reminders": [900] }`
-(alles außer `name` optional). Fehlen `default_reminders` bzw. `default_all_day_reminders`, bleiben die bisherigen
-Standard-Erinnerungen erhalten (siehe [Erinnerungen](#erinnerungen)). Neue Kalender – auch der Geburtstagskalender –
-erinnern standardmäßig 15 Minuten vorher (`[15]`) bzw. bei ganztägigen Terminen am Tag selbst um 09:00 (`[-540]`).
+`CalendarInput`: `{ "name": "Work", "color": "#0B57D0", "description": "", "visible": true, "default_reminders": [10], "default_all_day_reminders": [900] }`
+(everything except `name` optional). If `default_reminders` or `default_all_day_reminders` is missing, the existing
+default reminders are kept (see [Reminders](#reminders)). New calendars – including the birthday calendar –
+remind 15 minutes before by default (`[15]`), or for all-day events on the day itself at 09:00 (`[-540]`).
 
-`/calendars/{id}/events` liefert alle Termine eines Kalenders als `Event` – Serien als ein Eintrag mit `rrule` und
-`exdates`. Gedacht für Clients, die selbst synchronisieren (die Android-App überträgt damit in den Android-Kalender).
+`/calendars/{id}/events` returns all events of a calendar as `Event` – series as one entry with `rrule` and
+`exdates`. Intended for clients that sync themselves (the Android app uses it to transfer into the Android calendar).
 
-Beim Export enthält jeder Termin seine Erinnerungen (eigene oder Kalender-Standard) als `VALARM`; beim Import
-werden relative `TRIGGER` übernommen. Termine ohne `VALARM` behalten beim erneuten Import ihre Erinnerungen.
+On export, each event contains its reminders (its own or the calendar default) as `VALARM`; on import,
+relative `TRIGGER`s are taken over. Events without `VALARM` keep their reminders when imported again.
 
-Beim Import werden Termine mit gleicher `UID` aktualisiert statt dupliziert. `timezone` gilt für
-Zeitangaben ohne `TZID` („floating time“). Geänderte Einzelvorkommen (`RECURRENCE-ID`) werden als
-eigene Termine angelegt und in der Serie ausgenommen.
+On import, events with the same `UID` are updated instead of duplicated. `timezone` applies to
+times without `TZID` ("floating time"). Modified single occurrences (`RECURRENCE-ID`) are created as
+separate events and excluded from the series.
 
-## Termine
+## Events
 
-### `GET /events?start=…&end=…[&calendar_ids=a,b][&q=Suchtext]` → `Occurrence[]`
+### `GET /events?start=…&end=…[&calendar_ids=a,b][&q=search text]` → `Occurrence[]`
 
-Liefert alle Termine, die den Zeitraum `[start, end)` berühren (max. 800 Tage). Wiederkehrende
-Termine werden **serverseitig in einzelne Vorkommen expandiert** – die App muss keine RRULEs auswerten.
+Returns all events that touch the range `[start, end)` (max. 800 days). Recurring
+events are **expanded into single occurrences on the server** – the app does not need to evaluate RRULEs.
 
 ```json
 {
   "id": "6d1…_1795424400",
   "event_id": "6d1…",
   "calendar_id": "…",
-  "title": "Jour fixe",
+  "title": "Weekly meeting",
   "description": "",
-  "location": "Raum 3",
+  "location": "Room 3",
   "start": "2026-11-30T08:00:00Z",
   "end": "2026-11-30T09:00:00Z",
   "all_day": false,
@@ -160,18 +162,18 @@ Termine werden **serverseitig in einzelne Vorkommen expandiert** – die App mus
   "reminders": null
 }
 ```
-`id` ist pro Vorkommen eindeutig; zum Bearbeiten/Löschen wird `event_id` verwendet.
-`reminders` sind die Erinnerungen des Termins wie bei `Event` (`null` = Standard des Kalenders).
-Die Ausblendung über `Calendar.visible` erfolgt clientseitig.
+`id` is unique per occurrence; `event_id` is used for editing/deleting.
+`reminders` are the event's reminders as in `Event` (`null` = calendar default).
+Hiding via `Calendar.visible` is done on the client.
 
-Geburtstage haben `read_only: true` und in `contact_id` die ID des Kontakts. Ist das Geburtsjahr bekannt, enthält
-der Titel des Vorkommens das Alter, z. B. `🎂 Erika Mustermann (62)`. `Event` enthält dieselben beiden Felder.
+Birthdays have `read_only: true` and the contact's ID in `contact_id`. If the birth year is known, the
+occurrence's title contains the age, e.g. `🎂 Erika Mustermann (62)`. `Event` contains the same two fields.
 
 ### `POST /events` → `201 Event`
 ```json
 {
   "calendar_id": "…",
-  "title": "Zahnarzt",
+  "title": "Dentist",
   "description": "",
   "location": "",
   "start": "2026-11-26T14:30:00+01:00",
@@ -183,169 +185,169 @@ der Titel des Vorkommens das Alter, z. B. `🎂 Erika Mustermann (62)`. `Event` 
   "reminders": [10, 1440]
 }
 ```
-`description`, `location`, `all_day`, `timezone` (Standard `UTC`), `rrule`, `exdates`, `reminders` sind optional.
+`description`, `location`, `all_day`, `timezone` (default `UTC`), `rrule`, `exdates`, `reminders` are optional.
 
-`reminders`: Liste von Erinnerungen in Minuten vor Beginn (siehe [Erinnerungen](#erinnerungen)). `null` bedeutet
-„Standard-Erinnerungen des Kalenders“, `[]` „keine Erinnerung“. **Fehlt das Feld, bleiben die bisherigen
-Erinnerungen unverändert** – neue Termine verwenden dann den Kalender-Standard. So überschreiben Clients ohne
-Erinnerungsunterstützung (z. B. die Synchronisierung mit dem Android-Kalender) nichts.
+`reminders`: list of reminders in minutes before the start (see [Reminders](#reminders)). `null` means
+"the calendar's default reminders", `[]` "no reminder". **If the field is missing, the existing
+reminders stay unchanged** – new events then use the calendar default. This way, clients without
+reminder support (e.g. the sync with the Android calendar) don't overwrite anything.
 
-`Event` (Serie bzw. Einzeltermin) entspricht dem Input plus `id`, `uid`, `created_at`, `updated_at`.
+`Event` (series or single event) corresponds to the input plus `id`, `uid`, `created_at`, `updated_at`.
 
 ### `GET /events/{id}` → `Event`
-### `PUT /events/{id}` → `Event`  (vollständiger Body wie bei POST; ändert bei Serien die ganze Serie)
-### `DELETE /events/{id}` → `204`  (bei Serien: ganze Serie)
+### `PUT /events/{id}` → `Event`  (full body as with POST; for series, changes the whole series)
+### `DELETE /events/{id}` → `204`  (for series: the whole series)
 
 ### `POST /events/{id}/exdates` → `Event`
-Entfernt ein einzelnes Vorkommen aus einer Serie:
+Removes a single occurrence from a series:
 ```json
 { "occurrence_start": "2026-12-07T08:00:00Z" }
 ```
-`occurrence_start` ist das `start` des Vorkommens aus `GET /events`.
+`occurrence_start` is the occurrence's `start` from `GET /events`.
 
-## Erinnerungen
+## Reminders
 
-Eine Erinnerung ist eine Minutenzahl vor Beginn (höchstens 5 pro Termin, höchstens 4 Wochen = 40320 Minuten).
-Bei **ganztägigen** Terminen bezieht sie sich auf Mitternacht in der Zeitzone des Empfängers; negative Werte sind
-eine Uhrzeit am Tag selbst – wie `TRIGGER` in iCalendar:
+A reminder is a number of minutes before the start (at most 5 per event, at most 4 weeks = 40320 minutes).
+For **all-day** events it refers to midnight in the recipient's time zone; negative values are
+a time on the day itself – like `TRIGGER` in iCalendar:
 
-| Wert   | Termin mit Uhrzeit   | Ganztägiger Termin       |
+| Value  | Timed event          | All-day event            |
 |--------|----------------------|--------------------------|
-| `0`    | zum Beginn           | am Tag um 00:00          |
-| `10`   | 10 Minuten vorher    | am Vortag um 23:50       |
-| `900`  | 15 Stunden vorher    | am Vortag um 09:00       |
-| `-540` | ungültig             | am Tag selbst um 09:00   |
+| `0`    | at the start         | on the day at 00:00      |
+| `10`   | 10 minutes before    | the day before at 23:50  |
+| `900`  | 15 hours before      | the day before at 09:00  |
+| `-540` | invalid              | on the day itself at 09:00 |
 
-Für Termine ohne eigene Erinnerungen (`reminders: null`, z. B. alle Geburtstage) gelten die Standard-Erinnerungen
-ihres Kalenders: `default_reminders` für Termine mit Uhrzeit, `default_all_day_reminders` für ganztägige.
-Voreingestellt sind 15 Minuten vorher bzw. am Tag selbst um 09:00 – so hat jeder Termin eine Erinnerung, solange
-sie nicht am Termin oder im Kalender geändert wird.
+For events without their own reminders (`reminders: null`, e.g. all birthdays), the default reminders of
+their calendar apply: `default_reminders` for timed events, `default_all_day_reminders` for all-day ones.
+The presets are 15 minutes before and on the day itself at 09:00 – so every event has a reminder as long as
+it is not changed on the event or in the calendar.
 
-Die Android-App plant Erinnerungen selbst (aus ihrem lokalen Cache). Für Browser verschickt der Server sie per
+The Android app schedules reminders itself (from its local cache). For browsers, the server sends them via
 **Web Push**:
 
-| Methode | Pfad                    | Body | Antwort |
+| Method  | Path                    | Body | Response |
 |---------|-------------------------|------|---------|
-| GET     | `/push/public-key`      | –    | `{ "public_key": "B…" }` (VAPID, Base64url, ohne Anmeldung) |
+| GET     | `/push/public-key`      | –    | `{ "public_key": "B…" }` (VAPID, Base64url, no sign-in required) |
 | POST    | `/push/subscriptions`   | `{ "endpoint": "https://…", "keys": { "p256dh": "…", "auth": "…" }, "timezone": "Europe/Berlin" }` | `204` |
 | DELETE  | `/push/subscriptions`   | `{ "endpoint": "https://…" }` | `204` |
-| POST    | `/push/test`            | `{ "endpoint": "https://…" }` (optional, sonst alle Browser des Kontos) | `{ "sent": 1 }` |
+| POST    | `/push/test`            | `{ "endpoint": "https://…" }` (optional, otherwise all browsers of the account) | `{ "sent": 1 }` |
 
-`endpoint` und `keys` stammen aus `PushSubscription.toJSON()`; `timezone` bestimmt den Beginn ganztägiger Termine.
-Ein Endpunkt gehört immer dem zuletzt angemeldeten Konto. Der Server prüft alle 30 Sekunden auf fällige
-Erinnerungen und sendet sie verschlüsselt (RFC 8291) als JSON:
+`endpoint` and `keys` come from `PushSubscription.toJSON()`; `timezone` determines the start of all-day events.
+An endpoint always belongs to the account that subscribed last. The server checks for due reminders every 30
+seconds and sends them encrypted (RFC 8291) as JSON:
 
 ```json
 {
-  "type": "reminder", "tag": "<event_id>_<start>_<minuten>", "event_id": "…", "title": "Zahnarzt",
+  "type": "reminder", "tag": "<event_id>_<start>_<minutes>", "event_id": "…", "title": "Dentist",
   "location": "", "start": "2026-11-26T13:30:00Z", "end": "2026-11-26T14:00:00Z", "all_day": false, "minutes": 10
 }
 ```
-Offene Aufgaben mit Fälligkeit erinnern einmal: zur fälligen Uhrzeit, ganztägige am Fälligkeitstag um 09:00 in
-der Zeitzone des Abonnements. Erledigte Aufgaben und Aufgaben ohne Datum erinnern nicht:
+Open tasks with a due date remind once: at the due time, all-day ones on the due date at 09:00 in
+the subscription's time zone. Completed tasks and tasks without a date don't remind:
 
 ```json
 {
-  "type": "task", "tag": "task_<task_id>_<fälligkeit>", "task_id": "…", "list_id": "…", "title": "Steuer abgeben",
+  "type": "task", "tag": "task_<task_id>_<due>", "task_id": "…", "list_id": "…", "title": "File taxes",
   "notes": "", "due": "2026-11-26T00:00:00Z", "all_day": true
 }
 ```
-Abgelaufene Abonnements (Antwort `404`/`410` des Push-Dienstes) werden automatisch entfernt.
+Expired subscriptions (response `404`/`410` from the push service) are removed automatically.
 
 ---
 
-## Aufgaben
+## Tasks
 
-Aufgaben gehören zu Aufgabenlisten. Aufgaben mit Fälligkeit zeigen die Clients im Kalender an, Aufgaben ohne
-Datum nur in der Aufgabenliste. Jeder Benutzer hat mindestens eine Liste: Fehlt sie, legt `GET /task-lists` die
-Liste „Meine Aufgaben“ an; die letzte Liste kann nicht gelöscht werden.
+Tasks belong to task lists. Clients show tasks with a due date in the calendar, tasks without a
+date only in the task list. Every user has at least one list: if none exists, `GET /task-lists` creates the
+list "Meine Aufgaben" (my tasks); the last list cannot be deleted.
 
 ### `GET /task-lists` → `TaskList[]`
 ```json
 [{ "id": "…", "name": "Meine Aufgaben", "color": "#1A73E8", "visible": true, "open_count": 3,
    "created_at": "…", "updated_at": "…" }]
 ```
-`visible`: Aufgaben dieser Liste im Kalender anzeigen. `open_count`: Anzahl offener Aufgaben.
+`visible`: show this list's tasks in the calendar. `open_count`: number of open tasks.
 
 ### `POST /task-lists` → `201 TaskList`  ·  `PUT /task-lists/{id}` → `TaskList`
-Body `{ "name": "Einkauf", "color": "#0B57D0", "visible": true }`. `color` und `visible` sind optional; beim
-Bearbeiten bleiben fehlende Werte erhalten.
+Body `{ "name": "Shopping", "color": "#0B57D0", "visible": true }`. `color` and `visible` are optional; when
+editing, missing values are kept.
 
-### `DELETE /task-lists/{id}` → `204`  (löscht alle enthaltenen Aufgaben; `400` bei der letzten Liste)
+### `DELETE /task-lists/{id}` → `204`  (deletes all contained tasks; `400` for the last list)
 
 ### `POST /task-lists/{id}/clear-completed` → `{ "deleted": 4 }`
-Löscht alle erledigten Aufgaben der Liste.
+Deletes all completed tasks of the list.
 
 ### `GET /tasks[?list_id=…]` → `Task[]`
-Alle Aufgaben des Benutzers: offene vor erledigten, dann nach Fälligkeit (ohne Datum zuletzt).
+All of the user's tasks: open before completed, then by due date (without date last).
 ```json
-[{ "id": "…", "list_id": "…", "parent_id": null, "title": "Steuer abgeben", "notes": "", "due": "2026-11-25T00:00:00Z",
+[{ "id": "…", "list_id": "…", "parent_id": null, "title": "File taxes", "notes": "", "due": "2026-11-25T00:00:00Z",
    "all_day": true, "completed": false, "completed_at": null, "created_at": "…", "updated_at": "…" }]
 ```
-`due` folgt dem Zeitmodell der Termine: ganztägig als Mitternacht UTC des Tages, sonst ein Zeitpunkt in UTC;
-`null` = ohne Datum (dann ist `all_day` immer `true`).
+`due` follows the events' time model: all-day as midnight UTC of the day, otherwise a point in time in UTC;
+`null` = without date (then `all_day` is always `true`).
 
-`parent_id`: übergeordnete Aufgabe, wenn dies eine **Unteraufgabe** ist, sonst `null`. Unteraufgaben gibt es wie in
-Google Tasks nur eine Ebene tief und nur innerhalb einer Liste.
+`parent_id`: parent task if this is a **subtask**, otherwise `null`. As in Google Tasks, subtasks are
+only one level deep and only within one list.
 
 ### `POST /tasks` → `201 Task`  ·  `PUT /tasks/{id}` → `Task`
 ```json
-{ "list_id": "…", "title": "Zahnarzt anrufen", "notes": "Termin vereinbaren",
+{ "list_id": "…", "title": "Call the dentist", "notes": "Make an appointment",
   "due": "2026-11-24T08:30:00Z", "all_day": false, "completed": false }
 ```
-Pflicht sind `list_id` und `title` (1–500 Zeichen). `all_day` ist standardmäßig `true`. Fehlt `completed`, bleibt
-der Status erhalten (neue Aufgaben sind offen). Mit `list_id` lässt sich eine Aufgabe in eine andere Liste verschieben;
-ihre Unteraufgaben ziehen mit.
+`list_id` and `title` (1–500 characters) are required. `all_day` defaults to `true`. If `completed` is missing,
+the status is kept (new tasks are open). With `list_id` a task can be moved to another list;
+its subtasks move along.
 
-`parent_id` macht die Aufgabe zur Unteraufgabe einer Hauptaufgabe derselben Liste, `null` macht sie wieder zur
-Hauptaufgabe; fehlt das Feld, bleibt die Zuordnung erhalten. `400`, wenn die übergeordnete Aufgabe selbst eine
-Unteraufgabe ist oder die Aufgabe eigene Unteraufgaben hat. Wechselt eine Unteraufgabe die Liste, wird sie zur
-Hauptaufgabe.
+`parent_id` makes the task a subtask of a top-level task in the same list, `null` makes it a top-level task
+again; if the field is missing, the assignment is kept. `400` if the parent task is itself a
+subtask or the task has subtasks of its own. If a subtask changes its list, it becomes a
+top-level task.
 
 ### `PUT /tasks/{id}/completed` → `Task`
-Body `{ "completed": true }` – abhaken oder wieder öffnen. `completed_at` bleibt erhalten, solange die Aufgabe
-erledigt bleibt. Eine erledigte Hauptaufgabe hakt ihre offenen Unteraufgaben mit ab; eine wieder geöffnete
-Unteraufgabe öffnet auch ihre Hauptaufgabe. Die Antwort enthält nur die angegebene Aufgabe – Clients wenden diese
-Regeln selbst an oder laden die Aufgaben neu. Dasselbe gilt, wenn sich `completed` per `PUT /tasks/{id}` ändert.
+Body `{ "completed": true }` – check off or reopen. `completed_at` is kept as long as the task
+stays completed. Completing a parent task also checks off its open subtasks; reopening a
+subtask also reopens its parent task. The response only contains the given task – clients apply these
+rules themselves or reload the tasks. The same applies when `completed` changes via `PUT /tasks/{id}`.
 
-### `GET /tasks/{id}` → `Task`  ·  `DELETE /tasks/{id}` → `204`  (löscht auch die Unteraufgaben)
+### `GET /tasks/{id}` → `Task`  ·  `DELETE /tasks/{id}` → `204`  (also deletes the subtasks)
 
-## Adressbücher
+## Address books
 
 ### `GET /addressbooks` → `AddressBook[]`
-Legt beim ersten Aufruf ein Adressbuch „Kontakte“ an, falls noch keines existiert.
+On the first call, creates an address book "Kontakte" (contacts) if none exists yet.
 ```json
 { "id": "…", "name": "Kontakte", "description": "", "contact_count": 42, "created_at": "…", "updated_at": "…" }
 ```
 
 ### `POST /addressbooks` → `201 AddressBook`  ·  `PUT /addressbooks/{id}` → `AddressBook`
 ```json
-{ "name": "Arbeit", "description": "" }
+{ "name": "Work", "description": "" }
 ```
 
-### `DELETE /addressbooks/{id}` → `204`  (löscht alle enthaltenen Kontakte)
+### `DELETE /addressbooks/{id}` → `204`  (deletes all contained contacts)
 
 ### `GET /addressbooks/{id}/export` → `text/vcard`
-Alle Kontakte als eine .vcf-Datei.
+All contacts as one .vcf file.
 
-### `POST /addressbooks/{id}/import` (Body: .vcf-Text, `Content-Type: text/vcard`)
-Liest beliebig viele Karten (vCard 2.1, 3.0 und 4.0). vCard 2.1 (Quoted-Printable, Zeichensätze) wird in 3.0
-umgewandelt. Kontakte mit gleicher UID werden aktualisiert; Karten ohne UID erhalten eine aus dem Inhalt abgeleitete,
-sodass ein erneuter Import derselben Datei keine Duplikate erzeugt.
+### `POST /addressbooks/{id}/import` (body: .vcf text, `Content-Type: text/vcard`)
+Reads any number of cards (vCard 2.1, 3.0 and 4.0). vCard 2.1 (quoted-printable, character sets) is converted to 3.0.
+Contacts with the same UID are updated; cards without a UID get one derived from their content,
+so importing the same file again does not create duplicates.
 ```json
 { "imported": 120, "created": 118, "updated": 2, "unchanged": 0, "skipped": [] }
 ```
 
-## Kontakte
+## Contacts
 
-Kontakte werden intern als vollständige vCard gespeichert. Die API liefert die gängigen Felder strukturiert;
-beim Speichern werden nur die geänderten Felder in der vCard ersetzt – Fotos, Gruppen und Felder anderer
-Programme bleiben erhalten.
+Contacts are stored internally as complete vCards. The API returns the common fields in structured form;
+on save, only the changed fields in the vCard are replaced – photos, groups and fields of other
+programs are kept.
 
-### `GET /contacts[?addressbook_id=…][&q=Suchtext]` → `Contact[]`
-Ohne Fotos (siehe `has_photo`), sortiert nach Anzeigename. Kontaktgruppen werden nicht geliefert.
+### `GET /contacts[?addressbook_id=…][&q=search text]` → `Contact[]`
+Without photos (see `has_photo`), sorted by display name. Contact groups are not returned.
 
-### `GET /contacts/{id}` → `Contact` (inkl. `photo` als data:-URL)
+### `GET /contacts/{id}` → `Contact` (incl. `photo` as a data: URL)
 
 ### `POST /contacts` → `201 Contact`  ·  `PUT /contacts/{id}` → `Contact`
 ```json
@@ -354,7 +356,7 @@ Ohne Fotos (siehe `has_photo`), sortiert nach Anzeigename. Kontaktgruppen werden
   "full_name": "",
   "prefix": "Dr.", "given_name": "Erika", "additional_names": "", "family_name": "Mustermann", "suffix": "",
   "nickname": "",
-  "organization": "Beispiel GmbH", "department": "Vertrieb", "title": "Leitung",
+  "organization": "Example Ltd.", "department": "Sales", "title": "Head of sales",
   "phones": [{ "type": "mobile", "value": "+49 171 1234567" }],
   "emails": [{ "type": "work", "value": "erika@example.org" }],
   "addresses": [{
@@ -364,38 +366,38 @@ Ohne Fotos (siehe `has_photo`), sortiert nach Anzeigename. Kontaktgruppen werden
   "urls": [{ "type": "work", "value": "https://example.org" }],
   "birthday": "1964-08-12",
   "note": "",
-  "categories": ["Familie", "Verein"]
+  "categories": ["Family", "Club"]
 }
 ```
-Alle Felder außer `addressbook_id` sind optional. `full_name` wird immer aus den Namensteilen gebildet; ein
-mitgeschickter Wert gilt nur, wenn alle Namensteile leer sind, ersatzweise Firma, E-Mail oder Telefon. `type`: Telefon `mobile|home|work|fax|pager|other`, sonst `home|work|other` –
-andere Werte werden als eigene Bezeichnung gespeichert. `birthday`: `YYYY-MM-DD` oder `--MM-DD` (ohne Jahr).
-Ändert sich `addressbook_id`, wird der Kontakt verschoben.
+All fields except `addressbook_id` are optional. `full_name` is always built from the name parts; a value sent
+along only applies if all name parts are empty, with company, email or phone as a fallback. `type`: for phones `mobile|home|work|fax|pager|other`, otherwise `home|work|other` –
+other values are stored as a custom label. `birthday`: `YYYY-MM-DD` or `--MM-DD` (without year).
+If `addressbook_id` changes, the contact is moved.
 
-Optional `photo`: neues Foto als data:-URL (`data:image/jpeg;base64,…`), `""` entfernt das Foto. Fehlt das Feld (oder
-ist es `null`), bleibt das Foto unverändert.
+Optional `photo`: new photo as a data: URL (`data:image/jpeg;base64,…`), `""` removes the photo. If the field is missing (or
+`null`), the photo stays unchanged.
 
-`categories`: Kategorien des Kontakts (vCard `CATEGORIES`, von DAVx⁵ als Kontaktgruppen übernommen), höchstens 100
-mit je bis zu 100 Zeichen. Leerzeichen am Rand und Doppelte (ohne Groß-/Kleinschreibung) werden entfernt. Fehlt das
-Feld (oder ist es `null`), bleiben die Kategorien unverändert. Die Suche (`q`) findet auch Kategorien.
+`categories`: the contact's categories (vCard `CATEGORIES`, taken over by DAVx⁵ as contact groups), at most 100
+with up to 100 characters each. Leading/trailing whitespace and duplicates (case-insensitive) are removed. If the
+field is missing (or `null`), the categories stay unchanged. The search (`q`) also finds categories.
 
-`Contact` entspricht dem Input plus `id`, `uid`, `etag`, `has_photo`, `photo?`, `created_at`, `updated_at`. `etag`
-ändert sich mit jeder Änderung des Kontakts (auch des Fotos oder per CardDAV) und eignet sich zum Abgleich.
+`Contact` corresponds to the input plus `id`, `uid`, `etag`, `has_photo`, `photo?`, `created_at`, `updated_at`. `etag`
+changes with every change of the contact (also of the photo or via CardDAV) and is suitable for syncing.
 
 ### `DELETE /contacts/{id}` → `204`
 
-## Kontaktkategorien
+## Contact categories
 
-Kategorien gibt es nur an den Kontakten; die Liste aller Kategorien ergibt sich aus `GET /contacts`. Groß-/
-Kleinschreibung von `name` spielt keine Rolle. Betroffen sind alle Adressbücher des Benutzers.
+Categories only exist on contacts; the list of all categories results from `GET /contacts`. The case of
+`name` does not matter. All of the user's address books are affected.
 
 ### `POST /contact-categories/rename` → `{ "updated": 3 }`
-Body `{ "name": "Freunde", "new_name": "Freundeskreis" }`. Gibt es `new_name` am Kontakt schon, werden beide zusammengeführt.
+Body `{ "name": "Friends", "new_name": "Circle of friends" }`. If a contact already has `new_name`, both are merged.
 
 ### `POST /contact-categories/delete` → `{ "updated": 3 }`
-Body `{ "name": "Freunde" }`. Entfernt die Kategorie aus allen Kontakten; die Kontakte bleiben erhalten.
+Body `{ "name": "Friends" }`. Removes the category from all contacts; the contacts are kept.
 
-## Verwaltung (nur Administrator, sonst `403`)
+## Administration (administrators only, otherwise `403`)
 
 ### `GET /admin/overview`
 ```json
@@ -404,88 +406,88 @@ Body `{ "name": "Freunde" }`. Entfernt die Kategorie aus allen Kontakten; die Ko
               "tasks": 12, "push_subscriptions": 1 },
   "config": { "bind": "0.0.0.0:8080", "data_dir": "/data", "cors_origins": ["*"], "vapid_subject": "mailto:…" } }
 ```
-`calendars` ohne Geburtstagskalender, `events` ohne Geburtstage, `database_size` in Bytes (inkl. WAL).
+`calendars` without birthday calendars, `events` without birthdays, `database_size` in bytes (incl. WAL).
 
 ### `GET /admin/settings` · `PUT /admin/settings`
 ```json
 { "allow_registration": false, "token_ttl_days": 30, "defaults": { "allow_registration": true, "token_ttl_days": 30 } }
 ```
-`PUT` mit `{ "allow_registration": false }` und/oder `{ "token_ttl_days": 7 }` (1–3650, sonst `400`) ändert nur die
-übergebenen Werte und antwortet wie `GET`. Gespeicherte Werte haben Vorrang vor den Umgebungsvariablen (`defaults`).
-Die Gültigkeit gilt für neu ausgestellte Tokens.
+`PUT` with `{ "allow_registration": false }` and/or `{ "token_ttl_days": 7 }` (1–3650, otherwise `400`) only changes the
+given values and responds like `GET`. Stored values take precedence over the environment variables (`defaults`).
+The lifetime applies to newly issued tokens.
 
 ### `GET /admin/users`
-Alle Konten, älteste zuerst:
+All accounts, oldest first:
 ```json
 [ { "id": "…", "email": "anna@example.com", "name": "Anna", "is_admin": true, "disabled": false,
     "created_at": "…", "last_login_at": "…", "calendars": 2, "events": 120, "contacts": 35, "tasks": 12, "devices": 1 } ]
 ```
-`last_login_at` ist die letzte Anmeldung oder Token-Erneuerung (`null` = noch nie), `devices` die Zahl der Browser mit
-Benachrichtigungen.
+`last_login_at` is the last sign-in or token refresh (`null` = never), `devices` the number of browsers with
+notifications.
 
 ### `POST /admin/users` → `201`
-`{ "email": "…", "password": "mind. 8 Zeichen", "name": "…", "is_admin": false }` – legt ein Konto mit Kalender
-„Persönlich“ an, auch wenn die Registrierung geschlossen ist. Antwort wie ein Eintrag aus `GET /admin/users`.
+`{ "email": "…", "password": "at least 8 characters", "name": "…", "is_admin": false }` – creates an account with the calendar
+"Persönlich", even if registration is closed. Response like an entry from `GET /admin/users`.
 
 ### `PUT /admin/users/{id}`
-Optional `name`, `email`, `password`, `is_admin`, `disabled`; nur übergebene Felder werden geändert. Ein neues Passwort
-macht alle Tokens des Kontos ungültig (außer beim eigenen Konto). Gesperrte Konten (`disabled: true`) können sich weder
-anmelden noch per CardDAV synchronisieren; ihre Tokens werden abgewiesen. Das eigene Konto lässt sich nicht sperren
-oder herabstufen (`400`).
+Optional `name`, `email`, `password`, `is_admin`, `disabled`; only the given fields are changed. A new password
+invalidates all tokens of the account (except for your own account). Disabled accounts (`disabled: true`) can neither
+sign in nor sync via CardDAV; their tokens are rejected. Your own account cannot be disabled
+or demoted (`400`).
 
 ### `POST /admin/users/{id}/logout`
-Macht alle bisher ausgestellten Tokens des Kontos ungültig. CardDAV-Clients melden sich mit dem Passwort an und sind
-davon nicht betroffen. Nicht für das eigene Konto (`400`).
+Invalidates all tokens issued so far for the account. CardDAV clients sign in with the password and are
+not affected. Not for your own account (`400`).
 
 ### `DELETE /admin/users/{id}` → `204`
-Löscht das Konto mit allen Kalendern, Terminen, Adressbüchern, Kontakten und Aufgaben. Nicht für das eigene Konto (`400`).
+Deletes the account with all calendars, events, address books, contacts and tasks. Not for your own account (`400`).
 
 ### `GET /admin/export` → `application/json`
-Die ganze Datenbank (alle Benutzer inkl. Passwort-Hashes) als Datei `synchaven-export-<Datum>.json`. Termine im
-Geburtstagskalender sind nicht enthalten, der Import erzeugt sie aus den Kontakten neu. Push-Abonnements fehlen
-ebenfalls; die Weboberfläche meldet einen Browser mit eingeschalteten Benachrichtigungen beim nächsten Öffnen neu an. Gleiches
-Format wie `synchaven export` auf der Kommandozeile:
+The whole database (all users incl. password hashes) as the file `synchaven-export-<date>.json`. Events in the
+birthday calendar are not included, the import regenerates them from the contacts. Push subscriptions are missing
+as well; the web UI re-subscribes a browser with notifications enabled the next time it is opened. Same
+format as `synchaven export` on the command line:
 ```json
 { "format": "synchaven-export", "format_version": 1, "app_version": "1.0.0", "exported_at": "…", "migration": 1,
   "tables": { "users": [ { "id": "…", "email": "…", … } ], "calendars": [ … ], … } }
 ```
 
-### `POST /admin/import?replace=true` (Body: Export, `Content-Type: application/json`, max. 512 MB)
-Ersetzt in einer Transaktion **alle** Daten aller Benutzer. Ohne `replace=true` → `409`, solange die Datenbank
-Daten enthält; ungültige Datei oder unstimmige Daten → `400`, die Datenbank bleibt dann unverändert. Tabellen und
-Spalten, die es nicht mehr gibt, werden übersprungen, ebenso Push-Abonnements aus älteren Exporten. Vorhandene
-Push-Abonnements werden gelöscht. Tokens bleiben gültig, solange es den Benutzer danach noch gibt.
+### `POST /admin/import?replace=true` (body: export, `Content-Type: application/json`, max. 512 MB)
+Replaces **all** data of all users in one transaction. Without `replace=true` → `409` as long as the database
+contains data; invalid file or inconsistent data → `400`, the database then stays unchanged. Tables and
+columns that no longer exist are skipped, as are push subscriptions from older exports. Existing
+push subscriptions are deleted. Tokens stay valid as long as the user still exists afterwards.
 ```json
 { "summary": ["users: 2", "calendars: 3", "events: 120", …, "Geburtstage: 35"], "warnings": ["Spalten von users gibt es nicht mehr, …"] }
 ```
 
 ## CardDAV (DAVx⁵, Thunderbird, iOS)
 
-Unabhängig von der REST API stellt der Server Adressbücher per CardDAV (RFC 6352) bereit. Anmeldung per HTTP Basic
-mit E-Mail-Adresse und Passwort. Basis-URL: `https://<server>/dav/` (Discovery auch über `/.well-known/carddav`).
+Independently of the REST API, the server provides address books via CardDAV (RFC 6352). Sign-in via HTTP Basic
+with email address and password. Base URL: `https://<server>/dav/` (discovery also via `/.well-known/carddav`).
 
-| Pfad | Inhalt |
+| Path | Content |
 |------|--------|
-| `/dav/principals/{user_id}/` | Principal mit `addressbook-home-set` |
-| `/dav/addressbooks/{user_id}/` | alle Adressbücher |
-| `/dav/addressbooks/{user_id}/{addressbook_id}/` | Adressbuch (`getctag`, `addressbook-multiget`, `addressbook-query`) |
-| `/dav/addressbooks/{user_id}/{addressbook_id}/{name}.vcf` | Kontakt (`GET`, `PUT` mit `If-Match`/`If-None-Match`, `DELETE`) |
+| `/dav/principals/{user_id}/` | Principal with `addressbook-home-set` |
+| `/dav/addressbooks/{user_id}/` | all address books |
+| `/dav/addressbooks/{user_id}/{addressbook_id}/` | address book (`getctag`, `addressbook-multiget`, `addressbook-query`) |
+| `/dav/addressbooks/{user_id}/{addressbook_id}/{name}.vcf` | contact (`GET`, `PUT` with `If-Match`/`If-None-Match`, `DELETE`) |
 
-Adressbücher lassen sich per `MKCOL`, `PROPPATCH` (Name, Beschreibung) und `DELETE` auch vom Client verwalten.
-Änderungen über die REST API sind sofort per CardDAV sichtbar und umgekehrt.
+Address books can also be managed by the client via `MKCOL`, `PROPPATCH` (name, description) and `DELETE`.
+Changes via the REST API are immediately visible via CardDAV and vice versa.
 
 ---
 
-## Beispiel mit curl
+## Example with curl
 
 ```bash
 B=http://localhost:8080/api
 TOKEN=$(curl -s -X POST $B/auth/login -H 'Content-Type: application/json' \
-  -d '{"email":"anna@example.com","password":"geheim123"}' | jq -r .token)
+  -d '{"email":"anna@example.com","password":"secret123"}' | jq -r .token)
 curl -s "$B/events?start=2026-11-01T00:00:00Z&end=2026-12-01T00:00:00Z" -H "Authorization: Bearer $TOKEN"
 
-# Kontakte aus einer .vcf-Datei ins erste Adressbuch importieren
+# Import contacts from a .vcf file into the first address book
 BOOK=$(curl -s $B/addressbooks -H "Authorization: Bearer $TOKEN" | jq -r '.[0].id')
 curl -s -X POST "$B/addressbooks/$BOOK/import" -H "Authorization: Bearer $TOKEN" \
-  -H 'Content-Type: text/vcard' --data-binary @kontakte.vcf
+  -H 'Content-Type: text/vcard' --data-binary @contacts.vcf
 ```

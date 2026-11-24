@@ -1,23 +1,23 @@
 /**
- * Web Push: Der Server schickt Erinnerungen an den Service Worker (`/sw.js`), der sie als
- * Systembenachrichtigung anzeigt – auch wenn kein Synchaven-Tab offen ist.
+ * Web Push: the server sends reminders to the service worker (`/sw.js`), which shows them as
+ * system notifications – even if no Synchaven tab is open.
  */
 import { api } from '@/api/client'
 import { browserTimeZone } from './date'
 
 export type PushState =
-  /** Browser kann kein Web Push */
+  /** Browser doesn't support Web Push */
   | 'unsupported'
-  /** Seite läuft nicht über HTTPS (oder localhost) */
+  /** Page is not served via HTTPS (or localhost) */
   | 'insecure'
-  /** Benachrichtigungen für diese Seite im Browser blockiert */
+  /** Notifications blocked for this page in the browser */
   | 'denied'
   | 'off'
   | 'on'
 
 const supported = () => 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window
 
-/** Registriert den Service Worker (beim App-Start). */
+/** Registers the service worker (on app start). */
 export async function registerServiceWorker(): Promise<ServiceWorkerRegistration | null> {
   if (!supported() || !window.isSecureContext) return null
   try {
@@ -65,7 +65,7 @@ async function send(sub: PushSubscription) {
   })
 }
 
-/** Fragt nach der Berechtigung und meldet den Browser beim Server an. */
+/** Asks for permission and subscribes the browser on the server. */
 export async function enablePush(): Promise<PushState> {
   const state = await pushState()
   if (state === 'insecure' || state === 'unsupported' || state === 'denied') return state
@@ -75,7 +75,7 @@ export async function enablePush(): Promise<PushState> {
   await navigator.serviceWorker.ready
   const { public_key } = await api.pushPublicKey()
   let sub = await reg.pushManager.getSubscription()
-  // Ein Abonnement mit einem anderen Serverschlüssel (z. B. nach Neuinstallation) ersetzen
+  // Replace a subscription with a different server key (e.g. after a reinstall)
   const serverKey = keyBytes(public_key)
   const current = sub?.options.applicationServerKey
   if (sub && current && !sameBytes(new Uint8Array(current), serverKey)) {
@@ -87,7 +87,7 @@ export async function enablePush(): Promise<PushState> {
   return 'on'
 }
 
-/** Abmelden beim Server und im Browser (auch beim Abmelden vom Konto). */
+/** Unsubscribe on the server and in the browser (also when signing out of the account). */
 export async function disablePush(): Promise<void> {
   if (!supported() || !window.isSecureContext) return
   const sub = await currentSubscription().catch(() => null)
@@ -96,7 +96,7 @@ export async function disablePush(): Promise<void> {
   await sub.unsubscribe()
 }
 
-/** Nach der Anmeldung: bestehendes Abonnement dem aktuellen Benutzer zuordnen und die Zeitzone aktualisieren. */
+/** After sign-in: assign an existing subscription to the current user and update the time zone. */
 export async function refreshPush(): Promise<void> {
   if ((await pushState()) !== 'on') return
   const sub = await currentSubscription()

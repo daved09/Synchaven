@@ -14,11 +14,11 @@ data object ContactsRoute
 @Serializable
 data object SettingsRoute
 
-/** Aufgabenlisten mit Schnelleingabe */
+/** Task lists with quick entry */
 @Serializable
 data object TasksRoute
 
-/** Neuer Termin (ohne [eventId]) ab [startEpochSecond] oder Bearbeiten eines vorhandenen Termins/einer Serie. */
+/** New event (without [eventId]) from [startEpochSecond] or editing an existing event/series. */
 @Serializable
 data class EventEditRoute(
     val eventId: String? = null,

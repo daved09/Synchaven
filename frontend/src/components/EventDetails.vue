@@ -16,7 +16,7 @@ const recurrence = computed(() => {
   const e = props.event
   return e?.rrule ? describeRRule(e.rrule, e.startDate) : ''
 })
-/** Wann benachrichtigt wird: eigene Erinnerungen des Termins oder der Standard des Kalenders */
+/** When notifications are sent: the event's own reminders or the calendar default */
 const reminders = computed(() => {
   const e = props.event
   if (!e) return []

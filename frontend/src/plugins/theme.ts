@@ -1,5 +1,5 @@
-// Erzeugt ein vollständiges Material-3-Farbschema aus einer Grundfarbe
-// (dynamische Farben nach dem "Tonal Spot"-Verfahren von Material You).
+// Generates a complete Material 3 color scheme from a base color
+// (dynamic colors using Material You's "Tonal Spot" method).
 import {
   argbFromHex,
   DynamicColor,
@@ -52,7 +52,7 @@ export function buildM3Colors(seed: string, dark: boolean): Record<string, strin
   for (const [name, role] of Object.entries(roles)) {
     colors[name] = hexFromArgb(role.getArgb(scheme))
   }
-  // Vuetify nutzt "surface-variant" für Tooltips/Snackbars – in M3 ist das inverse-surface.
+  // Vuetify uses "surface-variant" for tooltips/snackbars – in M3 that is inverse-surface.
   colors['surface-variant'] = colors['inverse-surface']
   colors['on-surface-variant'] = colors['on-inverse-surface']
   colors['surface-light'] = colors['surface-container-high']
@@ -64,7 +64,7 @@ export function buildM3Colors(seed: string, dark: boolean): Record<string, strin
   return colors
 }
 
-/** Vorschlagsfarben für Grundfarbe und Kalender */
+/** Suggested colors for the base color and calendars */
 export const SEED_COLORS = [
   '#6750A4', '#0B57D0', '#006A6A', '#386A20', '#7D5260', '#B3261E',
   '#8B5000', '#5B5F97', '#00639B', '#984061', '#6D5E0F', '#4A6267',
@@ -75,7 +75,7 @@ export const CALENDAR_COLORS = [
   '#F6BF26', '#F4511E', '#D50000', '#E67C73', '#8E24AA', '#616161',
 ]
 
-/** Gut lesbare Textfarbe auf einer beliebigen Hintergrundfarbe */
+/** Readable text color on any background color */
 export function onColor(hex: string): string {
   const h = hex.replace('#', '')
   const [r, g, b] = [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16) / 255)

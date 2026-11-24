@@ -36,9 +36,9 @@ import retrofit2.http.Path
 import retrofit2.http.Query
 
 /**
- * REST API des SyncHaven-Servers. Pfade sind relativ zu `/api/`; der [ServerInterceptor] setzt
- * Schema, Host und Pfadpräfix des angemeldeten Servers ein. Vor der Anmeldung wird der Server
- * über den Header [SERVER_HEADER] übergeben.
+ * REST API of the SyncHaven server. Paths are relative to `/api/`; the [ServerInterceptor] inserts
+ * scheme, host and path prefix of the signed-in server. Before sign-in, the server is
+ * passed via the [SERVER_HEADER] header.
  */
 interface SyncHavenApi {
     @GET("info")
@@ -56,14 +56,14 @@ interface SyncHavenApi {
     @GET("auth/me")
     suspend fun me(): User
 
-    /** Neues Token für die angemeldete Sitzung */
+    /** New token for the signed-in session */
     @POST("auth/refresh")
     suspend fun refreshToken(): AuthResponse
 
     @PUT("auth/me")
     suspend fun updateMe(@Body body: UpdateMeRequest): User
 
-    // ---------- Kalender ----------
+    // ---------- Calendars ----------
 
     @GET("calendars")
     suspend fun calendars(): List<Calendar>
@@ -77,7 +77,7 @@ interface SyncHavenApi {
     @DELETE("calendars/{id}")
     suspend fun deleteCalendar(@Path("id") id: String)
 
-    /** Alle Termine eines Kalenders ohne Expansion (Serien als ein Eintrag) – für die Synchronisierung */
+    /** All events of a calendar without expansion (series as one entry) – for syncing */
     @GET("calendars/{id}/events")
     suspend fun calendarEvents(@Path("id") id: String): List<CalEvent>
 
@@ -91,7 +91,7 @@ interface SyncHavenApi {
         @Body ics: RequestBody,
     ): ImportResult
 
-    // ---------- Termine ----------
+    // ---------- Events ----------
 
     @GET("events")
     suspend fun occurrences(
@@ -115,9 +115,9 @@ interface SyncHavenApi {
     @POST("events/{id}/exdates")
     suspend fun addExdate(@Path("id") id: String, @Body body: ExdateRequest): CalEvent
 
-    // ---------- Aufgaben ----------
+    // ---------- Tasks ----------
 
-    /** Legt bei Bedarf die Liste „Meine Aufgaben“ an */
+    /** Creates the list "Meine Aufgaben" if needed */
     @GET("task-lists")
     suspend fun taskLists(): List<TaskList>
 
@@ -127,7 +127,7 @@ interface SyncHavenApi {
     @PUT("task-lists/{id}")
     suspend fun updateTaskList(@Path("id") id: String, @Body body: TaskListInput): TaskList
 
-    /** Löscht alle enthaltenen Aufgaben; die letzte Liste ist nicht löschbar (400) */
+    /** Deletes all contained tasks; the last list cannot be deleted (400) */
     @DELETE("task-lists/{id}")
     suspend fun deleteTaskList(@Path("id") id: String)
 
@@ -152,7 +152,7 @@ interface SyncHavenApi {
     @DELETE("tasks/{id}")
     suspend fun deleteTask(@Path("id") id: String)
 
-    // ---------- Adressbücher & Kontakte ----------
+    // ---------- Address books & contacts ----------
 
     @GET("addressbooks")
     suspend fun addressBooks(): List<AddressBook>
@@ -188,7 +188,7 @@ interface SyncHavenApi {
     suspend fun deleteContact(@Path("id") id: String)
 
     companion object {
-        /** Server für Aufrufe vor der Anmeldung; wird vom [ServerInterceptor] entfernt. */
+        /** Server for calls before sign-in; removed by the [ServerInterceptor]. */
         const val SERVER_HEADER = "X-SyncHaven-Server"
     }
 }

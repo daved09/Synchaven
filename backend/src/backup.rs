@@ -1,17 +1,17 @@
-//! Export und Import der gesamten Datenbank als JSON (`synchaven export` / `synchaven import`).
+//! Export and import of the whole database as JSON (`synchaven export` / `synchaven import`).
 //!
-//! Gedacht als Sicherung vor Updates: Schlägt eine Migration fehl, wird die alte Datenbank zur Seite gelegt,
-//! die neue Version legt beim Import eine leere Datenbank mit aktuellem Schema an und übernimmt die Daten.
+//! Intended as a backup before updates: if a migration fails, the old database is set aside,
+//! and on import the new version creates an empty database with the current schema and loads the data.
 //!
-//! Das Format ist bewusst schemaunabhängig: Jede Tabelle ist eine Liste von Objekten mit Spaltennamen.
-//! Beim Import werden nur Tabellen und Spalten übernommen, die es im aktuellen Schema gibt; fehlende Spalten
-//! erhalten ihren Standardwert. Ausgelassenes wird als Warnung gemeldet.
+//! The format is deliberately schema-independent: each table is a list of objects with column names.
+//! On import, only tables and columns that exist in the current schema are taken over; missing columns
+//! get their default value. Anything skipped is reported as a warning.
 //!
-//! Die Termine im Geburtstagskalender werden nicht exportiert: Sie entstehen aus den Kontakten und werden beim
-//! Import neu erzeugt. Der Geburtstagskalender selbst (Farbe, Sichtbarkeit, Erinnerungen) bleibt im Export.
+//! The events in the birthday calendar are not exported: they are derived from the contacts and are
+//! regenerated on import. The birthday calendar itself (color, visibility, reminders) stays in the export.
 //!
-//! Push-Abonnements fehlen ebenfalls (`NOT_EXPORTED`): Sie gehören zu einzelnen Browsern und dem VAPID-Schlüssel
-//! im Datenverzeichnis. Die Weboberfläche meldet ein noch eingeschaltetes Abonnement beim nächsten Öffnen neu an.
+//! Push subscriptions are missing as well (`NOT_EXPORTED`): they belong to individual browsers and to the VAPID key
+//! in the data directory. The web UI re-registers a subscription that is still enabled the next time it is opened.
 
 use std::{collections::BTreeMap, io::Write, path::Path, str::FromStr, time::Duration};
 
@@ -25,7 +25,7 @@ use sqlx::{
 
 const FORMAT: &str = "synchaven-export";
 
-/// Tabellen, die weder exportiert noch importiert werden (auch nicht aus älteren Exporten, die sie enthalten)
+/// Tables that are neither exported nor imported (not even from older exports that contain them)
 const NOT_EXPORTED: &[&str] = &["push_subscriptions"];
 const FORMAT_VERSION: u32 = 1;
 
@@ -35,7 +35,7 @@ pub struct Export {
     format_version: u32,
     app_version: String,
     exported_at: String,
-    /// Zuletzt angewendete Migration der exportierten Datenbank (nur zur Information)
+    /// Last applied migration of the exported database (for information only)
     migration: Option<i64>,
     tables: BTreeMap<String, Vec<Map<String, Value>>>,
 }
@@ -48,7 +48,7 @@ Die Datenbank liegt in $DATA_DIR/synchaven.db. Der Import legt sie bei Bedarf an
 das aktuelle Schema. Er verweigert eine Datenbank, die schon Daten enthält – außer mit --replace, das
 vorher alle vorhandenen Daten löscht. Während des Imports darf der Server nicht laufen.";
 
-/// Führt `export`/`import` aus. `None`, wenn `cmd` keiner dieser Befehle ist.
+/// Runs `export`/`import`. `None` if `cmd` is neither of these commands.
 pub async fn run_cli(cmd: &str, args: &[String]) -> Option<anyhow::Result<()>> {
     match cmd {
         "export" => Some(export_cli(args).await),
@@ -79,7 +79,7 @@ async fn open(create: bool) -> anyhow::Result<SqlitePool> {
         .with_context(|| format!("Datenbank {} kann nicht geöffnet werden", path.display()))
 }
 
-/// Tabellen der Anwendung in Anlagereihenfolge (ohne SQLite-interne und sqlx-Tabellen).
+/// The application's tables in creation order (without SQLite-internal and sqlx tables).
 async fn tables(conn: &mut SqliteConnection) -> anyhow::Result<Vec<String>> {
     Ok(sqlx::query_scalar(
         "SELECT name FROM sqlite_master WHERE type = 'table' \
@@ -101,7 +101,7 @@ async fn last_migration(conn: &mut SqliteConnection) -> Option<i64> {
     sqlx::query_scalar("SELECT MAX(version) FROM _sqlx_migrations WHERE success = 1").fetch_one(conn).await.ok().flatten()
 }
 
-/// Liest alle Tabellen in einer Lesetransaktion – konsistenter Stand, auch während der Server läuft.
+/// Reads all tables in one read transaction – a consistent state, even while the server is running.
 pub async fn export_db(db: &SqlitePool) -> anyhow::Result<(Export, Vec<String>)> {
     let mut tx = db.begin().await?;
     let mut tables_out = BTreeMap::new();
@@ -111,7 +111,7 @@ pub async fn export_db(db: &SqlitePool) -> anyhow::Result<(Export, Vec<String>)>
             continue;
         }
         let filter = if table == "events" {
-            // Geburtstagstermine werden beim Import aus den Kontakten neu erzeugt
+            // Birthday events are regenerated from the contacts on import
             format!(" WHERE calendar_id NOT IN (SELECT id FROM calendars WHERE kind = '{}')", crate::birthdays::KIND)
         } else {
             String::new()
@@ -165,7 +165,7 @@ async fn export_cli(args: &[String]) -> anyhow::Result<()> {
     let json = serde_json::to_vec_pretty(&export)?;
     match target {
         Some(file) => {
-            // Erst in eine temporäre Datei schreiben, damit ein Abbruch keinen halben Export hinterlässt
+            // Write to a temporary file first, so an abort doesn't leave a half-written export behind
             let tmp = format!("{file}.tmp");
             std::fs::write(&tmp, &json).with_context(|| format!("{tmp} kann nicht geschrieben werden"))?;
             std::fs::rename(&tmp, file).with_context(|| format!("{file} kann nicht geschrieben werden"))?;
@@ -222,7 +222,7 @@ async fn import_cli(args: &[String]) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// Liest und prüft einen Export.
+/// Reads and validates an export.
 pub fn parse(json: &[u8]) -> Result<Export, ImportError> {
     let export: Export = serde_json::from_slice(json)
         .map_err(|e| ImportError::Invalid(format!("Datei ist kein gültiger Synchaven-Export: {e}")))?;
@@ -240,18 +240,18 @@ pub fn parse(json: &[u8]) -> Result<Export, ImportError> {
 
 #[derive(Debug, Serialize)]
 pub struct ImportReport {
-    /// Anzahl der übernommenen Einträge je Tabelle, z. B. "events: 12"
+    /// Number of imported entries per table, e.g. "events: 12"
     pub summary: Vec<String>,
-    /// Übersprungene Tabellen und Spalten
+    /// Skipped tables and columns
     pub warnings: Vec<String>,
 }
 
 #[derive(Debug, thiserror::Error)]
 pub enum ImportError {
-    /// Datei unbrauchbar oder Daten passen nicht (z. B. verletzte Fremdschlüssel)
+    /// File unusable or data doesn't fit (e.g. violated foreign keys)
     #[error("{0}")]
     Invalid(String),
-    /// Die Datenbank enthält schon Daten und `replace` ist nicht gesetzt
+    /// The database already contains data and `replace` is not set
     #[error("{0}")]
     NotEmpty(String),
     #[error(transparent)]
@@ -264,11 +264,11 @@ impl From<sqlx::Error> for ImportError {
     }
 }
 
-/// Spielt einen Export in einer einzigen Transaktion ein: Entweder alles oder nichts.
-/// Das Schema muss bereits aktuell sein (Migrationen gelaufen).
+/// Loads an export in a single transaction: all or nothing.
+/// The schema must already be current (migrations have run).
 pub async fn import_db(db: &SqlitePool, export: &Export, replace: bool) -> Result<ImportReport, ImportError> {
     let mut conn = db.acquire().await?;
-    // IMMEDIATE: Schreibsperre sofort, damit der laufende Server nicht dazwischen schreibt
+    // IMMEDIATE: take the write lock right away so the running server doesn't write in between
     sqlx::query("BEGIN IMMEDIATE").execute(&mut *conn).await?;
     match import_rows(&mut conn, export, replace).await {
         Ok(report) => match sqlx::query("COMMIT").execute(&mut *conn).await {
@@ -343,7 +343,7 @@ async fn import_rows(conn: &mut SqliteConnection, export: &Export, replace: bool
                         None => query.bind(num.as_f64()),
                     },
                     Value::String(s) => query.bind(s.as_str()),
-                    // Sollte nicht vorkommen; als JSON-Text speichern statt abzubrechen
+                    // Should not happen; store as JSON text instead of aborting
                     other => query.bind(other.to_string()),
                 };
             }
@@ -361,7 +361,7 @@ async fn import_rows(conn: &mut SqliteConnection, export: &Export, replace: bool
         summary.push(format!("{table}: {}", rows.len()));
     }
 
-    // Ältere Exporte kennen is_admin noch nicht: Dann wird wie bei der Migration das älteste Konto Administrator.
+    // Older exports don't know is_admin yet: then, as in the migration, the oldest account becomes administrator.
     let has_admin: Option<i64> = sqlx::query_scalar("SELECT 1 FROM users WHERE is_admin = 1 LIMIT 1")
         .fetch_optional(&mut *conn)
         .await?;
@@ -376,7 +376,7 @@ async fn import_rows(conn: &mut SqliteConnection, export: &Export, replace: bool
         }
     }
 
-    // Geburtstagstermine aus den Kontakten erzeugen (ältere Exporte enthalten sie schon, dann bleibt es dabei)
+    // Generate birthday events from the contacts (older exports already contain them, in which case they stay)
     let contacts: Vec<String> = sqlx::query_scalar("SELECT id FROM contacts").fetch_all(&mut *conn).await?;
     for id in &contacts {
         crate::birthdays::sync_contact(conn, id)

@@ -10,8 +10,8 @@ import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 
 /**
- * Minimaler iCalendar-(RFC 5545)-Export und -Import für VEVENTs im lokalen Modus – wie `backend/src/ical.rs`,
- * damit Dateien aus der App und vom Server sich gleich verhalten.
+ * Minimal iCalendar (RFC 5545) export and import for VEVENTs in local mode – like `backend/src/ical.rs`,
+ * so files from the app and from the server behave the same.
  */
 object ICal {
     private val UTC_FMT = DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss'Z'").withZone(ZoneOffset.UTC)
@@ -20,7 +20,7 @@ object ICal {
 
     // ---------- Export ----------
 
-    /** [reminders] liefert die Erinnerungen eines Termins (eigene oder Kalender-Standard) für VALARM-Einträge. */
+    /** [reminders] returns an event's reminders (its own or the calendar default) for VALARM entries. */
     fun export(
         calendarName: String,
         events: List<CalEvent>,
@@ -61,7 +61,7 @@ object ICal {
         return out.toString()
     }
 
-    /** TRIGGER einer Erinnerung (Minuten vor Beginn; negativ = nach Beginn) */
+    /** TRIGGER of a reminder (minutes before the start; negative = after the start) */
     private fun trigger(minutes: Int): String = when {
         minutes == 0 -> "PT0S"
         minutes > 0 && minutes % 1440 == 0 -> "-P${minutes / 1440}D"
@@ -79,7 +79,7 @@ object ICal {
         }
     }
 
-    /** Bei ganztägigen Terminen muss UNTIL ein reines Datum sein. */
+    /** For all-day events, UNTIL must be a plain date. */
     private fun exportRrule(rule: String, allDay: Boolean): String = if (!allDay) rule else
         rule.split(';').joinToString(";") { p ->
             val (k, v) = p.substringBefore('=') to p.substringAfter('=', "")
@@ -89,7 +89,7 @@ object ICal {
     fun escape(s: String): String = s.replace("\\", "\\\\").replace(";", "\\;").replace(",", "\\,")
         .replace("\r\n", "\\n").replace("\n", "\\n").replace("\r", "")
 
-    /** Zeilen nach 75 Oktetts umbrechen (RFC 5545, Abschnitt 3.1), ohne UTF-8-Zeichen zu zerteilen. */
+    /** Fold lines after 75 octets (RFC 5545, section 3.1) without splitting UTF-8 characters. */
     fun fold(line: String, out: StringBuilder) {
         var len = 0
         var i = 0
@@ -121,7 +121,7 @@ object ICal {
         val timezone: String,
         val rrule: String?,
         val exdates: List<Instant>,
-        /** Gesetzt bei geänderten Einzelvorkommen einer Serie */
+        /** Set for modified single occurrences of a series */
         val recurrenceId: Instant?,
     )
 
@@ -161,7 +161,7 @@ object ICal {
         return lines
     }
 
-    /** Teilt an [sep], ignoriert dabei Trennzeichen innerhalb von Anführungszeichen. */
+    /** Splits at [sep], ignoring separators inside quotes. */
     fun splitUnquoted(s: String, sep: Char): List<String> {
         val parts = mutableListOf<String>()
         var inQuotes = false
@@ -177,7 +177,7 @@ object ICal {
         return parts
     }
 
-    /** Index des ersten Doppelpunkts außerhalb von Anführungszeichen */
+    /** Index of the first colon outside of quotes */
     fun valueColon(line: String): Int {
         var inQuotes = false
         line.forEachIndexed { i, c ->
@@ -215,11 +215,11 @@ object ICal {
     fun zoneOrNull(id: String): ZoneId? =
         runCatching { ZoneId.of(id.trim()) }.getOrNull()?.takeIf { it.id.contains('/') || it.id == "UTC" }
 
-    /** TZID auf eine Zeitzone abbilden – auch Mozilla-Pfade und häufige Windows-Namen (Outlook/Exchange). */
+    /** Map a TZID to a time zone – also Mozilla paths and common Windows names (Outlook/Exchange). */
     private fun resolveTzid(tzid: String): ZoneId? {
         val id = tzid.trim().trim('"')
         zoneOrNull(id)?.let { return it }
-        // z. B. "/mozilla.org/20050126_1/Europe/Berlin"
+        // e.g. "/mozilla.org/20050126_1/Europe/Berlin"
         val segs = id.split('/').filter { it.isNotEmpty() }
         for (n in listOf(3, 2)) {
             if (segs.size >= n) zoneOrNull(segs.takeLast(n).joinToString("/"))?.let { return it }
@@ -248,7 +248,7 @@ object ICal {
         }.getOrNull()
     }
 
-    /** ISO-8601-Dauer wie `P1D`, `PT1H30M`, `P2W` */
+    /** ISO 8601 duration such as `P1D`, `PT1H30M`, `P2W` */
     fun parseDuration(raw: String): Duration? {
         val t = raw.trim().trimStart('+', '-')
         if (!t.startsWith('P')) return null
@@ -314,7 +314,7 @@ object ICal {
         }
     }
 
-    /** Liest alle VEVENTs; [IllegalArgumentException], wenn es keine iCalendar-Datei ist. */
+    /** Reads all VEVENTs; [IllegalArgumentException] if it is not an iCalendar file. */
     fun parse(text: String, defaultZone: ZoneId): List<ParsedEvent> {
         val lines = unfold(text.removePrefix("\uFEFF"))
         require(lines.any { it.trim().equals("BEGIN:VCALENDAR", ignoreCase = true) }) {
@@ -322,7 +322,7 @@ object ICal {
         }
         val events = mutableListOf<ParsedEvent>()
         var current: Builder? = null
-        var nested = 0 // z. B. VALARM innerhalb eines VEVENT
+        var nested = 0 // e.g. VALARM inside a VEVENT
         for (line in lines) {
             val prop = parseProp(line) ?: continue
             val upper = prop.value.trim().uppercase()

@@ -17,23 +17,23 @@ data class Session(
     val userId: String,
     val email: String,
     val name: String,
-    /** Standardansicht des Kalenders aus dem Benutzerkonto */
+    /** The calendar's default view from the user account */
     val defaultView: ViewMode,
-    /** Lokaler Modus: ohne Server, alle Daten nur auf diesem Gerät */
+    /** Local mode: without a server, all data only on this device */
     val local: Boolean = false,
 )
 
 sealed interface SessionState {
-    /** DataStore hat noch nicht geladen */
+    /** DataStore hasn't loaded yet */
     data object Loading : SessionState
     data object LoggedOut : SessionState
     data class LoggedIn(val session: Session) : SessionState
 }
 
-/** Benutzer-ID der Sitzung im lokalen Modus */
+/** User ID of the session in local mode */
 const val LOCAL_USER = "local"
 
-/** Angemeldete Sitzung (Server, Token, Benutzer) oder lokaler Modus und die zuletzt verwendeten Anmeldedaten. */
+/** Signed-in session (server, token, user) or local mode, and the most recently used sign-in data. */
 class SessionStore(private val dataStore: AppDataStore) {
     private val store = dataStore.store
 
@@ -46,9 +46,9 @@ class SessionStore(private val dataStore: AppDataStore) {
         val defaultView = stringPreferencesKey("user_default_view")
         val lastServer = stringPreferencesKey("last_server")
         val lastEmail = stringPreferencesKey("last_email")
-        /** `<server>|<user>`, für den das Android-Konto angelegt wurde – fehlt es dann, hat der Benutzer es entfernt */
+        /** `<server>|<user>` for which the Android account was created – if it is missing, the user removed it */
         val syncAccountFor = stringPreferencesKey("sync_account_for")
-        /** `1` im lokalen Modus ohne Server */
+        /** `1` in local mode without a server */
         val localMode = stringPreferencesKey("local_mode")
     }
 
@@ -56,11 +56,11 @@ class SessionStore(private val dataStore: AppDataStore) {
         .map { it?.toSessionState() ?: SessionState.Loading }
         .stateIn(dataStore.scope, SharingStarted.Eagerly, SessionState.Loading)
 
-    /** Synchroner Zugriff für den OkHttp-Interceptor */
+    /** Synchronous access for the OkHttp interceptor */
     val current: Session?
         get() = (state.value as? SessionState.LoggedIn)?.session
 
-    /** Zuletzt verwendeter Server und E-Mail-Adresse, vorbelegt im Anmeldebildschirm */
+    /** Most recently used server and email address, prefilled on the sign-in screen */
     val lastLogin: Flow<Pair<String, String>> =
         store.data.map { (it[Keys.lastServer] ?: "") to (it[Keys.lastEmail] ?: "") }
 
@@ -75,7 +75,7 @@ class SessionStore(private val dataStore: AppDataStore) {
         }
     }
 
-    /** Lokalen Modus starten: ohne Server, ohne Anmeldung. */
+    /** Start local mode: without a server, without sign-in. */
     suspend fun startLocal() {
         store.edit {
             it[Keys.localMode] = "1"
@@ -90,12 +90,12 @@ class SessionStore(private val dataStore: AppDataStore) {
         }
     }
 
-    /** Standardansicht lokal setzen (z. B. offline, bevor sie zum Server übertragen ist) */
+    /** Set the default view locally (e.g. offline, before it has been transferred to the server) */
     suspend fun setDefaultView(mode: ViewMode) {
         store.edit { it[Keys.defaultView] = mode.apiValue }
     }
 
-    /** Für diese Sitzung wurde das Android-Konto bereits angelegt (und ggf. vom Benutzer wieder entfernt). */
+    /** The Android account has already been created for this session (and possibly removed again by the user). */
     suspend fun syncAccountCreated(session: Session): Boolean =
         store.data.first()[Keys.syncAccountFor] == "${session.serverUrl}|${session.userId}"
 

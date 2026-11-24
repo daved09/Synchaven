@@ -72,7 +72,7 @@ import java.util.Locale
 
 private val FMT_EDIT_DATE: DateTimeFormatter = DateTimeFormatter.ofPattern("EEE, d. MMM yyyy", Locale.GERMANY)
 
-/** Welcher Datums-/Zeitwähler gerade offen ist */
+/** Which date/time picker is currently open */
 private enum class Picker { START_DATE, START_TIME, END_DATE, END_TIME }
 
 @OptIn(ExperimentalMaterial3Api::class)

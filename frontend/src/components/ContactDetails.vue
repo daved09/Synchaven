@@ -20,7 +20,7 @@ watch(
       try {
         const p = await contacts.fetchPhoto(id)
         if (props.contact.id === id) photo.value = p
-      } catch { /* Foto ist optional */ }
+      } catch { /* photo is optional */ }
     }
   },
   { immediate: true },

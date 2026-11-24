@@ -6,23 +6,23 @@ services:
     ports:
       - "8080:8080"
     environment:
-      # Neue Konten erlauben (nach dem Anlegen der eigenen Konten auf "false" setzen).
-      # Das erste registrierte Konto wird Administrator (Konto → Verwaltung). Dort lässt sich die Registrierung
-      # ebenfalls schalten; ein dort gespeicherter Wert hat Vorrang.
+      # Allow new accounts (set to "false" after creating your own accounts).
+      # The first registered account becomes administrator (Account → Administration). Registration can
+      # also be toggled there; a value stored there takes precedence.
       ALLOW_REGISTRATION: "true"
-      # Gültigkeit der Anmelde-Tokens in Tagen
+      # Lifetime of sign-in tokens in days
       TOKEN_TTL_DAYS: "30"
-      # Erlaubte Origins für Browser-Zugriffe von fremden Domains (kommagetrennt, "*" = alle)
+      # Allowed origins for browser access from other domains (comma-separated, "*" = all)
       CORS_ORIGINS: "*"
-      # Optional: festes JWT-Secret (≥ 32 Zeichen). Ohne Angabe wird eines in /data erzeugt.
-      # JWT_SECRET: "bitte-durch-einen-langen-zufallswert-ersetzen"
-      # Benutzer-/Gruppen-ID, mit der das Programm läuft und der /data gehört.
-      # Für einen Bind-Mount (z. B. ./data:/data) die eigenen IDs eintragen: `id -u` / `id -g`
+      # Optional: fixed JWT secret (≥ 32 characters). If not set, one is generated in /data.
+      # JWT_SECRET: "please-replace-with-a-long-random-value"
+      # User/group ID the program runs as and that owns /data.
+      # For a bind mount (e.g. ./data:/data) enter your own IDs: `id -u` / `id -g`
       # PUID: "1000"
       # PGID: "1000"
     volumes:
       - synchaven-data:/data
-      # Alternativ ein Verzeichnis auf dem Host (dann PUID/PGID setzen):
+      # Alternatively a directory on the host (then set PUID/PGID):
       # - ./data:/data
 
 volumes:

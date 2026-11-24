@@ -74,9 +74,9 @@ fn respond(state: &AppState, user: UserRow) -> AppResult<Json<AuthResponse>> {
     Ok(Json(AuthResponse { token, token_type: "Bearer", expires_at, user: user.into() }))
 }
 
-/// Registrierung erlaubt (Einstellung der Verwaltung, sonst `ALLOW_REGISTRATION`)? Das erste Konto (der
-/// Administrator) lässt sich immer anlegen – sonst käme man nach einem Neuanfang mit leerer Datenbank (etwa um einen
-/// Export einzuspielen) bei geschlossener Registrierung nicht mehr hinein.
+/// Is registration allowed (admin setting, otherwise `ALLOW_REGISTRATION`)? The first account (the
+/// administrator) can always be created – otherwise, after starting over with an empty database (e.g. to
+/// load an export), you could no longer get in with registration closed.
 pub async fn registration_open(state: &AppState) -> AppResult<bool> {
     if state.settings.get().allow_registration {
         return Ok(true);
@@ -85,14 +85,14 @@ pub async fn registration_open(state: &AppState) -> AppResult<bool> {
     Ok(any.is_none())
 }
 
-/// Neues Token für die angemeldete Sitzung – damit Clients wie die Android-Synchronisierung angemeldet bleiben,
-/// ohne das Passwort zu speichern.
+/// New token for the signed-in session – so clients such as the Android sync stay signed in
+/// without storing the password.
 pub async fn refresh(State(state): State<AppState>, auth: AuthUser) -> AppResult<Json<AuthResponse>> {
     touch_login(&state, &auth.id).await?;
     respond(&state, load_user(&state, &auth.id).await?)
 }
 
-/// Merkt sich die letzte Anmeldung für die Benutzerliste der Verwaltung.
+/// Records the last sign-in for the user list in the admin page.
 async fn touch_login(state: &AppState, id: &str) -> AppResult<()> {
     sqlx::query("UPDATE users SET last_login_at = ? WHERE id = ?")
         .bind(time::to_db(time::now()))
@@ -115,8 +115,8 @@ pub async fn register(
     Ok((StatusCode::CREATED, respond(&state, user)?))
 }
 
-/// Legt ein Konto mit Standardkalender und Aufgabenliste an und liefert seine ID.
-/// `is_admin = None`: Administrator wird es nur, wenn es das erste Konto ist (Ersteinrichtung).
+/// Creates an account with a default calendar and task list and returns its ID.
+/// `is_admin = None`: it only becomes administrator if it is the first account (initial setup).
 pub(super) async fn create_user(
     state: &AppState,
     email: &str,
@@ -144,8 +144,8 @@ pub(super) async fn create_user(
     let id = uuid::Uuid::new_v4().to_string();
     let now = time::to_db(time::now());
     let mut tx = state.db.begin().await?;
-    // Ersteinrichtung: Das erste Konto wird Administrator. Die Prüfung steckt im INSERT selbst,
-    // damit zwei gleichzeitige Registrierungen nicht beide Administrator werden.
+    // Initial setup: the first account becomes administrator. The check is part of the INSERT itself,
+    // so two concurrent registrations don't both become administrator.
     sqlx::query(
         "INSERT INTO users (id, email, name, password_hash, created_at, updated_at, is_admin) \
          VALUES (?, ?, ?, ?, ?, ?, COALESCE(?, NOT EXISTS (SELECT 1 FROM users)))",
@@ -159,7 +159,7 @@ pub(super) async fn create_user(
     .bind(is_admin)
     .execute(&mut *tx)
     .await?;
-    // Jeder neue Benutzer erhält einen Standardkalender.
+    // Every new user gets a default calendar.
     sqlx::query("INSERT INTO calendars (id, user_id, name, color, description, visible, created_at, updated_at) VALUES (?, ?, 'Persönlich', '#6750A4', '', 1, ?, ?)")
         .bind(uuid::Uuid::new_v4().to_string())
         .bind(&id)
@@ -179,7 +179,7 @@ pub async fn login(State(state): State<AppState>, Json(input): Json<LoginInput>)
         .fetch_optional(&state.db)
         .await?;
     let password = input.password;
-    // Hash-Prüfung im Blocking-Pool, sie ist absichtlich rechenintensiv.
+    // Hash check in the blocking pool, it is deliberately compute-intensive.
     let ok = match &user {
         Some(u) => {
             let hash = u.password_hash.clone();
@@ -190,7 +190,7 @@ pub async fn login(State(state): State<AppState>, Json(input): Json<LoginInput>)
         None => false,
     };
     match user {
-        // Die Sperre erst nach dem richtigen Passwort verraten
+        // Only reveal that the account is disabled after the correct password
         Some(u) if ok && u.disabled => Err(AppError::Forbidden("Dieses Konto ist gesperrt".into())),
         Some(u) if ok => {
             touch_login(&state, &u.id).await?;

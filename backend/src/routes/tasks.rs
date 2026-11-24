@@ -1,4 +1,4 @@
-//! Aufgabenlisten und Aufgaben. Aufgaben mit Fälligkeit zeigen die Clients im Kalender an.
+//! Task lists and tasks. Clients show tasks with a due date in the calendar.
 
 use std::collections::HashMap;
 
@@ -22,7 +22,7 @@ use crate::{
 pub const DEFAULT_LIST_NAME: &str = "Meine Aufgaben";
 pub const DEFAULT_LIST_COLOR: &str = "#1A73E8";
 
-/// Legt die Standardliste an, falls der Benutzer noch keine Aufgabenliste hat.
+/// Creates the default list if the user doesn't have a task list yet.
 pub async fn ensure_list(conn: &mut SqliteConnection, user_id: &str) -> AppResult<()> {
     let now = time::to_db(time::now());
     sqlx::query(
@@ -143,12 +143,12 @@ pub async fn delete_list(State(state): State<AppState>, auth: AuthUser, Path(id)
     if n <= 1 {
         return Err(AppError::BadRequest("Die letzte Aufgabenliste kann nicht gelöscht werden".into()));
     }
-    // Aufgaben werden per ON DELETE CASCADE mitgelöscht.
+    // Tasks are deleted along with it via ON DELETE CASCADE.
     sqlx::query("DELETE FROM task_lists WHERE id = ?").bind(&id).execute(&state.db).await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
-/// Löscht alle erledigten Aufgaben einer Liste.
+/// Deletes all completed tasks of a list.
 pub async fn clear_completed(
     State(state): State<AppState>,
     auth: AuthUser,
@@ -162,9 +162,9 @@ pub async fn clear_completed(
     Ok(Json(json!({ "deleted": res.rows_affected() })))
 }
 
-// ---------- Aufgaben ----------
+// ---------- Tasks ----------
 
-/// Validierte, speicherfertige Aufgabe.
+/// Validated task ready to be stored.
 struct TaskData {
     list_id: String,
     title: String,
@@ -180,7 +180,7 @@ fn validate_task(input: TaskInput) -> AppResult<TaskData> {
     if title.is_empty() || title.chars().count() > 500 {
         return Err(AppError::BadRequest("Der Titel muss 1–500 Zeichen lang sein".into()));
     }
-    // Ohne Datum gibt es keine Uhrzeit
+    // Without a date there is no time
     let all_day = input.all_day || input.due.is_none();
     let due = input.due.map(|d| if all_day { time::midnight_utc(d.date_naive()) } else { d });
     Ok(TaskData {
@@ -205,8 +205,8 @@ async fn owned_task(state: &AppState, user_id: &str, id: &str) -> AppResult<Task
     .ok_or(AppError::NotFound)
 }
 
-/// Übergeordnete Aufgabe nach dem Speichern. Unteraufgaben gibt es nur eine Ebene tief und nur innerhalb einer
-/// Liste: Wechselt eine Unteraufgabe die Liste, wird sie zur Hauptaufgabe.
+/// Parent task after saving. Subtasks are only one level deep and only within one
+/// list: if a subtask changes its list, it becomes a top-level task.
 async fn resolve_parent(
     state: &AppState,
     user_id: &str,
@@ -242,8 +242,8 @@ async fn resolve_parent(
     Ok(Some(parent_id))
 }
 
-/// Folgen des Abhakens wie bei Google Tasks: Eine erledigte Hauptaufgabe hakt ihre offenen Unteraufgaben mit ab,
-/// eine wieder geöffnete Unteraufgabe öffnet auch ihre Hauptaufgabe.
+/// Consequences of checking off, as in Google Tasks: completing a parent task also checks off its open subtasks,
+/// reopening a subtask also reopens its parent task.
 async fn cascade_completed(state: &AppState, task: &TaskRow) -> AppResult<()> {
     let now = time::to_db(time::now());
     if let Some(done) = &task.completed_at {
@@ -265,11 +265,11 @@ async fn cascade_completed(state: &AppState, task: &TaskRow) -> AppResult<()> {
 
 #[derive(Deserialize)]
 pub struct TaskQuery {
-    /// Nur Aufgaben dieser Liste (optional)
+    /// Only tasks of this list (optional)
     list_id: Option<String>,
 }
 
-/// Alle Aufgaben des Benutzers: offene vor erledigten, dann nach Fälligkeit (ohne Datum zuletzt).
+/// All of the user's tasks: open before completed, then by due date (without date last).
 pub async fn list(
     State(state): State<AppState>,
     auth: AuthUser,
@@ -325,7 +325,7 @@ pub async fn create(
     Ok((StatusCode::CREATED, Json(row.into())))
 }
 
-/// Neuer Wert für `completed_at`: Erledigungszeitpunkt bleibt erhalten, solange die Aufgabe erledigt bleibt.
+/// New value for `completed_at`: the completion time is kept as long as the task stays completed.
 fn completed_at(existing: &TaskRow, completed: Option<bool>) -> Option<String> {
     match completed {
         None => existing.completed_at.clone(),
@@ -360,7 +360,7 @@ pub async fn update(
     .bind(&id)
     .execute(&state.db)
     .await?;
-    // Unteraufgaben ziehen mit ihrer Hauptaufgabe in die andere Liste um
+    // Subtasks move along with their parent task to the other list
     if data.list_id != existing.list_id {
         sqlx::query("UPDATE tasks SET list_id = ?, updated_at = ? WHERE parent_id = ?")
             .bind(&data.list_id)
@@ -381,7 +381,7 @@ pub struct CompletedInput {
     completed: bool,
 }
 
-/// Hakt eine Aufgabe ab oder öffnet sie wieder.
+/// Checks off a task or reopens it.
 pub async fn set_completed(
     State(state): State<AppState>,
     auth: AuthUser,
@@ -402,7 +402,7 @@ pub async fn set_completed(
 
 pub async fn delete(State(state): State<AppState>, auth: AuthUser, Path(id): Path<String>) -> AppResult<StatusCode> {
     owned_task(&state, &auth.id, &id).await?;
-    // Unteraufgaben werden per ON DELETE CASCADE mitgelöscht.
+    // Subtasks are deleted along with it via ON DELETE CASCADE.
     sqlx::query("DELETE FROM tasks WHERE id = ?").bind(&id).execute(&state.db).await?;
     Ok(StatusCode::NO_CONTENT)
 }

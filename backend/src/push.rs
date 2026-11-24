@@ -1,7 +1,7 @@
-//! Web Push (RFC 8030) mit VAPID (RFC 8292) und verschlüsselter Nutzlast (RFC 8291, aes128gcm).
+//! Web Push (RFC 8030) with VAPID (RFC 8292) and encrypted payload (RFC 8291, aes128gcm).
 //!
-//! Der Server signiert jede Anfrage mit einem eigenen P-256-Schlüssel (VAPID). Der Schlüssel wird
-//! beim ersten Start im Datenverzeichnis abgelegt; ändert er sich, werden alle Abonnements ungültig.
+//! The server signs every request with its own P-256 key (VAPID). The key is
+//! stored in the data directory on first start; if it changes, all subscriptions become invalid.
 
 use std::{path::Path, time::Duration};
 
@@ -17,20 +17,20 @@ use p256::{
 use rand::RngCore;
 use sha2::Sha256;
 
-/// Größe eines Datensatzes (rs) – die Nutzlast passt immer in einen einzigen Datensatz.
+/// Record size (rs) – the payload always fits into a single record.
 const RECORD_SIZE: u32 = 4096;
-/// Maximale Klartextgröße einer Push-Nachricht (4096 − 16 Tag − 1 Trennbyte − 86 Header)
+/// Maximum plaintext size of a push message (4096 − 16 tag − 1 delimiter byte − 86 header)
 const MAX_PAYLOAD: usize = 3993;
 
 pub struct WebPush {
     key: SigningKey,
-    /// Öffentlicher Schlüssel (unkomprimierter Punkt, Base64url) – `applicationServerKey` im Browser
+    /// Public key (uncompressed point, Base64url) – `applicationServerKey` in the browser
     pub public_key: String,
     subject: String,
     client: reqwest::Client,
 }
 
-/// Ziel einer Push-Nachricht, wie es der Browser bei `pushManager.subscribe()` liefert.
+/// Target of a push message, as returned by the browser from `pushManager.subscribe()`.
 pub struct Subscription<'a> {
     pub endpoint: &'a str,
     pub p256dh: &'a str,
@@ -40,7 +40,7 @@ pub struct Subscription<'a> {
 #[derive(Debug, PartialEq, Eq)]
 pub enum Outcome {
     Sent,
-    /// Das Abonnement existiert nicht mehr (404/410) und sollte gelöscht werden.
+    /// The subscription no longer exists (404/410) and should be deleted.
     Gone,
 }
 
@@ -68,14 +68,14 @@ impl WebPush {
         let public_key = B64.encode(secret.public_key().to_sec1_point(false).as_bytes());
         let client = reqwest::Client::builder()
             .timeout(Duration::from_secs(15))
-            // Endpunkte stammen vom Browser; Weiterleitungen werden nicht verfolgt.
+            // Endpoints come from the browser; redirects are not followed.
             .redirect(reqwest::redirect::Policy::none())
             .user_agent(concat!("Synchaven/", env!("SYNCHAVEN_VERSION")))
             .build()?;
         Ok(Self { key: SigningKey::from(&secret), public_key, subject, client })
     }
 
-    /// VAPID-JWT (ES256) für den Push-Dienst unter `audience` (Schema + Host des Endpunkts).
+    /// VAPID JWT (ES256) for the push service at `audience` (scheme + host of the endpoint).
     fn vapid_jwt(&self, audience: &str) -> String {
         let header = B64.encode(br#"{"typ":"JWT","alg":"ES256"}"#);
         let exp = chrono::Utc::now().timestamp() + 12 * 3600;
@@ -85,8 +85,8 @@ impl WebPush {
         format!("{input}.{}", B64.encode(sig.to_bytes()))
     }
 
-    /// Verschlüsselt `payload` für das Abonnement und sendet es an den Push-Dienst.
-    /// `ttl`: so lange darf der Dienst die Nachricht zustellen, falls der Browser offline ist.
+    /// Encrypts `payload` for the subscription and sends it to the push service.
+    /// `ttl`: how long the service may try to deliver the message if the browser is offline.
     pub async fn send(&self, sub: &Subscription<'_>, payload: &[u8], ttl: Duration) -> anyhow::Result<Outcome> {
         let url = reqwest::Url::parse(sub.endpoint).context("Ungültiger Push-Endpunkt")?;
         let audience = url.origin().ascii_serialization();
@@ -134,8 +134,8 @@ fn hkdf_expand(salt: &[u8], ikm: &[u8], info: &[u8], out: &mut [u8]) {
     Hkdf::<Sha256>::new(Some(salt), ikm).expand(info, out).expect("HKDF-Länge gültig");
 }
 
-/// Verschlüsselung nach RFC 8291 (Content-Encoding `aes128gcm`, ein Datensatz).
-/// `sender` ist der kurzlebige Schlüssel des Servers, `salt` 16 Zufallsbytes.
+/// Encryption according to RFC 8291 (content encoding `aes128gcm`, one record).
+/// `sender` is the server's ephemeral key, `salt` 16 random bytes.
 fn encrypt(payload: &[u8], p256dh: &str, auth: &str, sender: &SecretKey, salt: &[u8; 16]) -> anyhow::Result<Vec<u8>> {
     anyhow::ensure!(payload.len() <= MAX_PAYLOAD, "Push-Nachricht zu groß");
     let ua_public_bytes = B64.decode(p256dh.trim_end_matches('=')).context("p256dh ungültig")?;
@@ -158,7 +158,7 @@ fn encrypt(payload: &[u8], p256dh: &str, auth: &str, sender: &SecretKey, salt: &
     hkdf_expand(salt, &ikm, b"Content-Encoding: nonce\0", &mut nonce);
 
     let mut plain = payload.to_vec();
-    plain.push(2); // Trennbyte des letzten Datensatzes, keine Auffüllung
+    plain.push(2); // delimiter byte of the last record, no padding
     let cipher = Aes128Gcm::new_from_slice(&cek).expect("16-Byte-Schlüssel");
     let encrypted = cipher
         .encrypt(&nonce.into(), plain.as_slice())
@@ -177,7 +177,7 @@ fn encrypt(payload: &[u8], p256dh: &str, auth: &str, sender: &SecretKey, salt: &
 mod tests {
     use super::*;
 
-    /// Beispiel aus RFC 8291, Abschnitt 5
+    /// Example from RFC 8291, section 5
     #[test]
     fn rfc8291_example() {
         let sender = SecretKey::from_slice(&B64.decode("yfWPiYE-n46HLnH0KqZOF1fJJU3MYrct3AELtAQ-oRw").unwrap()).unwrap();

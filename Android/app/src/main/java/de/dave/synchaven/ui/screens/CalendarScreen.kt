@@ -116,7 +116,7 @@ import androidx.compose.material.icons.outlined.Settings
 @Composable
 fun CalendarScreen(
     onSelectTab: (MainTab) -> Unit,
-    /** Neuer Termin ab Zeitpunkt (Epochensekunden), ganztägig oder nicht */
+    /** New event from a point in time (epoch seconds), all-day or not */
     onNewEvent: (Long, Boolean) -> Unit,
     onEditEvent: (String) -> Unit,
     onOpenContact: (String) -> Unit,
@@ -140,7 +140,7 @@ fun CalendarScreen(
     var newCalendarDialog by remember { mutableStateOf(false) }
     var deleteCalendar by remember { mutableStateOf<Calendar?>(null) }
 
-    // Aufgaben: Details (live aus dem Stand, z. B. nach dem Abhaken), Bearbeiten/Anlegen und Listen
+    // Tasks: details (live from the state, e.g. after checking off), edit/create and lists
     var selectedTaskId by rememberSaveable { mutableStateOf<String?>(null) }
     val selectedTask = selectedTaskId?.let { id -> s.tasks.firstOrNull { it.id == id } }
     var taskEdit by remember { mutableStateOf<TaskEdit?>(null) }
@@ -152,13 +152,13 @@ fun CalendarScreen(
         if (task != null) selectedTaskId = task.id else selectedId = ev.id
     }
     fun newTask() {
-        // Im Monat/Tag am gewählten Tag fällig, in der Woche heute (wie neue Termine)
+        // In month/day due on the selected day, in the week today (like new events)
         val day = if (s.mode == ViewMode.WEEK || s.mode == ViewMode.LIST) LocalDate.now() else s.date
         val listId = s.taskLists.firstOrNull { it.visible }?.id ?: s.taskLists.firstOrNull()?.id
         taskEdit = TaskEdit(null, day, listId)
     }
 
-    // Import/Export: der Kalender, für den die Dateiauswahl geöffnet wurde
+    // Import/export: the calendar for which the file picker was opened
     var fileCalendarId by rememberSaveable { mutableStateOf<String?>(null) }
     val fileCalendar = s.calendars.firstOrNull { it.id == fileCalendarId }
     val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/calendar")) { uri ->
@@ -344,13 +344,13 @@ fun CalendarScreen(
     }
 }
 
-/** Seitenzahl des Pagers – von der Mitte aus lässt sich praktisch unbegrenzt in beide Richtungen blättern */
+/** Page count of the pager – starting from the middle, you can page practically without limit in both directions */
 private const val PAGE_COUNT = 20_000
 private const val START_PAGE = PAGE_COUNT / 2
 
 /**
- * Kalenderansicht als Pager: Beim Wischen folgt der Zeitraum dem Finger, der vorige bzw. nächste ist
- * daneben schon zu sehen. Sprünge (Heute, Datumswahl, Ansichtswechsel) beginnen einen neuen Pager.
+ * Calendar view as a pager: while swiping, the period follows the finger, and the previous or next one is
+ * already visible next to it. Jumps (today, date picker, view change) start a new pager.
  */
 @Composable
 private fun CalendarContent(
@@ -363,7 +363,7 @@ private fun CalendarContent(
     onEventMove: (ViewEvent, LocalDateTime) -> Unit,
     onTaskToggle: (ViewEvent) -> Unit,
 ) {
-    // Gemeinsame Scrollposition aller Wochen-/Tagesseiten
+    // Shared scroll position of all week/day pages
     val gridScroll = rememberTimeGridScroll(s.settings.dayStartHour)
     val onSettled by rememberUpdatedState(onPageSettled)
     AnimatedContent(
@@ -386,7 +386,7 @@ private fun CalendarContent(
         HorizontalPager(
             state = pager,
             modifier = Modifier.fillMaxSize(),
-            // Nachbarseiten vorab aufbauen, damit das Wischen ohne Ruckeln beginnt
+            // Build neighboring pages in advance so swiping starts without stutter
             beyondViewportPageCount = 1,
             key = { it },
         ) { page ->
@@ -418,10 +418,10 @@ private fun CalendarContent(
     }
 }
 
-/** Neue Aufgabe aus dem Kalender: [task] = null legt an, [date] ist die vorgeschlagene Fälligkeit */
+/** New task from the calendar: [task] = null creates one, [date] is the suggested due date */
 private data class TaskEdit(val task: Task?, val date: LocalDate?, val listId: String?)
 
-/** Erstellen-Button: mit Aufgaben fragt er „Termin“ oder „Aufgabe“, sonst legt er direkt einen Termin an. */
+/** Create button: with tasks it asks "Event" or "Task", otherwise it creates an event directly. */
 @Composable
 private fun CreateButton(withTask: Boolean, onNewEvent: () -> Unit, onNewTask: () -> Unit) {
     var menu by remember { mutableStateOf(false) }

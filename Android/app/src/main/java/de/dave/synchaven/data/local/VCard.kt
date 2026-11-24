@@ -10,22 +10,22 @@ import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 
 /**
- * vCard lesen (2.1, 3.0, 4.0) und schreiben (3.0) im lokalen Modus – wie `backend/src/vcard.rs`. Lokal werden
- * Kontakte strukturiert gespeichert; beim Import bleiben deshalb nur die Felder erhalten, die die App kennt.
+ * Reading (2.1, 3.0, 4.0) and writing (3.0) vCards in local mode – like `backend/src/vcard.rs`. Locally,
+ * contacts are stored in structured form; on import, only the fields the app knows are therefore kept.
  */
 object VCard {
     data class Line(
         val group: String? = null,
-        /** Großgeschrieben, z. B. `TEL` */
+        /** Upper case, e.g. `TEL` */
         val name: String,
-        /** Parametername großgeschrieben, Wert ohne Anführungszeichen */
+        /** Parameter name in upper case, value without quotes */
         val params: List<Pair<String, String>> = emptyList(),
-        /** Roher (escapter) Wert */
+        /** Raw (escaped) value */
         val value: String,
     ) {
         fun param(key: String) = params.firstOrNull { it.first == key }?.second
 
-        /** Alle TYPE-Werte, kleingeschrieben (`TYPE=work,voice;TYPE=pref` → work, voice, pref) */
+        /** All TYPE values, lower case (`TYPE=work,voice;TYPE=pref` → work, voice, pref) */
         fun types(): List<String> = params.filter { it.first == "TYPE" }
             .flatMap { it.second.split(',') }.map { it.trim().trim('"').lowercase() }.filter { it.isNotEmpty() }
 
@@ -51,7 +51,7 @@ object VCard {
         fun serialize(): String {
             val out = StringBuilder()
             ICal.fold("BEGIN:VCARD", out)
-            // VERSION muss direkt auf BEGIN folgen
+            // VERSION must directly follow BEGIN
             get("VERSION")?.serialize(out)
             lines.filter { it.name != "VERSION" }.forEach { it.serialize(out) }
             ICal.fold("END:VCARD", out)
@@ -65,7 +65,7 @@ object VCard {
             if (value != null) lines.add(pos - before, Line(name = name, value = value))
         }
 
-        /** Eigene Bezeichnung einer gruppierten Eigenschaft (`itemN.X-ABLabel`) */
+        /** Custom label of a grouped property (`itemN.X-ABLabel`) */
         fun labelOf(line: Line): String? {
             val g = line.group ?: return null
             return lines.firstOrNull { it.name == "X-ABLABEL" && it.group.equals(g, ignoreCase = true) }?.let { unescape(it.value) }
@@ -77,10 +77,10 @@ object VCard {
     fun unescape(s: String) = ICal.unescape(s)
     fun escape(s: String) = ICal.escape(s)
 
-    /** Strukturierten Wert (N, ADR, ORG) an unescapten `;` teilen und entschlüsseln. */
+    /** Split a structured value (N, ADR, ORG) at unescaped `;` and unescape it. */
     private fun components(value: String): List<String> = splitEscaped(value, ';')
 
-    /** Wert an unescapten Trennzeichen teilen und die Teile entschlüsseln. */
+    /** Split a value at unescaped separators and unescape the parts. */
     private fun splitEscaped(value: String, sep: Char): List<String> {
         val parts = mutableListOf<String>()
         val cur = StringBuilder()
@@ -107,11 +107,11 @@ object VCard {
 
     private fun joinComponents(parts: List<String>) = parts.joinToString(";") { escape(it.trim()) }
 
-    // ---------- Lesen ----------
+    // ---------- Reading ----------
 
     private fun isQp(head: String) = head.uppercase().contains("QUOTED-PRINTABLE")
 
-    /** Fortsetzungszeilen zusammenführen, auch Quoted-Printable-„soft line breaks“ aus vCard 2.1. */
+    /** Unfold continuation lines, including quoted-printable "soft line breaks" from vCard 2.1. */
     private fun unfold(text: String): List<String> {
         val raw = text.removePrefix("﻿").split('\n').map { it.removeSuffix("\r") }
         val lines = mutableListOf<String>()
@@ -142,7 +142,7 @@ object VCard {
             if ('=' in p) {
                 p.substringBefore('=').trim().uppercase() to p.substringAfter('=').trim().trim('"')
             } else {
-                // vCard 2.1: Parameter ohne Namen, z. B. `TEL;CELL;PREF:` oder `;QUOTED-PRINTABLE`
+                // vCard 2.1: parameters without a name, e.g. `TEL;CELL;PREF:` or `;QUOTED-PRINTABLE`
                 val v = p.trim().uppercase()
                 (if (v in listOf("QUOTED-PRINTABLE", "BASE64", "8BIT", "7BIT", "B")) "ENCODING" else "TYPE") to v
             }
@@ -150,11 +150,11 @@ object VCard {
         return Line(group, name.uppercase(), params, line.substring(colon + 1))
     }
 
-    /** Liest alle vCards aus einem Text (eine .vcf-Datei darf beliebig viele enthalten). */
+    /** Reads all vCards from a text (a .vcf file may contain any number of them). */
     fun parseCards(text: String): List<Card> {
         val cards = mutableListOf<Card>()
         var current: Card? = null
-        var depth = 0 // AGENT-Karten in vCard 2.1 können verschachtelt sein
+        var depth = 0 // AGENT cards in vCard 2.1 can be nested
         for (raw in unfold(text)) {
             val line = parseLine(raw) ?: continue
             val isVcard = line.value.trim().equals("VCARD", ignoreCase = true)
@@ -190,7 +190,7 @@ object VCard {
         val c = charset?.lowercase()
         if (c != null && (c.contains("8859") || c.contains("1252") || c == "latin1")) return String(bytes, Charsets.ISO_8859_1)
         val decoder = Charsets.UTF_8.newDecoder()
-        // Kein gültiges UTF-8: wahrscheinlich Latin-1 ohne CHARSET-Angabe
+        // Not valid UTF-8: probably Latin-1 without a CHARSET parameter
         return runCatching { decoder.decode(java.nio.ByteBuffer.wrap(bytes)).toString() }
             .getOrElse { String(bytes, Charsets.ISO_8859_1) }
     }
@@ -198,11 +198,11 @@ object VCard {
     private val STRUCTURED = setOf("N", "ADR", "ORG")
     private val TEXT = setOf("FN", "NICKNAME", "TITLE", "ROLE", "NOTE", "LABEL", "CATEGORIES", "X-ABLABEL", "SORT-STRING")
 
-    /** Entschlüsselt Quoted-Printable/Zeichensätze und gleicht das Escaping von vCard 2.1 an 3.0 an. */
+    /** Decodes quoted-printable/character sets and aligns vCard 2.1 escaping with 3.0. */
     fun normalizeImport(card: Card): Card {
         val v21 = card.version.startsWith("2")
         val lines = card.lines.map { line ->
-            // Die Datei ist bereits als Text gelesen; nur Quoted-Printable enthält noch Bytes im angegebenen Zeichensatz
+            // The file has already been read as text; only quoted-printable still contains bytes in the given character set
             val qp = line.param("ENCODING")?.equals("QUOTED-PRINTABLE", ignoreCase = true) == true
             val charset = line.param("CHARSET")
             var value = if (qp) decodeCharset(qpDecode(line.value), charset) else line.value
@@ -216,12 +216,12 @@ object VCard {
                 if (line.name in STRUCTURED) {
                     value = ICal.splitUnquoted(value, ';').joinToString(";") { escape(it.replace("\\;", ";")) }
                 } else if (line.name == "CATEGORIES") {
-                    // Kommas trennen die Kategorien
+                    // Commas separate the categories
                     value = value.split(',').joinToString(",") { escape(it.replace("\\;", ";")) }
                 } else if (line.name in TEXT) {
                     value = escape(value.replace("\\;", ";").replace("\\n", "\n").replace("\\N", "\n"))
                 }
-                // TYPE-Werte zusammenfassen: TEL;TYPE=CELL;TYPE=PREF → TEL;TYPE=CELL,PREF
+                // Merge TYPE values: TEL;TYPE=CELL;TYPE=PREF → TEL;TYPE=CELL,PREF
                 val types = params.filter { it.first == "TYPE" }.map { it.second }
                 if (types.size > 1) params = params.filterNot { it.first == "TYPE" } + ("TYPE" to types.joinToString(","))
             }
@@ -271,7 +271,7 @@ object VCard {
         return PostalAddress(entryType(card, line), part(0), part(1), part(2), part(3), part(4), part(5), part(6))
     }
 
-    /** Geburtstag in `YYYY-MM-DD` oder `--MM-DD` umwandeln. */
+    /** Convert a birthday to `YYYY-MM-DD` or `--MM-DD`. */
     private fun normalizeBday(line: Line): String {
         val v = line.value.trim().substringBefore('T')
         val digits = v.filter { it.isDigit() }
@@ -284,7 +284,7 @@ object VCard {
         return v
     }
 
-    /** Kontaktdaten (ohne IDs) aus einer Karte lesen. */
+    /** Read contact data (without IDs) from a card. */
     fun extract(card: Card): Contact {
         val n = card.get("N")?.let { components(it.value) }.orEmpty()
         fun nPart(i: Int) = n.getOrNull(i)?.trim().orEmpty()
@@ -309,7 +309,7 @@ object VCard {
         )
     }
 
-    /** Foto als data:-URL; Verweise auf andere Adressen werden nicht geladen. */
+    /** Photo as a data: URL; references to other addresses are not loaded. */
     fun photo(card: Card): String? {
         val line = card.get("PHOTO") ?: return null
         val v = line.value.trim()
@@ -322,7 +322,7 @@ object VCard {
         return null
     }
 
-    // ---------- Schreiben ----------
+    // ---------- Writing ----------
 
     private val KNOWN_TEL = setOf("mobile", "home", "work", "fax", "pager", "other")
     private val KNOWN_OTHER = setOf("home", "work", "other")
@@ -340,7 +340,7 @@ object VCard {
     private fun isKnown(name: String, kind: String) =
         kind.isEmpty() || if (name == "TEL") kind in KNOWN_TEL else kind in KNOWN_OTHER
 
-    /** Neue Karte (vCard 3.0) aus einem Kontakt; [photo] ist eine data:-URL. */
+    /** New card (vCard 3.0) from a contact; [photo] is a data: URL. */
     fun create(c: Contact, photo: String?, now: Instant = Instant.now()): Card {
         val lines = mutableListOf(
             Line(name = "VERSION", value = "3.0"),
@@ -359,7 +359,7 @@ object VCard {
         val b = c.birthday.trim()
         when {
             b.startsWith("--") -> lines += Line(
-                // vCard 3.0 kennt kein Datum ohne Jahr: Apple-Konvention, die auch DAVx⁵ versteht
+                // vCard 3.0 has no date without a year: Apple convention, which DAVx⁵ also understands
                 name = "BDAY", params = listOf("X-APPLE-OMIT-YEAR" to "1604"), value = "1604-${b.removePrefix("--")}",
             )
             b.isNotEmpty() -> lines += Line(name = "BDAY", value = b)
@@ -371,7 +371,7 @@ object VCard {
                 val types = typeParams(name, kind)
                 lines += Line(name = name, params = if (types.isEmpty()) emptyList() else listOf("TYPE" to types.joinToString(",")), value = value)
             } else {
-                // Eigene Bezeichnung wie bei Apple/DAVx⁵: itemN.TEL + itemN.X-ABLabel
+                // Custom label as with Apple/DAVx⁵: itemN.TEL + itemN.X-ABLabel
                 val g = "item${nextGroup++}"
                 lines += Line(group = g, name = name, value = value)
                 labels += Line(group = g, name = "X-ABLABEL", value = escape(kind))

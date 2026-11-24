@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    Felder, die die Kontakte-App für Synchaven-Kontakte zum Bearbeiten anbietet – genau die, die der Server
-    kennt (siehe ContactsSyncer). Andere Felder würden beim nächsten Abgleich nicht übertragen.
+    Fields the contacts app offers for editing Synchaven contacts – exactly those the server
+    knows (see ContactsSyncer). Other fields would not be transferred on the next sync.
 -->
 <ContactsAccountType xmlns:android="http://schemas.android.com/apk/res/android">
     <EditSchema>

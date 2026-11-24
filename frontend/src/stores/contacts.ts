@@ -16,14 +16,14 @@ export const useContactsStore = defineStore('contacts', () => {
   const books = ref<AddressBook[]>([])
   const list = ref<Contact[]>([])
   const loading = ref(false)
-  /** Fotos werden nur bei Einzelabfrage geliefert und hier zwischengespeichert. */
+  /** Photos are only returned for single queries and are cached here. */
   const photos = ref(new Map<string, string>())
 
   const bookById = computed(() => new Map(books.value.map((b) => [b.id, b])))
   const sorted = computed(() =>
     [...list.value].sort((a, b) => a.full_name.localeCompare(b.full_name, 'de', { sensitivity: 'base' })),
   )
-  /** Alle Kategorien mit Anzahl der Kontakte, alphabetisch */
+  /** All categories with the number of contacts, alphabetical */
   const categories = computed(() => {
     const counts = new Map<string, { name: string; count: number }>()
     for (const c of list.value) {
@@ -85,7 +85,7 @@ export const useContactsStore = defineStore('contacts', () => {
     await reloadBooks()
   }
 
-  /** Benennt eine Kategorie in allen Kontakten um (`newName` = null: entfernt sie). */
+  /** Renames a category in all contacts (`newName` = null: removes it). */
   async function rewriteCategory(name: string, newName: string | null) {
     const r = newName === null ? await api.deleteContactCategory(name) : await api.renameContactCategory(name, newName)
     list.value = await api.contacts()

@@ -55,13 +55,13 @@ val ViewMode.icon: ImageVector
         ViewMode.LIST -> Icons.Outlined.ViewAgenda
     }
 
-/** Aktionen für einen Kalender aus dem Menü der Seitenleiste */
+/** Actions for a calendar from the drawer menu */
 enum class CalendarAction { EDIT, EXPORT, IMPORT, DELETE }
 
-/** Aktionen für eine Aufgabenliste aus dem Menü der Seitenleiste */
+/** Actions for a task list from the drawer menu */
 enum class TaskListAction { EDIT, DELETE }
 
-/** Seitenleiste: Ansicht wählen, Kalender und Aufgabenlisten ein-/ausblenden und verwalten. */
+/** Drawer: choose the view, show/hide and manage calendars and task lists. */
 @Composable
 fun CalendarDrawer(
     drawerState: DrawerState,
@@ -75,7 +75,7 @@ fun CalendarDrawer(
     onToggleTaskList: (TaskList) -> Unit,
     onTaskListAction: (TaskList, TaskListAction) -> Unit,
 ) {
-    // Mit drawerState folgt die Leiste der Zurück-Geste (Predictive Back) und schließt sich animiert
+    // With drawerState the drawer follows the back gesture (predictive back) and closes animated
     ModalDrawerSheet(drawerState) {
         Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 12.dp)) {
             Text(
@@ -102,7 +102,7 @@ fun CalendarDrawer(
                 selected = false,
                 onClick = onNewCalendar,
             )
-            // Aufgabenlisten nur ein-/ausblenden und bearbeiten – neue Listen entstehen im Aufgabenbereich
+            // Task lists can only be shown/hidden and edited – new lists are created in the task panel
             if (taskLists.isNotEmpty()) {
                 HorizontalDivider(Modifier.padding(vertical = 12.dp))
                 Text(
@@ -149,7 +149,7 @@ private fun CalendarItem(cal: Calendar, onToggle: (Calendar) -> Unit, onAction: 
     )
 }
 
-/** Aufgabenliste: Häkchen blendet ihre Aufgaben im Kalender ein/aus; die letzte Liste ist nicht löschbar. */
+/** Task list: the checkbox shows/hides its tasks in the calendar; the last list cannot be deleted. */
 @Composable
 private fun TaskListItem(
     list: TaskList,

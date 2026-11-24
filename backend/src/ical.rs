@@ -1,4 +1,4 @@
-//! Minimaler iCalendar-(RFC 5545)-Export und -Import für VEVENTs.
+//! Minimal iCalendar (RFC 5545) export and import for VEVENTs.
 
 use chrono::{DateTime, Duration, NaiveDate, NaiveDateTime, Utc};
 use chrono_tz::Tz;
@@ -16,7 +16,7 @@ fn escape(s: &str) -> String {
         .replace('\r', "")
 }
 
-/// Zeilen nach 75 Oktetts umbrechen (RFC 5545, Abschnitt 3.1).
+/// Fold lines after 75 octets (RFC 5545, section 3.1).
 fn fold(line: &str, out: &mut String) {
     let mut len = 0;
     for ch in line.chars() {
@@ -47,7 +47,7 @@ fn dt_prop(name: &str, dt: DateTime<Utc>, ev: &Event) -> String {
     }
 }
 
-/// Bei ganztägigen Terminen muss UNTIL ein reines Datum sein.
+/// For all-day events, UNTIL must be a plain date.
 fn export_rrule(rule: &str, all_day: bool) -> String {
     if !all_day {
         return rule.to_string();
@@ -61,7 +61,7 @@ fn export_rrule(rule: &str, all_day: bool) -> String {
         .join(";")
 }
 
-/// TRIGGER einer Erinnerung (Minuten vor Beginn; negativ = nach Beginn)
+/// TRIGGER of a reminder (minutes before the start; negative = after the start)
 fn trigger(minutes: i32) -> String {
     match minutes {
         0 => "PT0S".into(),
@@ -71,7 +71,7 @@ fn trigger(minutes: i32) -> String {
     }
 }
 
-/// `reminders` liefert die Erinnerungen eines Termins (eigene oder Kalender-Standard).
+/// `reminders` returns an event's reminders (its own or the calendar default).
 pub fn export(calendar_name: &str, events: &[Event], reminders: impl Fn(&Event) -> Vec<i32>) -> String {
     let mut out = String::new();
     for line in [
@@ -133,9 +133,9 @@ pub struct ParsedEvent {
     pub timezone: String,
     pub rrule: Option<String>,
     pub exdates: Vec<DateTime<Utc>>,
-    /// Gesetzt bei geänderten Einzelvorkommen einer Serie.
+    /// Set for modified single occurrences of a series.
     pub recurrence_id: Option<DateTime<Utc>>,
-    /// Erinnerungen aus VALARM (Minuten vor Beginn); `None`, wenn der Termin keine enthält
+    /// Reminders from VALARM (minutes before the start); `None` if the event contains none
     pub reminders: Option<Vec<i32>>,
 }
 
@@ -181,7 +181,7 @@ fn unfold(text: &str) -> Vec<String> {
     lines
 }
 
-/// Teilt an `sep`, ignoriert dabei Trennzeichen innerhalb von Anführungszeichen.
+/// Splits at `sep`, ignoring separators inside quotes.
 fn split_unquoted(s: &str, sep: char) -> Vec<&str> {
     let mut parts = Vec::new();
     let mut in_quotes = false;
@@ -216,13 +216,13 @@ fn parse_prop(line: &str) -> Option<Prop> {
     Some(Prop { name, params, value: value.to_string() })
 }
 
-/// Häufige Windows-Zeitzonennamen (Outlook/Exchange) auf IANA abbilden.
+/// Map common Windows time zone names (Outlook/Exchange) to IANA.
 fn resolve_tzid(tzid: &str) -> Option<Tz> {
     let tzid = tzid.trim().trim_matches('"');
     if let Some(tz) = time::parse_tz(tzid) {
         return Some(tz);
     }
-    // z. B. "/mozilla.org/20050126_1/Europe/Berlin"
+    // e.g. "/mozilla.org/20050126_1/Europe/Berlin"
     let segs: Vec<&str> = tzid.split('/').filter(|s| !s.is_empty()).collect();
     for n in [3, 2] {
         if segs.len() >= n {
@@ -249,7 +249,7 @@ fn resolve_tzid(tzid: &str) -> Option<Tz> {
     time::parse_tz(iana)
 }
 
-/// Ergebnis: (Zeitpunkt in UTC, ganztägig, Zeitzone des Wertes)
+/// Result: (point in time in UTC, all-day, time zone of the value)
 fn parse_dt_value(value: &str, prop: &Prop, default_tz: Tz) -> Option<(DateTime<Utc>, bool, Tz)> {
     let value = value.trim();
     let is_date = prop.param("VALUE").is_some_and(|v| v.eq_ignore_ascii_case("DATE")) || value.len() == 8;
@@ -266,8 +266,8 @@ fn parse_dt_value(value: &str, prop: &Prop, default_tz: Tz) -> Option<(DateTime<
     Some((time::local_to_utc(n, tz), false, tz))
 }
 
-/// Relativer TRIGGER eines VALARM in Minuten vor Beginn (`-PT15M` → 15, `PT9H` → -540).
-/// Absolute Zeitpunkte und Erinnerungen relativ zum Ende werden nicht übernommen.
+/// Relative TRIGGER of a VALARM in minutes before the start (`-PT15M` → 15, `PT9H` → -540).
+/// Absolute times and reminders relative to the end are not taken over.
 fn parse_trigger(prop: &Prop) -> Option<i32> {
     if prop.param("VALUE").is_some_and(|v| v.eq_ignore_ascii_case("DATE-TIME"))
         || prop.param("RELATED").is_some_and(|v| v.eq_ignore_ascii_case("END"))
@@ -279,7 +279,7 @@ fn parse_trigger(prop: &Prop) -> Option<i32> {
     Some(if v.starts_with('-') { minutes } else { -minutes })
 }
 
-/// ISO-8601-Dauer wie `P1D`, `PT1H30M`, `P2W`.
+/// ISO 8601 duration such as `P1D`, `PT1H30M`, `P2W`.
 fn parse_duration(s: &str) -> Option<Duration> {
     let s = s.trim().trim_start_matches(['+', '-']);
     let s = s.strip_prefix('P')?;
@@ -329,9 +329,9 @@ struct Builder {
     exdates: Vec<DateTime<Utc>>,
     recurrence_id: Option<DateTime<Utc>>,
     cancelled: bool,
-    /// `Some`, sobald ein VALARM vorkommt
+    /// `Some` as soon as a VALARM occurs
     reminders: Option<Vec<i32>>,
-    /// TRIGGER des gerade gelesenen VALARM
+    /// TRIGGER of the VALARM currently being read
     alarm: Option<Option<i32>>,
 }
 
@@ -373,7 +373,7 @@ pub fn parse(text: &str, default_tz: Tz) -> Result<Vec<ParsedEvent>, String> {
 
     let mut events = Vec::new();
     let mut current: Option<Builder> = None;
-    let mut nested = 0usize; // z. B. VALARM innerhalb eines VEVENT
+    let mut nested = 0usize; // e.g. VALARM inside a VEVENT
 
     for line in &lines {
         let Some(prop) = parse_prop(line) else { continue };

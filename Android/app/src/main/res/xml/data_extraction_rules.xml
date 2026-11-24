@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Anmeldedaten (Token) gehören weder in Cloud-Sicherungen noch in Geräteübertragungen. -->
+<!-- Credentials (token) belong neither in cloud backups nor in device transfers. -->
 <data-extraction-rules>
     <cloud-backup>
         <exclude domain="file" path="datastore/synchaven.preferences_pb" />

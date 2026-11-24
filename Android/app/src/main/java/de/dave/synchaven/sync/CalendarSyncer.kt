@@ -24,10 +24,10 @@ import java.util.TimeZone
 
 private const val TAG = "CalendarSync"
 
-/** Kalender des Kontos im Android-Kalender (eine Zeile in CalendarContract.Calendars). */
+/** The account's calendar in the Android calendar (a row in CalendarContract.Calendars). */
 private data class LocalCalendar(val id: Long, val serverId: String)
 
-/** Termin oder Ausnahme eines Termins im Android-Kalender. */
+/** Event or exception of an event in the Android calendar. */
 private data class LocalEvent(
     val id: Long,
     val serverId: String?,
@@ -51,13 +51,13 @@ private data class LocalEvent(
 )
 
 /**
- * Gleicht die Kalender und Termine des Servers mit dem Android-Kalender ab – in beide Richtungen.
- * Lokale Änderungen (DIRTY/DELETED) werden zuerst hochgeladen, danach der Stand des Servers übernommen.
+ * Syncs the server's calendars and events with the Android calendar – in both directions.
+ * Local changes (DIRTY/DELETED) are uploaded first, then the server's state is taken over.
  *
- * Abbildung: Kalender `_SYNC_ID` = Kalender-ID des Servers; Termin `_SYNC_ID` = Termin-ID, `SYNC_DATA1` =
- * Prüfsumme des zuletzt übernommenen Serverstands. Serien werden mit RRULE/EXDATE übertragen; geänderte
- * oder abgesagte Einzeltermine (Ausnahmen in Android) werden auf dem Server – wie beim iCalendar-Import –
- * zu eigenen Terminen bzw. EXDATEs der Serie.
+ * Mapping: calendar `_SYNC_ID` = the server's calendar ID; event `_SYNC_ID` = event ID, `SYNC_DATA1` =
+ * checksum of the server state last taken over. Series are transferred with RRULE/EXDATE; modified
+ * or cancelled single events (exceptions in Android) become separate events or EXDATEs of the series
+ * on the server – as with the iCalendar import.
  */
 class CalendarSyncer(
     private val account: Account,
@@ -76,7 +76,7 @@ class CalendarSyncer(
     private val eventsUri = Events.CONTENT_URI.asSyncAdapter()
     private fun eventUri(id: Long) = ContentUris.withAppendedId(Events.CONTENT_URI, id).asSyncAdapter()
 
-    /** Fehler einzelner Termine, die übersprungen wurden (erste Meldung wird angezeigt) */
+    /** Errors of single events that were skipped (the first message is shown) */
     var firstItemError: Throwable? = null
         private set
 
@@ -84,15 +84,15 @@ class CalendarSyncer(
         val remote = apiCall { api.calendars() }
         var local = localCalendars()
 
-        // 1. Lokale Änderungen hochladen (nur für Kalender, die es auf dem Server noch gibt)
+        // 1. Upload local changes (only for calendars that still exist on the server)
         val remoteIds = remote.map { it.id }.toSet()
         for (cal in local) if (cal.serverId in remoteIds) upload(cal)
 
-        // 2. Kalender anlegen, aktualisieren, entfernen
+        // 2. Create, update, remove calendars
         syncCalendars(remote, local)
         local = localCalendars()
 
-        // 3. Termine herunterladen
+        // 3. Download events
         val byServerId = local.associateBy { it.serverId }
         for (cal in remote) {
             val lc = byServerId[cal.id] ?: continue
@@ -100,7 +100,7 @@ class CalendarSyncer(
         }
     }
 
-    // ---------- Kalender ----------
+    // ---------- Calendars ----------
 
     private fun localCalendars(): List<LocalCalendar> =
         provider.query(
@@ -138,7 +138,7 @@ class CalendarSyncer(
                 values.put(Calendars.ACCOUNT_TYPE, account.type)
                 values.put(Calendars._SYNC_ID, cal.id)
                 values.put(Calendars.CALENDAR_TIME_ZONE, TimeZone.getDefault().id)
-                // Sichtbarkeit nur beim Anlegen übernehmen – danach entscheidet die Kalender-App auf dem Gerät
+                // Only take over visibility when creating – afterwards the calendar app on the device decides
                 values.put(Calendars.VISIBLE, if (cal.visible) 1 else 0)
                 provider.insert(calendarsUri, values)
             } else {
@@ -153,7 +153,7 @@ class CalendarSyncer(
         }
     }
 
-    // ---------- Termine lesen ----------
+    // ---------- Reading events ----------
 
     private val eventColumns = arrayOf(
         Events._ID, Events._SYNC_ID, Events.SYNC_DATA1, Events.DIRTY, Events.DELETED, Events.ORIGINAL_ID,
@@ -194,16 +194,16 @@ class CalendarSyncer(
             if (c.moveToFirst()) c.getString(0) else null
         }
 
-    // ---------- Hochladen ----------
+    // ---------- Upload ----------
 
     private suspend fun upload(cal: LocalCalendar) {
         val changed = queryEvents(
             "${Events.CALENDAR_ID} = ? AND (${Events.DIRTY} = 1 OR ${Events.DELETED} = 1)", arrayOf(cal.id.toString()),
         )
-        // Erst Serien/Einzeltermine, dann Ausnahmen – die brauchen die Server-ID ihrer Serie
+        // Series/single events first, then exceptions – they need the server ID of their series
         val (exceptions, events) = changed.partition { it.originalId != null || it.originalServerId != null }
         for (ev in events) itemSafe { uploadEvent(cal, ev) }
-        // Ausnahmen einer gerade gelöschten Serie sind mit ihr verschwunden
+        // Exceptions of a series that was just deleted are gone along with it
         val deletedSeries = events.filter { it.deleted }.flatMap { listOfNotNull(it.id.toString(), it.serverId) }.toSet()
         for (ev in exceptions) {
             if (ev.originalId?.toString() in deletedSeries || ev.originalServerId in deletedSeries) continue
@@ -231,7 +231,7 @@ class CalendarSyncer(
             try {
                 apiCall { api.updateEvent(ev.serverId, input) }
             } catch (e: ApiException) {
-                // Auf dem Server inzwischen gelöscht: die Änderung vom Gerät nicht verwerfen, sondern neu anlegen
+                // Deleted on the server in the meantime: don't discard the change from the device, create it again
                 if (e.status != 404) throw e
                 apiCall { api.createEvent(input) }
             }.also { result.stats.numUpdates++ }
@@ -240,15 +240,15 @@ class CalendarSyncer(
     }
 
     /**
-     * Ausnahme einer Serie: abgesagt → EXDATE an der Serie; geändert → eigener Termin auf dem Server und
-     * EXDATE an der Serie (erst anlegen, dann ausnehmen, damit bei Fehlern eher ein Duplikat als ein Verlust
-     * entsteht). Die lokale Ausnahme wird danach entfernt; der Download bringt Serie und neuen Termin.
+     * Exception of a series: cancelled → EXDATE on the series; modified → separate event on the server and
+     * EXDATE on the series (create first, then exclude, so that errors are more likely to produce a duplicate than a
+     * loss). The local exception is removed afterwards; the download brings the series and the new event.
      */
     private suspend fun uploadException(cal: LocalCalendar, ev: LocalEvent) {
         val masterId = ev.originalServerId ?: ev.originalId?.let(::serverIdOf)
         val instance = ev.originalInstanceTime
         if (ev.deleted || masterId == null || instance == null) {
-            // Gelöschte Ausnahme (Vorkommen wiederhergestellt) oder Serie noch nicht auf dem Server
+            // Deleted exception (occurrence restored) or series not yet on the server
             if (ev.deleted || masterId == null && ev.originalId == null) provider.delete(eventUri(ev.id), null, null)
             return
         }
@@ -289,7 +289,7 @@ class CalendarSyncer(
         provider.delete(eventUri(id), null, null)
     }
 
-    // ---------- Herunterladen ----------
+    // ---------- Download ----------
 
     private fun download(cal: LocalCalendar, remote: List<CalEvent>) {
         val local = queryEvents(
@@ -306,7 +306,7 @@ class CalendarSyncer(
                     ops += ContentProviderOperation.newInsert(eventsUri).withValues(eventValues(ev, cal.id)).build()
                     result.stats.numInserts++
                 }
-                // Lokal geändert, aber nicht hochgeladen (z. B. vom Server abgelehnt): nicht überschreiben
+                // Changed locally but not uploaded (e.g. rejected by the server): don't overwrite
                 existing.dirty || existing.deleted -> Unit
                 existing.hash != ev.syncHash() -> {
                     ops += ContentProviderOperation.newUpdate(eventUri(existing.id)).withValues(eventValues(ev, cal.id)).build()
@@ -344,15 +344,15 @@ class CalendarSyncer(
             if (t.rrule != null) put(Events.RRULE, t.rrule) else putNull(Events.RRULE)
             if (t.exdate != null) put(Events.EXDATE, t.exdate) else putNull(Events.EXDATE)
             put(Events.STATUS, Events.STATUS_CONFIRMED)
-            // Ohne Organisator = Kontoinhaber behandeln manche Kalender-Apps Termine als Einladung (nicht bearbeitbar)
+            // Without organizer = account owner, some calendar apps treat events as invitations (not editable)
             put(Events.ORGANIZER, account.name)
             put(Events.DIRTY, 0)
         }
     }
 
-    // ---------- Fehlerbehandlung ----------
+    // ---------- Error handling ----------
 
-    /** Fehler eines einzelnen Termins überspringen; Netzwerk- und Anmeldefehler brechen die Synchronisierung ab. */
+    /** Skip errors of a single event; network and sign-in errors abort the sync. */
     private suspend fun itemSafe(block: suspend () -> Unit) {
         try {
             block()
@@ -365,7 +365,7 @@ class CalendarSyncer(
     }
 }
 
-/** Sammelt Operationen und schreibt sie in Blöcken (eine Binder-Transaktion ist auf ~1 MB begrenzt). */
+/** Collects operations and writes them in batches (a Binder transaction is limited to ~1 MB). */
 internal class Batch(private val provider: ContentProviderClient, private val maxSize: Int = 200) {
     private val ops = ArrayList<ContentProviderOperation>()
 
@@ -376,7 +376,7 @@ internal class Batch(private val provider: ContentProviderClient, private val ma
 
     val size get() = ops.size
 
-    /** Liefert die Ergebnisse der geschriebenen Operationen (z. B. URIs eingefügter Zeilen). */
+    /** Returns the results of the written operations (e.g. URIs of inserted rows). */
     fun flush(): Array<android.content.ContentProviderResult> {
         if (ops.isEmpty()) return emptyArray()
         val res = provider.applyBatch(ArrayList(ops))
@@ -384,7 +384,7 @@ internal class Batch(private val provider: ContentProviderClient, private val ma
         return res
     }
 
-    /** Wie [plusAssign], ohne automatisches Schreiben – für zusammengehörige Operationen mit Rückverweisen. */
+    /** Like [plusAssign], without automatic writing – for related operations with back references. */
     fun add(op: ContentProviderOperation) {
         ops += op
     }

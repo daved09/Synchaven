@@ -33,18 +33,18 @@ data class CategoryCount(val name: String, val count: Int)
 
 data class ContactsUiState(
     val addressBooks: List<AddressBook> = emptyList(),
-    /** `null` = alle Adressbücher */
+    /** `null` = all address books */
     val selectedBookId: String? = null,
-    /** Kategorien aller Kontakte, alphabetisch */
+    /** Categories of all contacts, alphabetical */
     val categories: List<CategoryCount> = emptyList(),
-    /** `null` = alle Kategorien */
+    /** `null` = all categories */
     val selectedCategory: String? = null,
     val query: String = "",
     val groups: List<ContactGroup> = emptyList(),
     val total: Int = 0,
-    /** Erstes Laden (noch keine Kontakte) */
+    /** First load (no contacts yet) */
     val loading: Boolean = true,
-    /** Neu laden bei vorhandenen Kontakten */
+    /** Reload with existing contacts */
     val refreshing: Boolean = false,
     val error: UiText? = null,
 ) {

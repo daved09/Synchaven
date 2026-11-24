@@ -1,9 +1,9 @@
-//! Hilfsfunktionen für Zeitstempel und Zeitzonen.
+//! Helper functions for timestamps and time zones.
 
 use chrono::{DateTime, Duration, NaiveDate, NaiveDateTime, TimeZone, Utc};
 use chrono_tz::Tz;
 
-/// Speicherformat für Zeitstempel in der Datenbank (lexikografisch sortierbar).
+/// Storage format for timestamps in the database (lexicographically sortable).
 pub fn to_db(dt: DateTime<Utc>) -> String {
     dt.format("%Y-%m-%dT%H:%M:%SZ").to_string()
 }
@@ -15,7 +15,7 @@ pub fn from_db(s: &str) -> DateTime<Utc> {
 }
 
 pub fn now() -> DateTime<Utc> {
-    // Sekundengenau, damit Werte nach dem Speichern identisch bleiben.
+    // Second precision, so values stay identical after saving.
     Utc.timestamp_opt(Utc::now().timestamp(), 0).unwrap()
 }
 
@@ -23,12 +23,12 @@ pub fn parse_tz(name: &str) -> Option<Tz> {
     name.trim().trim_matches('"').parse::<Tz>().ok()
 }
 
-/// Mitternacht (UTC) des Datums – Darstellung ganztägiger Termine.
+/// Midnight (UTC) of the date – representation of all-day events.
 pub fn midnight_utc(date: NaiveDate) -> DateTime<Utc> {
     Utc.from_utc_datetime(&date.and_hms_opt(0, 0, 0).unwrap())
 }
 
-/// Lokale Zeit einer Zeitzone nach UTC umrechnen (DST-Lücken werden übersprungen).
+/// Convert local time of a time zone to UTC (DST gaps are skipped).
 pub fn local_to_utc(local: NaiveDateTime, tz: Tz) -> DateTime<Utc> {
     match tz.from_local_datetime(&local) {
         chrono::LocalResult::Single(d) => d.with_timezone(&Utc),

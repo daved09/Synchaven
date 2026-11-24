@@ -1,16 +1,16 @@
-// Gemeinsame Zeiger-Logik zum Verschieben von Terminen per Drag & Drop.
+// Shared pointer logic for moving events via drag & drop.
 
 const THRESHOLD = 5
 
 export interface DragHandlers {
-  /** Wird einmal aufgerufen, sobald die Bewegung die Schwelle überschreitet */
+  /** Called once as soon as the movement exceeds the threshold */
   start?: () => void
   move: (e: PointerEvent) => void
   drop: (e: PointerEvent) => void
   cancel: () => void
 }
 
-/** Verhindert, dass der Klick nach dem Loslassen einen Dialog öffnet oder einen Termin anlegt. */
+/** Prevents the click after releasing from opening a dialog or creating an event. */
 function swallowNextClick() {
   const stop = (e: Event) => {
     e.stopPropagation()
@@ -21,8 +21,8 @@ function swallowNextClick() {
 }
 
 /**
- * Beobachtet einen Zeiger ab `pointerdown`. Erst nach einer kleinen Bewegung wird daraus ein Drag,
- * ein einfacher Klick bleibt ein Klick. Escape bricht ab. Touch wird ignoriert (Scrollen/Wischen).
+ * Tracks a pointer from `pointerdown`. Only after a small movement does it become a drag;
+ * a simple click stays a click. Escape cancels. Touch is ignored (scrolling/swiping).
  */
 export function trackDrag(down: PointerEvent, h: DragHandlers) {
   if (down.button !== 0 || down.pointerType === 'touch') return
@@ -67,7 +67,7 @@ export function trackDrag(down: PointerEvent, h: DragHandlers) {
   window.addEventListener('keydown', onKey, true)
 }
 
-/** Index des Elements, dessen horizontaler Bereich `x` enthält (außerhalb: nächster Rand). */
+/** Index of the element whose horizontal range contains `x` (outside: nearest edge). */
 export function indexAtX(els: HTMLElement[], x: number): number {
   for (let i = 0; i < els.length; i++) {
     const r = els[i].getBoundingClientRect()
@@ -75,7 +75,7 @@ export function indexAtX(els: HTMLElement[], x: number): number {
   }
   return 0
 }
-/** Index des Elements, dessen vertikaler Bereich `y` enthält (außerhalb: nächster Rand). */
+/** Index of the element whose vertical range contains `y` (outside: nearest edge). */
 export function indexAtY(els: HTMLElement[], y: number): number {
   for (let i = 0; i < els.length; i++) {
     const r = els[i].getBoundingClientRect()

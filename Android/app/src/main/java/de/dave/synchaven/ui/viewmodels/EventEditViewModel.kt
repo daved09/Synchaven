@@ -49,23 +49,23 @@ data class EventEditUiState(
     val allDay: Boolean = false,
     val startDate: LocalDate = LocalDate.now(),
     val startTime: LocalTime = LocalTime.of(9, 0),
-    /** Bei ganztägigen Terminen der letzte Tag (inklusive) */
+    /** For all-day events the last day (inclusive) */
     val endDate: LocalDate = LocalDate.now(),
     val endTime: LocalTime = LocalTime.of(10, 0),
-    /** IANA-Zeitzone des Termins; neue Termine verwenden die Gerätezeitzone */
+    /** The event's IANA time zone; new events use the device time zone */
     val timezone: String = deviceZone().id,
     val recurrence: RecurrenceForm = RecurrenceForm(),
     val exdates: List<String> = emptyList(),
-    /** Eigene Erinnerungen; `null` = Standard des Kalenders */
+    /** Own reminders; `null` = calendar default */
     val ownReminders: List<Int>? = null,
     val saving: Boolean = false,
     val error: UiText? = null,
-    /** Termin wurde gespeichert → Bildschirm schließen */
+    /** Event was saved → close the screen */
     val done: Boolean = false,
 ) {
     val start: LocalDateTime get() = startDate.atTime(startTime)
 
-    /** Angezeigte Erinnerungen: eigene oder die des gewählten Kalenders */
+    /** Displayed reminders: own ones or those of the selected calendar */
     val reminders: List<Int>
         get() = ownReminders ?: calendars.firstOrNull { it.id == calendarId }?.defaultReminders(allDay).orEmpty()
     val end: LocalDateTime get() = endDate.atTime(endTime)
@@ -87,7 +87,7 @@ class EventEditViewModel(
     settingsStore: SettingsStore,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
-    /** Für die Reihenfolge der Wochentage im Wiederholungseditor */
+    /** For the order of the weekdays in the recurrence editor */
     val settings: StateFlow<AppSettings> = settingsStore.settings
 
     private val route = savedStateHandle.toRoute<EventEditRoute>()
@@ -100,7 +100,7 @@ class EventEditViewModel(
 
     private suspend fun load() {
         runCatching {
-            // In den Geburtstagskalender können keine Termine eingetragen werden.
+            // No events can be added to the birthday calendar.
             val calendars = repo.ensureCalendars().filterNot { it.isBirthdays }
             val defaultCal = calendars.firstOrNull { it.visible } ?: calendars.firstOrNull()
             val eventId = route.eventId
@@ -123,7 +123,7 @@ class EventEditViewModel(
                 val end: LocalDateTime
                 if (ev.allDay) {
                     start = allDayToLocal(ev.start).atTime(9, 0)
-                    // exklusives Ende → letzter Tag
+                    // exclusive end → last day
                     end = allDayToLocal(ev.end).minusDays(1).coerceAtLeast(start.toLocalDate()).atTime(10, 0)
                 } else {
                     start = parseInstant(ev.start).toLocal()
@@ -150,13 +150,13 @@ class EventEditViewModel(
     fun onLocationChange(v: String) = _state.update { it.copy(location = v) }
     fun onDescriptionChange(v: String) = _state.update { it.copy(description = v) }
     fun onCalendarChange(id: String) = _state.update { it.copy(calendarId = id) }
-    // Erinnerungen an ganztägige Termine bedeuten etwas anderes – beim Umschalten zurück zum Kalender-Standard
+    // Reminders for all-day events mean something different – reset to the calendar default when toggling
     fun onAllDayChange(v: Boolean) = _state.update { it.copy(allDay = v, ownReminders = null, error = null) }
     fun onRemindersChange(list: List<Int>) = _state.update { it.copy(ownReminders = list) }
     fun onUseDefaultReminders() = _state.update { it.copy(ownReminders = null) }
     fun onRecurrenceChange(form: RecurrenceForm) = _state.update { it.copy(recurrence = form, error = null) }
 
-    /** Beginn ändern und das Ende so mitverschieben, dass die Dauer gleich bleibt. */
+    /** Change the start and move the end along so the duration stays the same. */
     fun onStartDateChange(date: LocalDate) = _state.update { s ->
         val days = ChronoUnit.DAYS.between(s.startDate, date)
         val recurrence = if (s.recurrence.freq == Freq.NONE) emptyRecurrence(date) else s.recurrence

@@ -26,22 +26,22 @@ import kotlinx.coroutines.launch
 
 data class TasksUiState(
     val lists: List<TaskList> = emptyList(),
-    /** Gewählte Liste (erste, solange nichts gewählt ist) */
+    /** Selected list (the first one as long as nothing is selected) */
     val list: TaskList? = null,
     val open: List<Task> = emptyList(),
-    /** Offene Unteraufgaben je Hauptaufgabe in [open] */
+    /** Open subtasks per parent task in [open] */
     val subtasks: Map<String, List<Task>> = emptyMap(),
     val completed: List<Task> = emptyList(),
-    /** Alle Aufgaben – für die Details einer gerade geöffneten Aufgabe */
+    /** All tasks – for the details of a task that is currently open */
     val all: List<Task> = emptyList(),
     val showCompleted: Boolean = false,
-    /** Noch nie geladen (z. B. offline beim ersten Start) */
+    /** Never loaded (e.g. offline on first start) */
     val notLoaded: Boolean = false,
     val loading: Boolean = false,
     val error: UiText? = null,
 )
 
-/** Aufgabenbereich: eine Liste mit Schnelleingabe, offenen und erledigten Aufgaben (wie das Aufgaben-Panel im Web). */
+/** Task panel: a list with quick entry, open and completed tasks (like the task panel on the web). */
 class TasksViewModel(private val repo: TaskRepository) : ViewModel() {
     val messages = UiMessages()
 
@@ -86,20 +86,20 @@ class TasksViewModel(private val repo: TaskRepository) : ViewModel() {
 
     fun toggleShowCompleted() = showCompleted.update { !it }
 
-    /** Schnelleingabe: Aufgabe ohne Datum in der gewählten Liste */
+    /** Quick entry: task without a date in the selected list */
     fun quickAdd(title: String) {
         val listId = state.value.list?.id ?: return
         val t = title.trim().takeIf { it.isNotEmpty() } ?: return
         launchAction { repo.createTask(TaskInput(listId, t)) }
     }
 
-    /** Neue Unteraufgabe ohne Datum unter [parent] */
+    /** New subtask without a date under [parent] */
     fun addSubtask(parent: Task, title: String) {
         val t = title.trim().takeIf { it.isNotEmpty() } ?: return
         launchAction { repo.createSubtask(parent, t) }
     }
 
-    /** Neue Aufgabenliste anlegen und gleich auswählen */
+    /** Create a new task list and select it right away */
     fun createList(input: TaskListInput) = launchAction {
         val list = repo.createList(input)
         selectedId.value = list.id

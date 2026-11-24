@@ -1,4 +1,4 @@
 <resources>
-    <!-- Nur für den Start; danach übernimmt das Compose-Theme. -->
+    <!-- Only for startup; afterwards the Compose theme takes over. -->
     <style name="Theme.SyncHaven" parent="android:Theme.Material.Light.NoActionBar" />
 </resources>

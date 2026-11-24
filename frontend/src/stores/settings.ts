@@ -9,7 +9,7 @@ export interface Settings {
   themeMode: 'system' | 'light' | 'dark'
   seedColor: string
   weekStartsOn: number
-  /** Zwischenspeicher der Standardansicht aus dem Benutzerkonto (für den ersten Aufbau vor `/auth/me`) */
+  /** Cached default view from the user account (for the initial render before `/auth/me`) */
   defaultView: ViewMode
   showWeekNumbers: boolean
   dayStartHour: number

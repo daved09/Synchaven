@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    SyncHaven-Server werden meist selbst betrieben:
-    - unverschlüsseltes http:// ist für Server im Heimnetz erlaubt
-    - vom Benutzer installierte Zertifizierungsstellen (z. B. eine eigene CA) werden zusätzlich akzeptiert
+    SyncHaven servers are usually self-hosted:
+    - unencrypted http:// is allowed for servers on the home network
+    - user-installed certificate authorities (e.g. your own CA) are accepted as well
 -->
 <network-security-config>
     <base-config cleartextTrafficPermitted="true">

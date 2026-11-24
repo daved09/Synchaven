@@ -20,21 +20,21 @@ import de.dave.synchaven.sync.SyncController
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-/** Anmeldung, Registrierung und Benutzerkonto. */
+/** Sign-in, registration and user account. */
 class AuthRepository(
     private val api: SyncHavenApi,
     private val sessionStore: SessionStore,
     private val sync: SyncController,
     private val offline: OfflineSync,
     private val offlineStore: OfflineStore,
-    /** Name des Android-Kontos im lokalen Modus (erscheint im Kalender und in den Kontakten) */
+    /** Name of the Android account in local mode (appears in the calendar and in the contacts) */
     private val localAccountName: String,
 ) {
     private val isLocal get() = sessionStore.current?.local == true
 
     /**
-     * Ohne Server verwenden: Kalender und Kontakte liegen nur auf diesem Gerät (siehe LocalApi). Daten aus einem
-     * früheren lokalen Modus sind wieder da. Die Navigation reagiert auf den neuen Sitzungszustand.
+     * Use without server: calendars and contacts are stored only on this device (see LocalApi). Data from an
+     * earlier local mode is back. The navigation reacts to the new session state.
      */
     suspend fun startLocal() {
         sessionStore.startLocal()
@@ -44,11 +44,11 @@ class AuthRepository(
 
     suspend fun currentServerInfo(): ServerInfo = apiCall { api.currentInfo() }
 
-    /** Meldet an und speichert die Sitzung; die Navigation reagiert auf den neuen Sitzungszustand. */
+    /** Signs in and stores the session; the navigation reacts to the new session state. */
     suspend fun login(server: String, email: String, password: String) {
         val url = normalizeServerUrl(server)
         val res = apiCall { api.login(url, LoginRequest(email.trim(), password)) }
-        // Die Anmeldung soll nicht daran scheitern; die Synchronisierung lässt sich später einrichten
+        // Sign-in should not fail because of this; sync can be set up later
         runCatching { setupSyncAccount(url, password, res) }
         sessionStore.save(url, res.token, res.user)
     }
@@ -56,23 +56,23 @@ class AuthRepository(
     suspend fun register(server: String, email: String, password: String, name: String) {
         val url = normalizeServerUrl(server)
         val res = apiCall { api.register(url, RegisterRequest(email.trim(), password, name.trim())) }
-        // Die Anmeldung soll nicht daran scheitern; die Synchronisierung lässt sich später einrichten
+        // Sign-in should not fail because of this; sync can be set up later
         runCatching { setupSyncAccount(url, password, res) }
         sessionStore.save(url, res.token, res.user)
     }
 
     /**
-     * Legt für eine bestehende Sitzung (z. B. nach dem Update auf eine Version mit Synchronisierung) das
-     * Android-Konto an – ohne Passwort, mit eigenem Token, das die Synchronisierung selbst erneuert.
-     * Hat der Benutzer das Konto in den Android-Einstellungen entfernt, geschieht das nur mit [force]
-     * (z. B. „Konto hinzufügen“ in den Android-Einstellungen).
+     * Creates the Android account for an existing session (e.g. after updating to a version with sync) –
+     * without a password, with its own token that the sync renews itself.
+     * If the user removed the account in the Android settings, this only happens with [force]
+     * (e.g. "Add account" in the Android settings).
      */
     suspend fun ensureSyncAccount(force: Boolean = false) {
         val s = sessionStore.current ?: return
         if (withContext(Dispatchers.IO) { sync.hasAccountFor(s.serverUrl, s.userId) }) return
         if (!force && sessionStore.syncAccountCreated(s)) return
         if (s.local) {
-            // Ohne Server gibt es kein Token: die Synchronisierung liest und schreibt direkt die lokalen Daten
+            // Without a server there is no token: the sync reads and writes the local data directly
             withContext(Dispatchers.IO) { sync.setupAccount(s.serverUrl, s.userId, localAccountName, null, "", "") }
             sessionStore.markSyncAccountCreated(s.serverUrl, s.userId)
             return
@@ -80,7 +80,7 @@ class AuthRepository(
         val res = try {
             apiCall { api.refreshToken() }
         } catch (e: ApiException) {
-            // Server ohne /auth/refresh: Token der Sitzung verwenden (läuft wie diese ab)
+            // Server without /auth/refresh: use the session's token (expires along with it)
             if (e.status != 404) throw e
             AuthResponse(token = s.token, expiresAt = "", user = User(s.userId, s.email, s.name))
         }
@@ -91,8 +91,8 @@ class AuthRepository(
     }
 
     /**
-     * Richtet das Android-Konto für die Synchronisierung ein, wenn die Sitzung noch keines hat (z. B. nach
-     * einem App-Update) oder das gespeicherte Passwort nicht mehr stimmt. Prüft das Passwort beim Server.
+     * Sets up the Android account for syncing if the session doesn't have one yet (e.g. after
+     * an app update) or the stored password no longer matches. Checks the password with the server.
      */
     suspend fun setupSync(password: String) {
         val session = sessionStore.current ?: throw NoServerConfiguredException()
@@ -107,13 +107,13 @@ class AuthRepository(
         sessionStore.markSyncAccountCreated(server, res.user.id)
     }
 
-    /** Benutzerkonto vom Server; im lokalen Modus gibt es keins (`null`). */
+    /** User account from the server; in local mode there is none (`null`). */
     suspend fun me(): User? = if (isLocal) null else apiCall { api.me() }.also { sessionStore.updateUser(it) }
 
     suspend fun updateMe(request: UpdateMeRequest): User {
         val user = apiCall { api.updateMe(request) }
         sessionStore.updateUser(user)
-        // Das Android-Konto meldet sich mit E-Mail und Passwort neu an, wenn sein Token abläuft
+        // The Android account signs in again with email and password when its token expires
         withContext(Dispatchers.IO) {
             request.newPassword?.let(sync::updatePassword)
             if (request.email != null) sync.updateEmail(user.email)
@@ -121,7 +121,7 @@ class AuthRepository(
         return user
     }
 
-    /** Speichert die Standardansicht des Kalenders im Benutzerkonto; ohne Verbindung lokal gemerkt und später übertragen */
+    /** Saves the calendar's default view in the user account; without a connection it is remembered locally and transferred later */
     suspend fun setDefaultView(mode: ViewMode) {
         if (isLocal) {
             sessionStore.setDefaultView(mode)
@@ -136,12 +136,12 @@ class AuthRepository(
     }
 
     /**
-     * Meldet ab und entfernt das Android-Konto samt synchronisierter Kalender und Kontakte vom Gerät, ebenso den
-     * Offline-Cache mit nicht übertragenen Änderungen.
+     * Signs out and removes the Android account including synced calendars and contacts from the device, as well as the
+     * offline cache with changes not yet transferred.
      */
     suspend fun logout() {
         withContext(Dispatchers.IO) { sync.removeAccount() }
-        // Im lokalen Modus sind das die einzigen Daten: Sie bleiben erhalten, bis der lokale Modus wieder startet
+        // In local mode this is the only data: it is kept until local mode starts again
         if (!isLocal) offlineStore.deleteCurrent()
         sessionStore.clear()
     }

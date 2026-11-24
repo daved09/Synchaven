@@ -18,7 +18,7 @@ enum class ThemeMode { SYSTEM, LIGHT, DARK }
 enum class ViewMode(@StringRes val labelRes: Int) {
     MONTH(R.string.view_month), WEEK(R.string.view_week), DAY(R.string.view_day), LIST(R.string.view_list);
 
-    /** Wert in der API (`default_view` am Benutzer) */
+    /** Value in the API (`default_view` on the user) */
     val apiValue: String get() = name.lowercase()
 
     companion object {
@@ -27,21 +27,21 @@ enum class ViewMode(@StringRes val labelRes: Int) {
 }
 
 /**
- * Darstellungs- und Kalendereinstellungen dieses Geräts, entsprechen den Einstellungen der Weboberfläche.
- * Die Standardansicht gehört zum Benutzerkonto (siehe [Session.defaultView]).
+ * Display and calendar settings of this device, matching the settings of the web UI.
+ * The default view belongs to the user account (see [Session.defaultView]).
  */
 data class AppSettings(
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
-    /** Farben aus dem Hintergrundbild (Android 12+) statt aus [seedColor] */
+    /** Colors from the wallpaper (Android 12+) instead of from [seedColor] */
     val dynamicColor: Boolean = false,
     val seedColor: String = "#6750A4",
     val weekStart: DayOfWeek = DayOfWeek.MONDAY,
     val showWeekNumbers: Boolean = true,
-    /** Stunde, zu der Wochen- und Tagesansicht beim Öffnen scrollen */
+    /** Hour to which the week and day views scroll when opened */
     val dayStartHour: Int = 7,
-    /** Erinnerungen an Termine als Benachrichtigung anzeigen */
+    /** Show event reminders as notifications */
     val reminders: Boolean = true,
-    /** Nach der Benachrichtigungs-Berechtigung (Android 13+) wurde bereits einmal gefragt */
+    /** The notification permission (Android 13+) has already been requested once */
     val notificationPermissionAsked: Boolean = false,
 )
 

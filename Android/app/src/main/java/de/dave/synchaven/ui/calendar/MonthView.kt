@@ -52,7 +52,7 @@ private val LANE = 18.dp
 private val LANE_GAP = 2.dp
 private val WEEK_NUMBER_WIDTH = 24.dp
 
-/** Monatsraster; Tippen auf einen Tag öffnet die Tagesansicht, langes Drücken legt dort einen Termin an. */
+/** Month grid; tapping a day opens the day view, long-pressing creates an event there. */
 @Composable
 fun MonthView(
     range: DateRange,
@@ -115,7 +115,7 @@ private fun WeekRow(
         val maxLanes = ((maxHeight - DAY_HEADER) / (LANE + LANE_GAP)).toInt().coerceAtLeast(1)
         val clamped = remember(items, maxLanes) { clampRow(items, 7, maxLanes) }
 
-        // Tageszellen mit Datum
+        // Day cells with date
         Row(Modifier.fillMaxSize()) {
             week.forEach { day ->
                 val inMonth = day.month == month.month
@@ -134,7 +134,7 @@ private fun WeekRow(
             }
         }
 
-        // Termine als Balken bzw. Zeilen
+        // Events as bars or rows
         for (item in clamped.visible) {
             EventChip(
                 item,
@@ -146,7 +146,7 @@ private fun WeekRow(
                 onClick = { onEventClick(item.ev) },
             )
         }
-        // „+N“ für ausgeblendete Termine
+        // "+N" for hidden events
         clamped.more.forEachIndexed { day, count ->
             if (count > 0) {
                 Text(
@@ -191,7 +191,7 @@ private fun DayNumber(day: LocalDate, isToday: Boolean, inMonth: Boolean, modifi
     }
 }
 
-/** Ganztägige/mehrtägige Termine als gefüllter Balken, andere als Punkt mit Uhrzeit */
+/** All-day/multi-day events as a filled bar, others as a dot with the time */
 @Composable
 private fun EventChip(item: RowItem, modifier: Modifier, onClick: () -> Unit) {
     val color = parseHexColor(item.ev.color)
@@ -201,7 +201,7 @@ private fun EventChip(item: RowItem, modifier: Modifier, onClick: () -> Unit) {
     )
     val ev = item.ev
     if (ev.isBar) {
-        // Erledigte Aufgaben blasser und durchgestrichen
+        // Completed tasks paler and struck through
         val bg = if (ev.completed) color.copy(alpha = 0.55f) else color
         Row(
             modifier

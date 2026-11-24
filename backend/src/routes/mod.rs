@@ -57,7 +57,7 @@ pub fn api_router() -> Router<AppState> {
         .route("/admin/users/{id}", put(admin::update).delete(admin::delete))
         .route("/admin/users/{id}/logout", post(admin::logout_everywhere))
         .route("/admin/export", get(admin::export))
-        // Exporte mit vielen Kontaktfotos sind deutlich größer als das allgemeine Limit
+        // Exports with many contact photos are considerably larger than the general limit
         .route("/admin/import", post(admin::import).layer(DefaultBodyLimit::max(512 * 1024 * 1024)))
         .fallback(|| async { AppError::NotFound })
 }

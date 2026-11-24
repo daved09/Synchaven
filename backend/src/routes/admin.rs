@@ -1,4 +1,4 @@
-//! Verwaltung für Administratoren: Übersicht, Benutzer, Einstellungen sowie Export und Import der ganzen Datenbank.
+//! Administration for administrators: overview, users, settings as well as export and import of the whole database.
 
 use axum::{
     body::Bytes,
@@ -32,7 +32,7 @@ async fn require_admin(state: &AppState, auth: &AuthUser) -> AppResult<()> {
     Ok(())
 }
 
-/// `GET /api/admin/export` – die ganze Datenbank als JSON-Datei
+/// `GET /api/admin/export` – the whole database as a JSON file
 pub async fn export(State(state): State<AppState>, auth: AuthUser) -> AppResult<impl IntoResponse> {
     require_admin(&state, &auth).await?;
     let (export, _) = backup::export_db(&state.db).await?;
@@ -53,7 +53,7 @@ pub struct ImportQuery {
     replace: bool,
 }
 
-/// `POST /api/admin/import?replace=true` – ersetzt alle Daten aller Benutzer durch den Export im Body
+/// `POST /api/admin/import?replace=true` – replaces all data of all users with the export in the body
 pub async fn import(
     State(state): State<AppState>,
     auth: AuthUser,
@@ -62,14 +62,14 @@ pub async fn import(
 ) -> AppResult<Json<ImportReport>> {
     require_admin(&state, &auth).await?;
     let export = backup::parse(&body).map_err(map_err)?;
-    // Eigener Task: Bricht der Browser die Anfrage ab, läuft der Import trotzdem sauber zu Ende
-    // (sonst bliebe die Transaktion auf der Verbindung im Pool offen).
+    // Separate task: if the browser aborts the request, the import still finishes cleanly
+    // (otherwise the transaction would stay open on the pooled connection).
     let db = state.db.clone();
     let report = tokio::spawn(async move { backup::import_db(&db, &export, q.replace).await })
         .await
         .map_err(anyhow::Error::from)?
         .map_err(map_err)?;
-    // Zwischengespeicherte CardDAV-Anmeldungen und Einstellungen gehören zu den alten Daten
+    // Cached CardDAV sign-ins and settings belong to the old data
     state.dav_auth.clear();
     state.settings.reload(&state.db).await?;
     tracing::info!("Datenbank aus Export importiert ({})", report.summary.join(", "));
@@ -84,9 +84,9 @@ fn map_err(e: ImportError) -> AppError {
     }
 }
 
-// ---------- Übersicht ----------
+// ---------- Overview ----------
 
-/// `GET /api/admin/overview` – Version, Laufzeit, Datenbankgröße, Anzahl der Einträge und Serverkonfiguration
+/// `GET /api/admin/overview` – version, uptime, database size, number of entries and server configuration
 pub async fn overview(State(state): State<AppState>, auth: AuthUser) -> AppResult<Json<Value>> {
     require_admin(&state, &auth).await?;
     let counts: (i64, i64, i64, i64, i64, i64, i64, i64) = sqlx::query_as(
@@ -103,7 +103,7 @@ pub async fn overview(State(state): State<AppState>, auth: AuthUser) -> AppResul
     .fetch_one(&state.db)
     .await?;
     let config = &state.config;
-    // Datenbank samt Write-Ahead-Log
+    // Database including the write-ahead log
     let db_path = config.db_path();
     let db_size: u64 = ["", "-wal"]
         .iter()
@@ -133,13 +133,13 @@ pub async fn overview(State(state): State<AppState>, auth: AuthUser) -> AppResul
     })))
 }
 
-// ---------- Einstellungen ----------
+// ---------- Settings ----------
 
 #[derive(Serialize)]
 pub struct SettingsResponse {
     #[serde(flatten)]
     current: Settings,
-    /// Werte aus den Umgebungsvariablen, die gelten, solange nichts gespeichert ist
+    /// Values from the environment variables that apply as long as nothing is stored
     defaults: Settings,
 }
 
@@ -159,7 +159,7 @@ pub struct SettingsInput {
     token_ttl_days: Option<i64>,
 }
 
-/// `PUT /api/admin/settings` – nur die übergebenen Felder werden geändert
+/// `PUT /api/admin/settings` – only the given fields are changed
 pub async fn update_settings(
     State(state): State<AppState>,
     auth: AuthUser,
@@ -178,7 +178,7 @@ pub async fn update_settings(
     Ok(settings_response(&state))
 }
 
-// ---------- Benutzer ----------
+// ---------- Users ----------
 
 #[derive(sqlx::FromRow)]
 struct AdminUserRow {
@@ -205,13 +205,13 @@ pub struct AdminUser {
     disabled: bool,
     created_at: DateTime<Utc>,
     last_login_at: Option<DateTime<Utc>>,
-    /// Eigene Kalender (ohne Geburtstagskalender)
+    /// Own calendars (without the birthday calendar)
     calendars: i64,
-    /// Termine ohne Geburtstage
+    /// Events without birthdays
     events: i64,
     contacts: i64,
     tasks: i64,
-    /// Browser mit eingeschalteten Benachrichtigungen
+    /// Browsers with notifications enabled
     devices: i64,
 }
 
@@ -251,7 +251,7 @@ async fn load_admin_user(state: &AppState, id: &str) -> AppResult<AdminUser> {
         .into())
 }
 
-/// `GET /api/admin/users` – alle Konten, älteste zuerst
+/// `GET /api/admin/users` – all accounts, oldest first
 pub async fn list_users(State(state): State<AppState>, auth: AuthUser) -> AppResult<Json<Vec<AdminUser>>> {
     require_admin(&state, &auth).await?;
     let rows = sqlx::query_as::<_, AdminUserRow>(&format!("{USER_SELECT} ORDER BY u.created_at, u.rowid"))
@@ -270,7 +270,7 @@ pub struct CreateUserInput {
     is_admin: bool,
 }
 
-/// `POST /api/admin/users` – Konto anlegen, auch wenn die Registrierung geschlossen ist
+/// `POST /api/admin/users` – create an account, even if registration is closed
 pub async fn create(
     State(state): State<AppState>,
     auth: AuthUser,
@@ -286,13 +286,13 @@ pub async fn create(
 pub struct UpdateUserInput {
     name: Option<String>,
     email: Option<String>,
-    /// Neues Passwort; meldet das Konto auf allen Geräten ab
+    /// New password; signs the account out on all devices
     password: Option<String>,
     is_admin: Option<bool>,
     disabled: Option<bool>,
 }
 
-/// `PUT /api/admin/users/{id}` – nur die übergebenen Felder werden geändert
+/// `PUT /api/admin/users/{id}` – only the given fields are changed
 pub async fn update(
     State(state): State<AppState>,
     auth: AuthUser,
@@ -302,7 +302,7 @@ pub async fn update(
     require_admin(&state, &auth).await?;
     let user = super::auth::load_user(&state, &id).await?;
     let own = id == auth.id;
-    // Wer sich selbst die Rechte entzieht oder sperrt, sperrt womöglich alle aus
+    // Anyone who revokes their own rights or disables themselves might lock everyone out
     if own && input.is_admin == Some(false) {
         return Err(AppError::BadRequest("Du kannst dir die Administratorrechte nicht selbst entziehen".into()));
     }
@@ -338,7 +338,7 @@ pub async fn update(
         }
         None => None,
     };
-    // Neues Passwort: Andere Geräte müssen sich neu anmelden – das eigene bleibt angemeldet.
+    // New password: other devices must sign in again – your own stays signed in.
     let revoke = new_hash.is_some() && !own;
 
     sqlx::query(
@@ -360,7 +360,7 @@ pub async fn update(
     Ok(Json(load_admin_user(&state, &id).await?))
 }
 
-/// `POST /api/admin/users/{id}/logout` – alle Tokens des Kontos ungültig machen (CardDAV nutzt das Passwort)
+/// `POST /api/admin/users/{id}/logout` – invalidate all tokens of the account (CardDAV uses the password)
 pub async fn logout_everywhere(
     State(state): State<AppState>,
     auth: AuthUser,
@@ -381,7 +381,7 @@ pub async fn logout_everywhere(
     Ok(Json(load_admin_user(&state, &id).await?))
 }
 
-/// `DELETE /api/admin/users/{id}` – Konto mit allen Daten löschen
+/// `DELETE /api/admin/users/{id}` – delete the account with all its data
 pub async fn delete(State(state): State<AppState>, auth: AuthUser, Path(id): Path<String>) -> AppResult<StatusCode> {
     require_admin(&state, &auth).await?;
     if id == auth.id {

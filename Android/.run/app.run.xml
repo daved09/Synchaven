@@ -1,6 +1,6 @@
 <component name="ProjectRunConfigurationManager">
-  <!-- Startet MainActivity direkt: Die Launcher-Einträge sind activity-aliases (Datums-Icon), von denen
-       zur Laufzeit nur einer aktiv ist – "Default Activity" würde den abgeschalteten LauncherDefault wählen. -->
+  <!-- Starts MainActivity directly: the launcher entries are activity-aliases (date icon), of which
+       only one is enabled at runtime – "Default Activity" would pick the disabled LauncherDefault. -->
   <configuration default="false" name="app" type="AndroidRunConfigurationType" factoryName="Android App" activateToolWindowBeforeRun="false">
     <module name="SyncHaven.app" />
     <option name="ANDROID_RUN_CONFIGURATION_SCHEMA_VERSION" value="1" />

@@ -85,7 +85,7 @@ fun ContactsScreen(
     onSelectTab: (MainTab) -> Unit,
     onOpenSettings: () -> Unit,
     onOpenContact: (String) -> Unit,
-    /** Neuer Kontakt, vorbelegt mit dem gewählten Adressbuch und der gewählten Kategorie */
+    /** New contact, prefilled with the selected address book and the selected category */
     onNewContact: (bookId: String?, category: String?) -> Unit,
 ) {
     val vm = appViewModel { ContactsViewModel(it.contactRepository, it.fileTransfer) }
@@ -97,7 +97,7 @@ fun ContactsScreen(
     var menu by remember { mutableStateOf(false) }
     var manageBooks by rememberSaveable { mutableStateOf(false) }
 
-    // Import/Export: das Adressbuch, für das die Dateiauswahl geöffnet wurde
+    // Import/export: the address book for which the file picker was opened
     var fileBookId by rememberSaveable { mutableStateOf<String?>(null) }
     val fileBook = s.addressBooks.firstOrNull { it.id == fileBookId }
     val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/vcard")) { uri ->
@@ -188,7 +188,7 @@ fun ContactsScreen(
                     } else {
                         val listState = rememberLazyListState()
                         val scope = rememberCoroutineScope()
-                        // Index der Kopfzeile jeder Gruppe in der LazyColumn
+                        // Index of each group's header row in the LazyColumn
                         val headerIndices = remember(s.groups) {
                             s.groups.runningFold(0) { acc, g -> acc + 1 + g.contacts.size }.dropLast(1)
                         }
@@ -228,7 +228,7 @@ fun ContactsScreen(
                                     letters = s.groups.map { it.letter },
                                     current = currentGroup,
                                     onSelect = { i -> scope.launch { listState.scrollToItem(headerIndices[i]) } },
-                                    // Platz für den FAB unten rechts lassen
+                                    // Leave room for the FAB at the bottom right
                                     modifier = Modifier.align(Alignment.CenterEnd).padding(top = 8.dp, bottom = 88.dp, end = 2.dp),
                                 )
                             }
@@ -257,7 +257,7 @@ fun ContactsScreen(
     }
 }
 
-/** Filter nach Adressbuch (nur bei mehreren) und Kategorie */
+/** Filter by address book (only with several) and category */
 @Composable
 private fun ContactFilter(
     books: List<AddressBook>,

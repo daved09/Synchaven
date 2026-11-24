@@ -53,7 +53,7 @@ async function onFile(e: Event) {
   }
 }
 
-/** Alle geladenen Daten sind veraltet – am einfachsten die App neu laden */
+/** All loaded data is outdated – simplest to reload the app */
 function reload() {
   location.reload()
 }

@@ -1,31 +1,31 @@
-// Platzierung von Terminen in Wochenzeilen (Monat, Ganztägig-Leiste) und Tagesspalten.
+// Placement of events in week rows (month, all-day bar) and day columns.
 import type { ViewEvent } from '@/api/types'
 import { addDays, diffDays, startOfDay } from './date'
 
-/** Ganztägig oder ≥ 24 h → wird als Balken statt im Zeitraster angezeigt */
+/** All-day or ≥ 24 h → shown as a bar instead of in the time grid */
 export function isBarEvent(e: ViewEvent): boolean {
   return e.all_day || e.endDate.getTime() - e.startDate.getTime() >= 86_400_000
 }
 
 export interface RowItem {
   ev: ViewEvent
-  /** Spalte (inklusive) */
+  /** Column (inclusive) */
   start: number
-  /** Spalte (exklusive) */
+  /** Column (exclusive) */
   end: number
   lane: number
   contBefore: boolean
   contAfter: boolean
 }
 
-/** Letzter (inklusiver) Tag, an dem der Termin noch zu sehen ist */
+/** Last (inclusive) day on which the event is still visible */
 export function lastDay(e: ViewEvent): Date {
   if (e.all_day) return addDays(e.endDate, -1)
   if (e.endDate.getTime() === e.startDate.getTime()) return e.startDate
   return new Date(e.endDate.getTime() - 1)
 }
 
-/** Verteilt Termine auf Spuren einer Zeile aus `n` Tagen ab `rowStart`. */
+/** Distributes events across lanes of a row of `n` days starting at `rowStart`. */
 export function layoutRow(events: ViewEvent[], rowStart: Date, n: number): RowItem[] {
   const rowEnd = addDays(rowStart, n)
   const items = events
@@ -56,8 +56,8 @@ export function layoutRow(events: ViewEvent[], rowStart: Date, n: number): RowIt
 }
 
 /**
- * Begrenzt die Zeile auf `maxLanes` Spuren. Liefert die sichtbaren Einträge und je Tag
- * die Anzahl ausgeblendeter Termine (für "+N weitere").
+ * Limits the row to `maxLanes` lanes. Returns the visible entries and, per day,
+ * the number of hidden events (for "+N more").
  */
 export function clampRow(items: RowItem[], n: number, maxLanes: number) {
   const hidden = new Set<RowItem>(items.filter((i) => i.lane >= maxLanes))
@@ -85,7 +85,7 @@ export function clampRow(items: RowItem[], n: number, maxLanes: number) {
 
 export interface TimedItem {
   ev: ViewEvent
-  /** Minuten ab Tagesbeginn */
+  /** Minutes from the start of the day */
   top: number
   height: number
   col: number
@@ -94,7 +94,7 @@ export interface TimedItem {
   contAfter: boolean
 }
 
-/** Überlappende Termine eines Tages nebeneinander anordnen. */
+/** Arrange overlapping events of a day side by side. */
 export function layoutDay(events: ViewEvent[], day: Date, minHeight = 20): TimedItem[] {
   const dayStart = startOfDay(day)
   const dayEnd = addDays(dayStart, 1)

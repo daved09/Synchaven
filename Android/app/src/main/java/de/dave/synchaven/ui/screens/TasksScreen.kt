@@ -83,7 +83,7 @@ import de.dave.synchaven.ui.common.MainTab
 import de.dave.synchaven.ui.common.MainBottomBar
 import androidx.compose.material.icons.outlined.Settings
 
-/** Aufgaben einer Liste: Schnelleingabe, offene Aufgaben nach Fälligkeit, darunter die erledigten. */
+/** Tasks of a list: quick entry, open tasks by due date, completed ones below. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TasksScreen(onSelectTab: (MainTab) -> Unit, onOpenSettings: () -> Unit) {
@@ -299,9 +299,9 @@ private fun TaskRow(
     color: Color,
     onToggle: (Task) -> Unit,
     onOpen: (Task) -> Unit,
-    /** Unteraufgabe unter ihrer Hauptaufgabe: eingerückt und etwas kleiner */
+    /** Subtask under its parent task: indented and slightly smaller */
     indent: Boolean = false,
-    /** Hauptaufgabe, als Hinweis unter dem Titel (bei erledigten Unteraufgaben) */
+    /** Parent task, as a hint below the title (for completed subtasks) */
     parent: Task? = null,
 ) {
     Row(

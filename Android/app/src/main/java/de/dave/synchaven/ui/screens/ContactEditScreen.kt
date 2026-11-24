@@ -134,7 +134,7 @@ fun ContactEditScreen(onClose: () -> Unit, onCreated: (String) -> Unit) {
                     NameField(stringResource(R.string.field_job_title), c.title, Modifier.weight(1f)) { v -> vm.update { it.copy(title = v) } }
                 }
 
-                // ---------- Kontaktwege ----------
+                // ---------- Contact methods ----------
                 Section(stringResource(R.string.section_phone))
                 TypedList(c.phones, PHONE_TYPES, phone = true, KeyboardType.Phone, stringResource(R.string.field_phone),
                     onChange = { i, v -> vm.updateTyped(TypedField.PHONES, i, v) },
@@ -162,7 +162,7 @@ fun ContactEditScreen(onClose: () -> Unit, onCreated: (String) -> Unit) {
                     onRemove = { vm.removeTyped(TypedField.URLS, it) },
                     onAdd = { vm.addTyped(TypedField.URLS) })
 
-                // ---------- Sonstiges ----------
+                // ---------- Other ----------
                 Section(stringResource(R.string.section_more))
                 OutlinedTextField(
                     value = s.birthdayInput,
@@ -203,7 +203,7 @@ fun ContactEditScreen(onClose: () -> Unit, onCreated: (String) -> Unit) {
     }
 }
 
-/** Zugewiesene Kategorien als Chips, Eingabe für neue und Vorschläge aus anderen Kontakten */
+/** Assigned categories as chips, input for new ones and suggestions from other contacts */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun CategoryEditor(
@@ -267,7 +267,7 @@ private fun NameField(label: String, value: String, modifier: Modifier = Modifie
     )
 }
 
-/** Liste typisierter Werte (Telefon, E-Mail, Website) mit Typauswahl und eigenen Bezeichnungen */
+/** List of typed values (phone, email, website) with type selection and custom labels */
 @Composable
 private fun TypedList(
     items: List<TypedValue>,
@@ -292,7 +292,7 @@ private fun TypedList(
             OptionDropdown(
                 label = stringResource(R.string.label_type),
                 value = typeLabel(item.type, phone).asString(),
-                // Eigene Bezeichnungen aus anderen Programmen bleiben wählbar
+                // Custom labels from other programs stay selectable
                 options = types + listOfNotNull(
                     TypeOption(item.type.toUiText(), item.type).takeIf { item.type.isNotBlank() && types.none { it.value == item.type } }
                 ),

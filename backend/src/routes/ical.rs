@@ -47,12 +47,12 @@ pub async fn export(
 
 #[derive(Deserialize)]
 pub struct ImportQuery {
-    /// Zeitzone für Zeitangaben ohne TZID (z. B. `Europe/Berlin`)
+    /// Time zone for times without TZID (e.g. `Europe/Berlin`)
     timezone: Option<String>,
 }
 
-/// Importiert eine .ics-Datei (Request-Body als Text). Vorhandene Termine mit
-/// gleicher UID werden aktualisiert.
+/// Imports an .ics file (request body as text). Existing events with
+/// the same UID are updated.
 pub async fn import(
     State(state): State<AppState>,
     auth: AuthUser,
@@ -79,7 +79,7 @@ pub async fn import(
         timezone: Some(e.timezone.clone()),
         rrule,
         exdates: Some(e.exdates.clone()),
-        // Ohne VALARM bleiben vorhandene Erinnerungen erhalten (neue Termine: Kalender-Standard).
+        // Without VALARM, existing reminders are kept (new events: calendar default).
         reminders: e.reminders.as_ref().map(|list| {
             let min = if e.all_day { -1439 } else { 0 };
             let mut l: Vec<i32> = list.iter().copied().filter(|m| (min..=reminders::MAX_BEFORE).contains(m)).collect();
@@ -92,7 +92,7 @@ pub async fn import(
 
     for e in &masters {
         let uid = e.uid.clone().filter(|u| !u.is_empty()).unwrap_or_else(new_uid);
-        // Eine ungültige RRULE soll nicht den ganzen Termin verwerfen.
+        // An invalid RRULE should not discard the whole event.
         let data = match EventData::validate(to_input(e, e.rrule.clone())) {
             Ok(d) => d,
             Err(_) => match EventData::validate(to_input(e, None)) {
@@ -110,7 +110,7 @@ pub async fn import(
         imported += 1;
     }
 
-    // Geänderte Einzelvorkommen: als eigenen Termin anlegen und in der Serie ausnehmen.
+    // Modified single occurrences: create as a separate event and exclude from the series.
     for e in &overrides {
         let rid = e.recurrence_id.unwrap();
         let master_uid = e.uid.clone().unwrap_or_default();

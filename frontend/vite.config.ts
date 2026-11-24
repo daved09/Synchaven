@@ -9,7 +9,7 @@ export default defineConfig({
   },
   server: {
     port: 5173,
-    // Im Entwicklungsmodus läuft das Backend separat auf Port 8080
+    // In development mode the backend runs separately on port 8080
     proxy: { '/api': 'http://127.0.0.1:8080' },
   },
   build: { chunkSizeWarningLimit: 2000 },

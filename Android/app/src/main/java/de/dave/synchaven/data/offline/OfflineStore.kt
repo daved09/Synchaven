@@ -22,26 +22,26 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 
 /**
- * Persistenter lokaler Cache je Konto (`<server>|<benutzer>`) unter `noBackupFilesDir/offline/`: [OfflineData] als
- * JSON-Datei plus die Kontaktfotos als eigene Dateien. Im lokalen Modus ohne Server ([LOCAL_ACCOUNT]) sind das die
- * einzigen Daten; sie liegen unter `filesDir/local/`. Jede Änderung wird sofort (zusammengefasst) geschrieben.
- * Beim Ablauf des Tokens bleibt der Cache erhalten, damit offline gemachte Änderungen nach der erneuten
- * Anmeldung übertragen werden; [deleteCurrent] beim Abmelden entfernt ihn.
+ * Persistent local cache per account (`<server>|<user>`) under `noBackupFilesDir/offline/`: [OfflineData] as a
+ * JSON file plus the contact photos as separate files. In local mode without a server ([LOCAL_ACCOUNT]) this is the
+ * only data; it is stored under `filesDir/local/`. Every change is written immediately (coalesced).
+ * When the token expires, the cache is kept so that changes made offline are transferred after signing in
+ * again; [deleteCurrent] removes it when signing out.
  */
 class OfflineStore(context: Context, private val scope: CoroutineScope) {
     private val root = File(context.noBackupFilesDir, "offline")
-    /** Daten des lokalen Modus sind keine Kopie, sondern das Original – sie liegen deshalb in den Android-Sicherungen */
+    /** Local mode data is not a copy but the original – that's why it is included in Android backups */
     private val localDir = File(context.filesDir, "local")
 
     private val _data = MutableStateFlow(OfflineData())
-    /** Aktueller lokaler Stand; leer, solange kein Konto geöffnet ist */
+    /** Current local state; empty as long as no account is open */
     val data: StateFlow<OfflineData> = _data.asStateFlow()
 
     private val mutex = Mutex()
     private var account: String? = null
     @Volatile private var dir: File? = null
     @Volatile private var ready = CompletableDeferred<Unit>()
-    /** Erhöht sich bei jedem Kontowechsel – verhindert, dass Antworten für das alte Konto im neuen landen. */
+    /** Increases with every account switch – prevents responses for the old account from ending up in the new one. */
     private var generation = 0
 
     private val pendingWrite = MutableStateFlow<Pair<File, OfflineData>?>(null)
@@ -52,13 +52,13 @@ class OfflineStore(context: Context, private val scope: CoroutineScope) {
         }
     }
 
-    /** Öffnet den Cache eines Kontos (bzw. schließt ihn mit `null`). */
+    /** Opens an account's cache (or closes it with `null`). */
     suspend fun open(account: String?) {
         mutex.withLock {
             if (account == this.account && ready.isCompleted) return
             generation++
             this.account = account
-            // Wartende prüfen danach erneut und warten auf das neue Konto
+            // Waiters check again afterwards and wait for the new account
             val old = ready
             ready = CompletableDeferred()
             old.complete(Unit)
@@ -70,7 +70,7 @@ class OfflineStore(context: Context, private val scope: CoroutineScope) {
         }
     }
 
-    /** Wartet, bis der Cache des angemeldeten Kontos geladen ist. */
+    /** Waits until the signed-in account's cache is loaded. */
     suspend fun awaitReady() {
         while (true) {
             val r = ready
@@ -81,10 +81,10 @@ class OfflineStore(context: Context, private val scope: CoroutineScope) {
 
     val isOpen: Boolean get() = account != null
 
-    /** Schlüssel des geöffneten Kontos ([LOCAL_ACCOUNT] im lokalen Modus) */
+    /** Key of the open account ([LOCAL_ACCOUNT] in local mode) */
     val currentAccount: String? get() = account
 
-    /** Ändert den lokalen Stand atomar und schreibt ihn. Liefert den neuen Stand. */
+    /** Changes the local state atomically and writes it. Returns the new state. */
     suspend fun update(transform: (OfflineData) -> OfflineData): OfflineData = mutex.withLock {
         val d = dir ?: return@withLock _data.value
         val new = transform(_data.value)
@@ -95,19 +95,19 @@ class OfflineStore(context: Context, private val scope: CoroutineScope) {
         new
     }
 
-    /** Wie [update], aber nur, wenn seit [token] kein Kontowechsel stattfand. */
+    /** Like [update], but only if no account switch happened since [token]. */
     suspend fun updateIf(token: Int, transform: (OfflineData) -> OfflineData): OfflineData? =
         if (token != generation) null else update(transform)
 
-    /** Kennung des geöffneten Kontos für [updateIf] */
+    /** Identifier of the open account for [updateIf] */
     val token: Int get() = generation
 
-    // ---------- Fotos ----------
+    // ---------- Photos ----------
 
     @Serializable
     private data class CachedPhoto(val etag: String, val photo: String)
 
-    /** Zwischengespeichertes Foto eines Kontakts, wenn es zum [etag] passt (data:-URL) */
+    /** Cached photo of a contact if it matches the [etag] (data: URL) */
     suspend fun photo(contactId: String, etag: String): String? = withContext(Dispatchers.IO) {
         val f = photoFile(contactId) ?: return@withContext null
         if (!f.baseFile.exists()) return@withContext null
@@ -124,7 +124,7 @@ class OfflineStore(context: Context, private val scope: CoroutineScope) {
         writeAtomic(f, AppJson.encodeToString(CachedPhoto.serializer(), CachedPhoto(etag, photo)))
     }
 
-    /** Entfernt Fotos von Kontakten, die es nicht mehr gibt. */
+    /** Removes photos of contacts that no longer exist. */
     suspend fun prunePhotos(keep: Set<String>) = withContext(Dispatchers.IO) {
         val d = dir?.let { File(it, "photos") } ?: return@withContext
         val names = keep.map(::safeName).toSet()
@@ -134,7 +134,7 @@ class OfflineStore(context: Context, private val scope: CoroutineScope) {
     private fun photoFile(contactId: String): AtomicFile? =
         dir?.let { AtomicFile(File(File(it, "photos").apply { mkdirs() }, safeName(contactId) + ".json")) }
 
-    /** Entfernt den Cache des angemeldeten Kontos (beim Abmelden) samt nicht übertragener Änderungen. */
+    /** Removes the signed-in account's cache (when signing out) including changes not yet transferred. */
     suspend fun deleteCurrent() {
         mutex.withLock {
             val d = dir ?: return
@@ -147,7 +147,7 @@ class OfflineStore(context: Context, private val scope: CoroutineScope) {
         }
     }
 
-    // ---------- Dateien ----------
+    // ---------- Files ----------
 
     private fun read(d: File): OfflineData {
         val f = AtomicFile(File(d, DATA_FILE))
@@ -155,14 +155,14 @@ class OfflineStore(context: Context, private val scope: CoroutineScope) {
         return try {
             AppJson.decodeFromString<OfflineData>(f.readFully().decodeToString())
         } catch (e: Exception) {
-            // Unlesbar (z. B. nach einem inkompatiblen Update): neu vom Server laden
+            // Unreadable (e.g. after an incompatible update): reload from the server
             Log.w(TAG, "Offline-Cache unlesbar, wird verworfen", e)
             OfflineData()
         }
     }
 
     private fun write(d: File, data: OfflineData) {
-        // Nach dem Abmelden gelöscht – nicht wieder anlegen
+        // Deleted after signing out – don't create it again
         if (d != dir) return
         runCatching { writeAtomic(AtomicFile(File(d.apply { mkdirs() }, DATA_FILE)), AppJson.encodeToString(OfflineData.serializer(), data)) }
             .onFailure { Log.w(TAG, "Offline-Cache konnte nicht geschrieben werden", it) }

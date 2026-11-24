@@ -1,4 +1,4 @@
-/* Synchaven Service Worker: zeigt Erinnerungen an Termine und Aufgaben an, die der Server per Web Push schickt. */
+/* Synchaven service worker: shows reminders for events and tasks that the server sends via Web Push. */
 
 self.addEventListener('install', () => self.skipWaiting())
 self.addEventListener('activate', (event) => event.waitUntil(self.clients.claim()))
@@ -7,7 +7,7 @@ const LOCALE = 'de-DE'
 const pad = (n) => String(n).padStart(2, '0')
 const dayKey = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 
-/** Ganztägige Termine kommen als Mitternacht UTC und werden als lokales Datum gelesen. */
+/** All-day events arrive as midnight UTC and are read as a local date. */
 function localDate(iso, allDay) {
   const d = new Date(iso)
   return allDay ? new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()) : d

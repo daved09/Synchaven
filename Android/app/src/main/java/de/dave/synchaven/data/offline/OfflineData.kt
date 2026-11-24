@@ -23,33 +23,33 @@ import java.time.ZoneOffset
 import kotlinx.serialization.Serializable
 
 /**
- * Lokaler Stand eines Kontos: Spiegel der Serverdaten mit bereits eingerechneten, noch nicht übertragenen
- * Änderungen ([outbox]). `null` bei einer Liste heißt „noch nie geladen“.
+ * Local state of an account: mirror of the server data with changes not yet transferred
+ * already applied ([outbox]). `null` for a list means "never loaded".
  */
 @Serializable
 data class OfflineData(
     val calendars: List<Calendar>? = null,
-    /** Alle Termine aller Kalender, Serien als ein Eintrag */
+    /** All events of all calendars, series as one entry */
     val events: List<CalEvent>? = null,
     val addressBooks: List<AddressBook>? = null,
-    /** Kontakte ohne Fotos (die liegen getrennt im [OfflineStore]) */
+    /** Contacts without photos (those are stored separately in the [OfflineStore]) */
     val contacts: List<Contact>? = null,
-    /** Aufgabenlisten; bleibt `null` im lokalen Modus und bei Servern ohne Aufgaben */
+    /** Task lists; stays `null` in local mode and with servers without tasks */
     val taskLists: List<TaskList>? = null,
-    /** Alle Aufgaben aller Listen */
+    /** All tasks of all lists */
     val tasks: List<Task>? = null,
     val outbox: List<PendingOp> = emptyList(),
-    /** Vorläufige ID → Server-ID bereits übertragener Anlagen (für noch geöffnete Bildschirme) */
+    /** Temporary ID → server ID of creations already transferred (for screens that are still open) */
     val idMap: Map<String, String> = emptyMap(),
-    /** Letzter vollständiger Abgleich mit dem Server (RFC 3339) */
+    /** Last complete sync with the server (RFC 3339) */
     val lastSync: String? = null,
-    /** Stand der Daten im lokalen Modus, siehe [migrateLocal] */
+    /** Version of the data in local mode, see [migrateLocal] */
     val version: Int = 0,
 ) {
     /**
-     * Bringt Daten des lokalen Modus auf den aktuellen Stand (beim Server übernehmen das die Migrationen).
-     * 1: Kalender ohne Standard-Erinnerungen erhalten die Voreinstellung (15 Minuten vorher, ganztägig 09:00) –
-     *    eine frühe Testversion hatte leere Listen gespeichert.
+     * Brings local mode data up to date (on the server, the migrations take care of this).
+     * 1: calendars without default reminders get the preset (15 minutes before, all-day 09:00) –
+     *    an early test version had stored empty lists.
      */
     fun migrateLocal(): OfflineData {
         if (version >= LOCAL_VERSION) return this
@@ -65,7 +65,7 @@ data class OfflineData(
 
     fun resolve(id: String): String = idMap[id] ?: id
 
-    /** Wendet eine Änderung lokal an. Idempotent, damit sie nach jedem Laden vom Server erneut angewendet werden kann. */
+    /** Applies a change locally. Idempotent, so it can be applied again after every load from the server. */
     fun apply(op: PendingOp): OfflineData = when (op) {
         is PendingOp.CreateEvent -> withEvents { list ->
             val ev = op.input.toLocalEvent(op.localId)
@@ -116,12 +116,12 @@ data class OfflineData(
         is PendingOp.SetDefaultView -> this
     }
 
-    /** Rechnet alle ausstehenden Änderungen ein, z. B. nachdem Daten vom Server neu geladen wurden. */
+    /** Applies all pending changes, e.g. after data has been reloaded from the server. */
     fun withPending(): OfflineData = outbox.fold(this) { d, op -> d.apply(op) }.recount()
 
     /**
-     * Anzahl der Kontakte je Adressbuch und der offenen Aufgaben je Liste aus den Einträgen – stimmt so auch nach
-     * Offline-Änderungen
+     * Number of contacts per address book and of open tasks per list, computed from the entries – so it is also correct
+     * after offline changes
      */
     fun recount(): OfflineData {
         var d = this
@@ -141,8 +141,8 @@ data class OfflineData(
     private fun withTasks(f: (List<Task>) -> List<Task>) = copy(tasks = f(tasks.orEmpty()))
 
     /**
-     * Vorkommen im Zeitraum [from, to), wie sie `GET /events` liefern würde. Geburtstage erhalten das Alter aus dem
-     * Geburtsjahr des Kontakts. `null`, solange die Termine noch nie geladen wurden.
+     * Occurrences in the range [from, to), as `GET /events` would return them. Birthdays get the age from the
+     * contact's birth year. `null` as long as the events have never been loaded.
      */
     fun occurrences(from: Instant, to: Instant, query: String? = null): List<Occurrence>? {
         val all = events ?: return null
@@ -186,10 +186,10 @@ private fun CalEvent.expand(from: Instant, to: Instant, birthYear: Int?): List<O
     }
 }
 
-/** Aktueller Stand der Daten im lokalen Modus ([OfflineData.migrateLocal]) */
+/** Current version of the data in local mode ([OfflineData.migrateLocal]) */
 const val LOCAL_VERSION = 1
 
-/** Geburtsjahr aus `YYYY-MM-DD`; bei `--MM-DD` unbekannt */
+/** Birth year from `YYYY-MM-DD`; unknown for `--MM-DD` */
 private fun birthYear(birthday: String): Int? =
     Regex("""^(\d{4})-\d{2}-\d{2}$""").matchEntire(birthday)?.groupValues?.get(1)?.toIntOrNull()
 
@@ -197,7 +197,7 @@ internal fun parseOrNull(s: String): Instant? = runCatching { OffsetDateTime.par
 
 private fun sameInstant(a: String, b: String) = a == b || (parseOrNull(a) != null && parseOrNull(a) == parseOrNull(b))
 
-/** Termin, wie ihn der Server nach dem Speichern liefern würde; [base] liefert die Felder, die die Eingabe nicht hat. */
+/** Event as the server would return it after saving; [base] provides the fields the input doesn't have. */
 fun EventInput.toLocalEvent(id: String, base: CalEvent? = null) = CalEvent(
     id = id,
     calendarId = calendarId,
@@ -217,8 +217,8 @@ fun EventInput.toLocalEvent(id: String, base: CalEvent? = null) = CalEvent(
 )
 
 /**
- * Aufgabe, wie sie der Server nach dem Speichern liefern würde: ohne Datum immer ganztägig, ganztägig auf Mitternacht
- * UTC des Tages. Fehlt `completed` in der Eingabe, bleibt der Status von [base] erhalten.
+ * Task as the server would return it after saving: without a date always all-day, all-day at midnight
+ * UTC of the day. If `completed` is missing in the input, the status of [base] is kept.
  */
 fun TaskInput.toLocalTask(id: String, base: Task? = null, createdAt: String = ""): Task {
     val allDay = allDay || due == null
@@ -242,13 +242,13 @@ fun TaskInput.toLocalTask(id: String, base: Task? = null, createdAt: String = ""
     )
 }
 
-/** Abgehakt bzw. wieder geöffnet; der Erledigungszeitpunkt bleibt erhalten, solange die Aufgabe erledigt bleibt. */
+/** Checked off or reopened; the completion time is kept as long as the task stays completed. */
 fun Task.withCompleted(done: Boolean, at: String): Task = copy(
     completed = done,
     completedAt = if (!done) null else completedAt?.takeIf { completed } ?: at.ifEmpty { null },
 )
 
-/** Kontakt (ohne Foto), wie ihn der Server nach dem Speichern liefern würde */
+/** Contact (without photo) as the server would return it after saving */
 fun ContactInput.toLocalContact(id: String, base: Contact? = null) = Contact(
     id = id,
     addressBookId = addressBookId,

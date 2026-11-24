@@ -12,7 +12,7 @@ pub struct Config {
     pub token_ttl_days: i64,
     pub allow_registration: bool,
     pub cors_origins: Vec<String>,
-    /// Kontaktadresse für Push-Dienste (VAPID `sub`), `mailto:` oder `https:`
+    /// Contact address for push services (VAPID `sub`), `mailto:` or `https:`
     pub vapid_subject: String,
 }
 
@@ -20,7 +20,7 @@ fn env_or(key: &str, default: &str) -> String {
     std::env::var(key).ok().filter(|v| !v.trim().is_empty()).unwrap_or_else(|| default.to_string())
 }
 
-/// Datenverzeichnis aus `DATA_DIR` (Standard `./data`)
+/// Data directory from `DATA_DIR` (default `./data`)
 pub fn data_dir_from_env() -> PathBuf {
     PathBuf::from(env_or("DATA_DIR", "./data"))
 }
@@ -64,8 +64,8 @@ impl Config {
     }
 }
 
-/// Ohne JWT_SECRET wird ein zufälliges Secret im Datenverzeichnis abgelegt,
-/// damit Tokens einen Neustart des Containers überleben.
+/// Without JWT_SECRET, a random secret is stored in the data directory
+/// so tokens survive a container restart.
 fn load_or_create_secret(data_dir: &std::path::Path) -> anyhow::Result<String> {
     let path = data_dir.join("jwt_secret");
     if let Ok(s) = std::fs::read_to_string(&path) {

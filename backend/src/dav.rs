@@ -1,17 +1,17 @@
-//! CardDAV-Server (RFC 6352) für die Synchronisierung mit DAVx⁵, Thunderbird, iOS u. a.
+//! CardDAV server (RFC 6352) for syncing with DAVx⁵, Thunderbird, iOS and others.
 //!
-//! Anmeldung per HTTP Basic mit E-Mail-Adresse und Passwort des Kontos.
+//! Sign-in via HTTP Basic with the account's email address and password.
 //!
 //! ```text
-//! /.well-known/carddav                      → Weiterleitung auf /dav/
-//! /dav/                                     Einstieg (current-user-principal)
+//! /.well-known/carddav                      → redirect to /dav/
+//! /dav/                                     entry point (current-user-principal)
 //! /dav/principals/{user}/                   Principal (addressbook-home-set)
-//! /dav/addressbooks/{user}/                 Sammlung aller Adressbücher
-//! /dav/addressbooks/{user}/{buch}/          Adressbuch
-//! /dav/addressbooks/{user}/{buch}/{x}.vcf   Kontakt
+//! /dav/addressbooks/{user}/                 collection of all address books
+//! /dav/addressbooks/{user}/{book}/          address book
+//! /dav/addressbooks/{user}/{book}/{x}.vcf   contact
 //! ```
 //!
-//! Änderungen erkennen Clients über `getctag` (Änderungszähler je Adressbuch) und `getetag`.
+//! Clients detect changes via `getctag` (change counter per address book) and `getetag`.
 
 use std::{
     collections::HashMap,
@@ -45,15 +45,15 @@ const NS_CS: &str = "http://calendarserver.org/ns/";
 const MAX_BODY: usize = 10 * 1024 * 1024;
 const MAX_VCARD: usize = 5 * 1024 * 1024;
 
-// ---------- Anmeldung ----------
+// ---------- Authentication ----------
 
-/// Zwischenspeicher erfolgreicher Anmeldungen: Sync-Clients senden bei jeder Anfrage das
-/// Passwort mit, Argon2 ist aber absichtlich langsam.
+/// Cache of successful sign-ins: sync clients send the password with every
+/// request, but Argon2 is deliberately slow.
 #[derive(Default)]
 pub struct AuthCache(Mutex<HashMap<String, Instant>>);
 
 impl AuthCache {
-    /// Alle zwischengespeicherten Anmeldungen verwerfen (z. B. nach einem Datenbank-Import)
+    /// Discard all cached sign-ins (e.g. after a database import)
     pub fn clear(&self) {
         self.0.lock().unwrap_or_else(|e| e.into_inner()).clear();
     }
@@ -67,7 +67,7 @@ struct DavUser {
 }
 
 fn cache_key(email: &str, password: &str, hash: &str) -> String {
-    // Der gespeicherte Hash fließt mit ein: Nach einer Passwortänderung passt der Eintrag nicht mehr.
+    // The stored hash is part of the key: after a password change the entry no longer matches.
     let digest = Sha256::digest(format!("{email}\0{password}\0{hash}").as_bytes());
     digest.iter().map(|b| format!("{b:02x}")).collect()
 }
@@ -146,7 +146,7 @@ impl El {
     fn child(&self, ns: &str, name: &str) -> Option<&El> {
         self.children.iter().find(|c| c.is(ns, name))
     }
-    /// Erstes passendes Element in beliebiger Tiefe.
+    /// First matching element at any depth.
     fn find(&self, ns: &str, name: &str) -> Option<&El> {
         self.children.iter().find_map(|c| if c.is(ns, name) { Some(c) } else { c.find(ns, name) })
     }
@@ -255,7 +255,7 @@ fn xml_response(status: StatusCode, body: String) -> Response {
     (status, [(header::CONTENT_TYPE, "application/xml; charset=utf-8")], body).into_response()
 }
 
-/// Fehlerantwort mit Vorbedingung, z. B. `<C:no-uid-conflict/>`.
+/// Error response with a precondition, e.g. `<C:no-uid-conflict/>`.
 fn precondition(status: StatusCode, condition: &str) -> Response {
     xml_response(
         status,
@@ -269,7 +269,7 @@ fn status(code: StatusCode) -> Response {
     code.into_response()
 }
 
-// ---------- Ressourcen ----------
+// ---------- Resources ----------
 
 #[derive(Debug, FromRow)]
 struct ObjMeta {
@@ -303,7 +303,7 @@ impl Ctx<'_> {
         format!("/dav/addressbooks/{}/{}/", self.user.id, id)
     }
 
-    /// Inhalt einer Eigenschaft oder `None`, wenn es sie für diese Ressource nicht gibt.
+    /// Content of a property, or `None` if it doesn't exist for this resource.
     fn prop(&self, res: &Res, q: &QName) -> Option<String> {
         let href = |h: String| format!("<D:href>{}</D:href>", esc(&h));
         let is_collection = !matches!(res, Res::Object(_));
@@ -444,7 +444,7 @@ fn parse_propfind(body: &[u8]) -> Option<PropReq> {
     Some(PropReq::from_prop(root.child(NS_DAV, "prop")))
 }
 
-// ---------- Pfade ----------
+// ---------- Paths ----------
 
 enum Target {
     Root,
@@ -494,7 +494,7 @@ fn depth(headers: &HeaderMap) -> u8 {
     }
 }
 
-/// Prüft If-Match / If-None-Match gegen den aktuellen ETag (`None` = Ressource fehlt).
+/// Checks If-Match / If-None-Match against the current ETag (`None` = resource missing).
 fn preconditions_ok(headers: &HeaderMap, current: Option<&str>) -> bool {
     let list = |name: header::HeaderName| -> Option<Vec<String>> {
         let v = headers.get(name)?.to_str().ok()?;
@@ -519,7 +519,7 @@ fn preconditions_ok(headers: &HeaderMap, current: Option<&str>) -> bool {
     true
 }
 
-// ---------- Einstieg ----------
+// ---------- Entry point ----------
 
 pub async fn well_known() -> Response {
     (StatusCode::MOVED_PERMANENTLY, [(header::LOCATION, "/dav/")]).into_response()
@@ -560,7 +560,7 @@ async fn handle_inner(state: AppState, req: Request) -> AppResult<Response> {
     let ctx = Ctx { user: &user };
     let target = parse_target(&path);
 
-    // Nur eigene Ressourcen
+    // Own resources only
     let owner = match &target {
         Target::Principal(u) | Target::Home(u) | Target::Book(u, _) | Target::Object(u, _, _) => Some(u),
         _ => None,
@@ -692,7 +692,7 @@ async fn report(state: &AppState, ctx: &Ctx<'_>, book_id: &str, body: &[u8]) -> 
     if root.is(NS_CARD, "addressbook-multiget") {
         for h in root.children.iter().filter(|c| c.is(NS_DAV, "href")) {
             let href = h.text.trim();
-            // Absolute URLs auf den Pfad kürzen
+            // Shorten absolute URLs to the path
             let path = match href.find("://") {
                 Some(i) => href[i + 3..].find('/').map(|j| &href[i + 3 + j..]).unwrap_or("/"),
                 None => href,
@@ -711,7 +711,7 @@ async fn report(state: &AppState, ctx: &Ctx<'_>, book_id: &str, body: &[u8]) -> 
     }
 
     if root.is(NS_CARD, "addressbook-query") {
-        // Filter werden nicht ausgewertet: Es werden alle Kontakte geliefert.
+        // Filters are not evaluated: all contacts are returned.
         for o in list_objects(state, &book.id, req.wants_data()).await? {
             ctx.respond(&mut ms, &format!("{base}{}", o.href), &Res::Object(&o), &req);
         }
@@ -721,9 +721,9 @@ async fn report(state: &AppState, ctx: &Ctx<'_>, book_id: &str, body: &[u8]) -> 
     Ok(precondition(StatusCode::FORBIDDEN, "<D:supported-report/>"))
 }
 
-// ---------- Schreibende Methoden ----------
+// ---------- Writing methods ----------
 
-/// Neue Werte für Anzeigename/Beschreibung aus PROPPATCH bzw. erweitertem MKCOL.
+/// New values for display name/description from PROPPATCH or extended MKCOL.
 struct BookProps {
     name: Option<String>,
     description: Option<String>,
@@ -742,9 +742,9 @@ fn book_props(root: &El) -> BookProps {
             match (el.ns.as_str(), el.name.as_str()) {
                 (NS_DAV, "displayname") => p.name = Some(value),
                 (NS_CARD, "addressbook-description") => p.description = Some(value),
-                // Beim Anlegen per MKCOL gehört der Ressourcentyp dazu
+                // When creating via MKCOL, the resource type is part of it
                 (NS_DAV, "resourcetype") if el.child(NS_CARD, "addressbook").is_some() => {}
-                // Farben u. Ä. werden stillschweigend akzeptiert, aber nicht gespeichert
+                // Colors and the like are silently accepted but not stored
                 (ns, _) if ns != NS_DAV && ns != NS_CARD => {}
                 _ => {
                     p.rejected.push(q);
@@ -801,7 +801,7 @@ async fn mkcol(state: &AppState, ctx: &Ctx<'_>, id: &str, body: &[u8]) -> AppRes
         let Some(root) = parse_xml(body) else {
             return Ok(status(StatusCode::BAD_REQUEST));
         };
-        // Nur Adressbücher, keine anderen Sammlungstypen (z. B. Kalender)
+        // Address books only, no other collection types (e.g. calendars)
         if let Some(rt) = root.find(NS_DAV, "resourcetype") {
             if rt.child(NS_CARD, "addressbook").is_none() {
                 return Ok(precondition(StatusCode::FORBIDDEN, "<D:valid-resourcetype/>"));

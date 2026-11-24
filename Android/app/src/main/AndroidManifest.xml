@@ -3,12 +3,12 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.INTERNET" />
-    <!-- Netzwechsel erkennen (OfflineSync): Server erneut versuchen und offline gemachte Änderungen übertragen -->
+    <!-- Detect network changes (OfflineSync): retry the server and upload changes made offline -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <!-- Android 17+: nötig, um Server im lokalen Netz (z. B. homeserver.local) zu erreichen. -->
+    <!-- Android 17+: required to reach servers on the local network (e.g. homeserver.local). -->
     <uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK" />
 
-    <!-- Synchronisierung mit dem Android-Kalender und den Android-Kontakten (ersetzt DAVx⁵) -->
+    <!-- Sync with the Android calendar and Android contacts (replaces DAVx⁵) -->
     <uses-permission android:name="android.permission.READ_CALENDAR" />
     <uses-permission android:name="android.permission.WRITE_CALENDAR" />
     <uses-permission android:name="android.permission.READ_CONTACTS" />
@@ -17,16 +17,16 @@
     <uses-permission android:name="android.permission.WRITE_SYNC_SETTINGS" />
     <uses-permission android:name="android.permission.READ_SYNC_STATS" />
 
-    <!-- Datums-Icon und Erinnerungen nach einem Neustart wieder einplanen -->
+    <!-- Reschedule the date icon and reminders after a reboot -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
-    <!-- Erinnerungen an Termine: Benachrichtigungen (Android 13+) und pünktliche Alarme.
-         USE_EXACT_ALARM ist für Kalender-Apps vorgesehen; bis Android 12L gilt SCHEDULE_EXACT_ALARM. -->
+    <!-- Event reminders: notifications (Android 13+) and exact alarms.
+         USE_EXACT_ALARM is intended for calendar apps; up to Android 12L, SCHEDULE_EXACT_ALARM applies. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" android:maxSdkVersion="32" />
 
-    <!-- Apps zum Öffnen von Telefonnummern, E-Mail-Adressen und Karten finden -->
+    <!-- Find apps for opening phone numbers, email addresses and maps -->
     <queries>
         <intent>
             <action android:name="android.intent.action.DIAL" />
@@ -61,16 +61,16 @@
         android:supportsRtl="true"
         android:networkSecurityConfig="@xml/network_security_config"
         android:theme="@style/Theme.SyncHaven">
-        <!-- singleTop: Nach einem Tageswechsel startet der Launcher über einen anderen Alias als den, mit
-             dem die Aufgabe begonnen hat – ohne singleTop läge dann eine zweite MainActivity obenauf. -->
+        <!-- singleTop: after a day change the launcher starts via a different alias than the one the
+             task was started with – without singleTop a second MainActivity would end up on top. -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
             android:launchMode="singleTop"
             android:windowSoftInputMode="adjustResize" />
 
-        <!-- Launcher-Icon mit dem aktuellen Tag (wie Google Kalender): pro Tag ein Alias, von dem
-             DynamicLauncherIcon genau einen aktiviert. LauncherDefault gilt nur bis zum ersten Start. -->
+        <!-- Launcher icon with the current day (like Google Calendar): one alias per day, of which
+             DynamicLauncherIcon enables exactly one. LauncherDefault only applies until the first start. -->
         <activity-alias
             android:name=".LauncherDefault"
             android:enabled="true"
@@ -456,7 +456,7 @@
             </intent-filter>
         </activity-alias>
 
-        <!-- Tageswechsel, Neustart, Update und Zeit-/Zeitzonenänderung → Icon aktualisieren -->
+        <!-- Day change, reboot, update and time/time zone change → update the icon -->
         <receiver
             android:name=".icon.DayChangeReceiver"
             android:exported="false">
@@ -468,7 +468,7 @@
             </intent-filter>
         </receiver>
 
-        <!-- Erinnerungen: Alarm, Neustart, Update und Zeit-/Zeitzonenänderung → fällige anzeigen, nächste planen -->
+        <!-- Reminders: alarm, reboot, update and time/time zone change → show due ones, schedule the next -->
         <receiver
             android:name=".reminders.ReminderReceiver"
             android:exported="false">
@@ -481,8 +481,8 @@
             </intent-filter>
         </receiver>
 
-        <!-- Android-Konto „Synchaven“. Authenticator und SyncAdapter bindet das System (AccountManager,
-             SyncManager) – sie müssen exportiert sein und können keine eigene Berechtigung verlangen. -->
+        <!-- Android account "Synchaven". The system binds the authenticator and SyncAdapter (AccountManager,
+             SyncManager) – they must be exported and cannot require a custom permission. -->
         <service
             android:name=".sync.AuthenticatorService"
             android:exported="true"
@@ -517,7 +517,7 @@
             <meta-data
                 android:name="android.content.SyncAdapter"
                 android:resource="@xml/sync_contacts" />
-            <!-- Bearbeitbare Felder in der Kontakte-App -->
+            <!-- Editable fields in the contacts app -->
             <meta-data
                 android:name="android.provider.CONTACTS_STRUCTURE"
                 android:resource="@xml/contacts" />

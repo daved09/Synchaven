@@ -26,7 +26,7 @@ class OfflineDataTest {
     private fun contactInput(name: String, photo: String? = null) =
         Contact(addressBookId = "b1", fullName = name).toInput().copy(photo = photo)
 
-    // ---------- Warteschlange ----------
+    // ---------- Queue ----------
 
     @Test
     fun editingOfflineCreatedEventChangesTheCreate() {
@@ -68,7 +68,7 @@ class OfflineDataTest {
 
     @Test
     fun opBeingSentIsNotModified() {
-        // Die Anlage wird gerade übertragen: die Bearbeitung kommt als eigene Änderung dahinter
+        // The creation is currently being transferred: the edit comes after it as a separate change
         val sending = PendingOp.CreateEvent("local-1", input("A"))
         val ops = listOf<PendingOp>(sending).enqueue(PendingOp.UpdateEvent("local-1", input("B")), frozen = 1)
         assertEquals(listOf(sending, PendingOp.UpdateEvent("local-1", input("B"))), ops)
@@ -96,7 +96,7 @@ class OfflineDataTest {
         assertEquals(data, AppJson.decodeFromString(OfflineData.serializer(), json))
     }
 
-    // ---------- Lokaler Stand ----------
+    // ---------- Local state ----------
 
     private val base = OfflineData(
         calendars = listOf(Calendar("c1", "Privat"), Calendar("bd", "Geburtstage", kind = "birthdays")),
@@ -135,7 +135,7 @@ class OfflineDataTest {
         assertEquals(listOf("Neu", "🎂 Anna (36)"), titles)
         assertEquals(2, data.addressBooks!!.single().contactCount)
 
-        // Neu vom Server geladen: die ausstehenden Änderungen bleiben eingerechnet, ohne doppelt zu zählen
+        // Reloaded from the server: pending changes stay applied without being counted twice
         val reloaded = data.copy(events = base.events, contacts = base.contacts).withPending().withPending()
         assertEquals(data.events, reloaded.events)
         assertEquals(2, reloaded.contacts!!.size)

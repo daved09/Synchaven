@@ -29,7 +29,7 @@ watch(open, (v) => {
   showPassword.value = false
 })
 
-/** Zufälliges Passwort zum Weitergeben, ohne leicht verwechselbare Zeichen */
+/** Random password to hand out, without easily confused characters */
 function generate() {
   const chars = 'abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789'
   const bytes = crypto.getRandomValues(new Uint8Array(14))

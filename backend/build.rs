@@ -1,8 +1,8 @@
-//! Liest die Anwendungsversion aus `version.properties` (Eintrag `version=…`) und stellt sie
-//! dem Programm als `SYNCHAVEN_VERSION` zur Verfügung (`env!("SYNCHAVEN_VERSION")`).
+//! Reads the application version from `version.properties` (entry `version=…`) and provides it
+//! to the program as `SYNCHAVEN_VERSION` (`env!("SYNCHAVEN_VERSION")`).
 //!
-//! Gesucht wird neben `Cargo.toml` und ein Verzeichnis darüber (Projektwurzel). Die Version in
-//! `Cargo.toml` ist nur ein Platzhalter.
+//! The file is looked up next to `Cargo.toml` and one directory above it (project root). The version in
+//! `Cargo.toml` is only a placeholder.
 
 use std::path::PathBuf;
 
@@ -11,7 +11,7 @@ fn main() {
     let candidates = [manifest_dir.join("version.properties"), manifest_dir.join("../version.properties")];
 
     for path in &candidates {
-        // Auch auf noch fehlende Dateien reagieren, damit Cargo neu baut, sobald sie auftauchen
+        // Also react to files that don't exist yet, so Cargo rebuilds as soon as they appear
         println!("cargo:rerun-if-changed={}", path.display());
     }
 

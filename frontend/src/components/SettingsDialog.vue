@@ -12,12 +12,12 @@ const { settings } = useSettingsStore()
 const auth = useAuthStore()
 const notify = useNotifyStore()
 
-/** Die Standardansicht gehört zum Benutzerkonto */
+/** The default view belongs to the user account */
 function setDefaultView(v: ViewMode) {
   auth.update({ default_view: v }).catch((e) => notify.fail(e))
 }
 
-// ---------- Benachrichtigungen ----------
+// ---------- Notifications ----------
 const push = ref<PushState | null>(null)
 const pushBusy = ref(false)
 watch(open, (v) => v && pushState().then((s) => (push.value = s)), { immediate: true })

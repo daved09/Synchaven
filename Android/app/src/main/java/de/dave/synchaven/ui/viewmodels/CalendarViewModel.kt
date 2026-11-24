@@ -58,13 +58,13 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
- * Ausgangspunkt des Blätterns: Von hier aus zählt der Pager seine Seiten. Er wechselt nur bei Sprüngen
- * (Heute, Datumswahl, Ansichtswechsel), nicht beim Wischen; [serial] macht jeden Sprung eindeutig,
- * [forward] gibt die Richtung der Übergangsanimation an.
+ * Starting point for paging: the pager counts its pages from here. It only changes on jumps
+ * (today, date picker, view change), not when swiping; [serial] makes every jump unique,
+ * [forward] gives the direction of the transition animation.
  */
 data class PageAnchor(val mode: ViewMode, val date: LocalDate, val serial: Int = 0, val forward: Boolean = true)
 
-/** Angezeigter Zeitraum der Kalenderansicht */
+/** Displayed range of the calendar view */
 data class CalendarPosition(val mode: ViewMode, val date: LocalDate, val anchor: PageAnchor = PageAnchor(mode, date))
 
 data class CalendarUiState(
@@ -75,7 +75,7 @@ data class CalendarUiState(
     val title: UiText = UiText.Plain(""),
     val settings: AppSettings = AppSettings(),
     val calendars: List<Calendar> = emptyList(),
-    /** Termine der sichtbaren Kalender im Zeitraum samt vorigem und nächstem (für das Wischen) und fällige Aufgaben */
+    /** Events of the visible calendars in the range plus the previous and next one (for swiping) and due tasks */
     val events: List<ViewEvent> = emptyList(),
     val taskLists: List<TaskList> = emptyList(),
     val tasks: List<Task> = emptyList(),
@@ -106,7 +106,7 @@ class CalendarViewModel(
     private val position = MutableStateFlow(
         CalendarPosition(sessionStore.current?.defaultView ?: ViewMode.MONTH, LocalDate.now())
     )
-    /** Ansicht wurde bereits bewusst gewählt – die Standardansicht aus dem Konto überschreibt sie nicht mehr */
+    /** The view has already been chosen deliberately – the default view from the account no longer overrides it */
     private var pinned = false
     private val raw = MutableStateFlow<List<Occurrence>>(emptyList())
     private val loading = MutableStateFlow(false)
@@ -129,7 +129,7 @@ class CalendarViewModel(
             mode = pos.mode, date = pos.date, range = range, anchor = pos.anchor,
             title = viewTitle(pos.mode, pos.date, range),
             settings = settings, calendars = cals,
-            // Aufgaben nach den Terminen desselben Zeitpunkts
+            // Tasks after the events at the same time
             events = events.sortedWith(compareBy({ !it.allDay }, { it.start }, { it.isTask })),
             taskLists = td.lists, tasks = td.tasks,
             loading = isLoading, error = err,
@@ -140,7 +140,7 @@ class CalendarViewModel(
     val search = _search.asStateFlow()
 
     init {
-        // Standardansicht könnte in der Weboberfläche geändert worden sein
+        // The default view may have been changed in the web UI
         viewModelScope.launch { runCatching { auth.me() } }
         viewModelScope.launch {
             sessionStore.state.map { (it as? SessionState.LoggedIn)?.session?.defaultView }.distinctUntilChanged()
@@ -150,7 +150,7 @@ class CalendarViewModel(
             runCatching { repo.loadCalendars() }.onFailure { error.value = it.userMessage() }
         }
         viewModelScope.launch { runCatching { taskRepo.load() } }
-        // Termine für den sichtbaren Zeitraum und seine Nachbarn laden – neu bei Zeitraumwechsel und nach jeder Änderung
+        // Load events for the visible range and its neighbors – again on range change and after every change
         viewModelScope.launch {
             combine(position, settingsStore.settings.map { it.weekStart }.distinctUntilChanged(), repo.eventsVersion) { pos, ws, _ ->
                 loadWindow(pos.mode, pos.date, ws)
@@ -162,7 +162,7 @@ class CalendarViewModel(
         }
     }
 
-    /** Zeigt sofort die gespeicherten Termine und lädt dann vom Server (offline bleibt es beim Cache). */
+    /** Immediately shows the stored events and then loads from the server (offline, the cache stays). */
     private suspend fun loadRange(range: DateRange) {
         val start = range.start.startInstant()
         val end = range.end.startInstant()
@@ -188,9 +188,9 @@ class CalendarViewModel(
         }
     }
 
-    // ---------- Navigation im Kalender ----------
+    // ---------- Navigation in the calendar ----------
 
-    /** Vom Benutzer gewählte Ansicht – wird zugleich als Standardansicht im Benutzerkonto gespeichert */
+    /** View chosen by the user – also saved as the default view in the user account */
     fun setMode(mode: ViewMode) {
         pinned = true
         jump(mode, position.value.date)
@@ -199,7 +199,7 @@ class CalendarViewModel(
             runCatching { auth.setDefaultView(mode) }.onFailure { messages.send(it.userMessage()) }
         }
     }
-    /** Der Pager ist durch Wischen auf dem Zeitraum um [date] zur Ruhe gekommen. */
+    /** The pager came to rest by swiping on the range around [date]. */
     fun showPage(date: LocalDate) = position.update { it.copy(date = date) }
     fun today() = jump(position.value.mode, LocalDate.now())
     fun goto(date: LocalDate, mode: ViewMode? = null) {
@@ -207,19 +207,19 @@ class CalendarViewModel(
         jump(mode ?: position.value.mode, date)
     }
 
-    /** Springt zu [date] in [mode]; der Pager beginnt dort neu. */
+    /** Jumps to [date] in [mode]; the pager starts anew there. */
     private fun jump(mode: ViewMode, date: LocalDate) = position.update {
         if (it.mode == mode && it.date == date) it
         else CalendarPosition(mode, date, PageAnchor(mode, date, it.anchor.serial + 1, forward = date >= it.date))
     }
 
-    /** Zeitraum von der vorigen bis zur nächsten Seite, damit beim Wischen auch die Nachbarn Termine zeigen */
+    /** Range from the previous to the next page, so the neighbors also show events while swiping */
     private fun loadWindow(mode: ViewMode, date: LocalDate, weekStart: DayOfWeek) = DateRange(
         viewRange(mode, stepDate(mode, date, -1), weekStart).start,
         viewRange(mode, stepDate(mode, date, 1), weekStart).end,
     )
 
-    // ---------- Suche ----------
+    // ---------- Search ----------
 
     fun openSearch() = _search.update { it.copy(active = true) }
     fun closeSearch() {
@@ -233,7 +233,7 @@ class CalendarViewModel(
             return
         }
         _search.update { it.copy(loading = true) }
-        // Ein Jahr zurück und ein Jahr voraus (Server erlaubt bis zu 800 Tage)
+        // One year back and one year ahead (the server allows up to 800 days)
         val today = LocalDate.now()
         runCatching { repo.occurrences(today.minusDays(365).startInstant(), today.plusDays(400).startInstant(), q) }
             .onSuccess { list ->
@@ -248,7 +248,7 @@ class CalendarViewModel(
             }
     }
 
-    // ---------- Kalender ----------
+    // ---------- Calendars ----------
 
     fun toggleCalendar(cal: Calendar) = launchAction { repo.toggleVisible(cal) }
 
@@ -276,7 +276,7 @@ class CalendarViewModel(
         )
     }
 
-    // ---------- Termine ----------
+    // ---------- Events ----------
 
     fun deleteEvent(ev: ViewEvent, scope: DeleteScope) = launchAction {
         if (scope == DeleteScope.OCCURRENCE) repo.removeOccurrence(ev.occ.eventId, ev.occ.start)
@@ -285,8 +285,8 @@ class CalendarViewModel(
     }
 
     /**
-     * Verschiebt einen Termin auf einen anderen Tag bzw. eine andere Startzeit, die Dauer bleibt erhalten.
-     * Bei Serien wird nur dieses Vorkommen verschoben und aus der Serie gelöst.
+     * Moves an event to another day or start time; the duration is kept.
+     * For series, only this occurrence is moved and detached from the series.
      */
     fun moveEvent(ev: ViewEvent, newStart: LocalDateTime) = launchAction {
         val (start, end) = if (ev.allDay) {
@@ -305,7 +305,7 @@ class CalendarViewModel(
         )
     }
 
-    // ---------- Aufgaben ----------
+    // ---------- Tasks ----------
 
     fun toggleTaskList(list: TaskList) = launchAction { taskRepo.toggleVisible(list) }
 
@@ -324,7 +324,7 @@ class CalendarViewModel(
         messages.send(uiText(if (id == null) R.string.msg_task_created else R.string.msg_task_saved))
     }
 
-    /** Neue Unteraufgabe ohne Datum unter [parent] */
+    /** New subtask without a date under [parent] */
     fun addSubtask(parent: Task, title: String) {
         val t = title.trim().takeIf { it.isNotEmpty() } ?: return
         launchAction { taskRepo.createSubtask(parent, t) }
@@ -340,7 +340,7 @@ class CalendarViewModel(
         messages.send(uiText(R.string.msg_task_deleted))
     }
 
-    /** Verschiebt die Fälligkeit einer Aufgabe (Drag & Drop im Zeitraster); die Uhrzeit wandert mit. */
+    /** Moves a task's due date (drag & drop in the time grid); the time moves along. */
     fun moveTask(task: Task, newStart: LocalDateTime) = launchAction {
         val due = if (task.allDay) localToAllDay(newStart.toLocalDate()) else newStart.toInstant().toString()
         if (due == task.due) return@launchAction

@@ -13,7 +13,7 @@ const props = defineProps<{
   defaultType: string
 }>()
 
-/** Eigene Bezeichnungen (z. B. „Zentrale“) zusätzlich zu den Standardtypen anbieten. */
+/** Offer custom labels (e.g. "Zentrale") in addition to the standard types. */
 const options = computed(() => {
   const custom = items.value
     .map((i) => i.type)

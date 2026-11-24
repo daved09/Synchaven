@@ -25,7 +25,7 @@ const initials = computed(() =>
 )
 
 async function logout() {
-  // Dieser Browser soll keine Erinnerungen des Kontos mehr erhalten
+  // This browser should no longer receive the account's reminders
   await Promise.race([disablePush(), new Promise((r) => setTimeout(r, 2000))])
   auth.logout()
   calendars.reset()

@@ -8,14 +8,14 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
 
-/** Vorkommen mit lokal berechneten Zeiten für die Darstellung – oder eine Aufgabe mit Fälligkeit ([task]) */
+/** Occurrence with locally computed times for display – or a task with a due date ([task]) */
 data class ViewEvent(
     val occ: Occurrence,
     val start: LocalDateTime,
-    /** exklusives Ende */
+    /** exclusive end */
     val end: LocalDateTime,
     val color: String,
-    /** Aufgabe statt Termin: mit Abhak-Symbol, erledigt durchgestrichen */
+    /** Task instead of event: with a check-off icon, struck through when completed */
     val task: Task? = null,
 ) {
     val isTask get() = task != null
@@ -25,10 +25,10 @@ data class ViewEvent(
     val title get() = occ.title
     val allDay get() = occ.allDay
 
-    /** Ganztägig oder ≥ 24 h → wird als Balken statt im Zeitraster angezeigt */
+    /** All-day or ≥ 24 h → shown as a bar instead of in the time grid */
     val isBar: Boolean get() = allDay || Duration.between(start, end).toHours() >= 24
 
-    /** Letzter (inklusiver) Tag, an dem der Termin zu sehen ist */
+    /** Last (inclusive) day on which the event is visible */
     val lastDay: LocalDate
         get() = when {
             allDay -> end.toLocalDate().minusDays(1).coerceAtLeast(start.toLocalDate())

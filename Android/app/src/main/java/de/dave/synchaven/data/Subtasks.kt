@@ -3,17 +3,17 @@ package de.dave.synchaven.data
 import de.dave.synchaven.data.model.Task
 
 /*
- * Regeln für Unteraufgaben wie in backend/src/routes/tasks.rs – für den Offline-Cache, sofortige Anzeige und den
- * lokalen Modus. Unteraufgaben gibt es eine Ebene tief und nur innerhalb einer Liste.
+ * Rules for subtasks as in backend/src/routes/tasks.rs – for the offline cache, immediate display and
+ * local mode. Subtasks are one level deep and only within one list.
  */
 
-/** Unteraufgaben einer Aufgabe in der Reihenfolge, in der sie angelegt wurden */
+/** Subtasks of a task in the order they were created */
 fun List<Task>.subtasksOf(id: String): List<Task> =
     filter { it.parentId == id }.sortedWith(compareBy<Task>({ it.createdAt }, { it.id }))
 
 /**
- * Hakt eine Aufgabe ab oder öffnet sie wieder, mit den Folgen wie bei Google Tasks: Eine erledigte Hauptaufgabe hakt
- * ihre offenen Unteraufgaben mit ab, eine wieder geöffnete Unteraufgabe öffnet auch ihre Hauptaufgabe.
+ * Checks off a task or reopens it, with the consequences as in Google Tasks: completing a parent task also checks off
+ * its open subtasks, reopening a subtask also reopens its parent task.
  */
 fun List<Task>.withTaskCompleted(id: String, done: Boolean, at: String, set: (Task, Boolean) -> Task): List<Task> {
     val task = firstOrNull { it.id == id } ?: return this
@@ -28,9 +28,9 @@ fun List<Task>.withTaskCompleted(id: String, done: Boolean, at: String, set: (Ta
 }
 
 /**
- * Übernimmt eine gespeicherte Aufgabe [saved]: Wechselt eine Hauptaufgabe die Liste, ziehen ihre Unteraufgaben mit;
- * liegt die Hauptaufgabe einer Unteraufgabe in einer anderen Liste (oder gibt es sie nicht), wird sie zur
- * Hauptaufgabe. Ändert sich der Status, gelten die Regeln von [withTaskCompleted].
+ * Takes over a saved task [saved]: if a parent task changes its list, its subtasks move along;
+ * if a subtask's parent task is in another list (or doesn't exist), the subtask becomes a
+ * top-level task. If the status changes, the rules of [withTaskCompleted] apply.
  */
 fun List<Task>.withTaskSaved(saved: Task, set: (Task, Boolean) -> Task): List<Task> {
     val before = firstOrNull { it.id == saved.id }
@@ -46,10 +46,10 @@ fun List<Task>.withTaskSaved(saved: Task, set: (Task, Boolean) -> Task): List<Ta
     return list
 }
 
-/** Entfernt eine Aufgabe samt ihren Unteraufgaben */
+/** Removes a task including its subtasks */
 fun List<Task>.withoutTask(id: String): List<Task> = filterNot { it.id == id || it.parentId == id }
 
-/** Entfernt die erledigten Aufgaben einer Liste samt ihren Unteraufgaben */
+/** Removes the completed tasks of a list including their subtasks */
 fun List<Task>.withoutCompleted(listId: String): List<Task> {
     val gone = filter { it.listId == listId && it.completed }.map { it.id }.toSet()
     return filterNot { it.id in gone || it.parentId in gone }

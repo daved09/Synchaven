@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Kontotyp muss ACCOUNT_TYPE in sync/SyncAccount.kt entsprechen. -->
+<!-- Account type must match ACCOUNT_TYPE in sync/SyncAccount.kt. -->
 <account-authenticator xmlns:android="http://schemas.android.com/apk/res/android"
     android:accountType="de.dave.synchaven"
     android:icon="@mipmap/ic_launcher"

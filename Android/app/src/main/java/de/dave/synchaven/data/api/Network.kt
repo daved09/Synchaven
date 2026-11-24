@@ -22,34 +22,34 @@ val AppJson = Json {
     coerceInputValues = true
 }
 
-/** Platzhalter, den der [ServerInterceptor] durch die Adresse des Servers ersetzt. */
+/** Placeholder that the [ServerInterceptor] replaces with the server's address. */
 private const val PLACEHOLDER_BASE = "http://synchaven.invalid/api/"
 
-/** Kein Server angemeldet (sollte nur nach einer Abmeldung während einer Anfrage vorkommen). */
+/** No server signed in (should only happen after signing out during a request). */
 class NoServerConfiguredException : IOException("no server configured")
 
-/** Die gespeicherte oder eingegebene Serveradresse ist keine gültige URL. */
+/** The stored or entered server address is not a valid URL. */
 class InvalidServerUrlException(url: String) : IOException("invalid server url: $url")
 
 /**
- * Fehlerantwort des Servers, siehe Fehlerformat in docs/API.md.
- * [serverMessage] ist die anzeigbare Meldung des Servers (leer, wenn er keine geliefert hat).
+ * Error response from the server, see the error format in docs/API.md.
+ * [serverMessage] is the server's displayable message (empty if it didn't provide one).
  */
 class ApiException(val status: Int, val code: String, val serverMessage: String) :
     Exception("HTTP $status $code: $serverMessage")
 
-/** Normalisiert Eingaben wie „synchaven.local:8080“ zu „http://synchaven.local:8080“. */
+/** Normalizes input such as "synchaven.local:8080" to "http://synchaven.local:8080". */
 fun normalizeServerUrl(input: String): String {
     var url = input.trim().trimEnd('/')
     if (!url.startsWith("http://", true) && !url.startsWith("https://", true)) url = "http://$url"
-    // Wer die API-Adresse einfügt, meint den Server selbst
+    // Anyone pasting the API address means the server itself
     if (url.endsWith("/api", ignoreCase = true)) url = url.dropLast(4)
     return url
 }
 
 /**
- * Ersetzt den Platzhalter durch den Server (Header [SyncHavenApi.SERVER_HEADER] oder angemeldete Sitzung)
- * und hängt das Bearer-Token an. Ein 401 bei angemeldeter Sitzung meldet ab (Token abgelaufen).
+ * Replaces the placeholder with the server (header [SyncHavenApi.SERVER_HEADER] or signed-in session)
+ * and attaches the bearer token. A 401 with a signed-in session signs out (token expired).
  */
 class ServerInterceptor(
     private val sessionStore: SessionStore,
@@ -71,14 +71,14 @@ class ServerInterceptor(
             .build()
 
         val response = chain.proceed(request)
-        // PUT /auth/me antwortet auch bei falschem aktuellem Passwort mit 401 – das ist kein abgelaufenes Token
+        // PUT /auth/me also responds with 401 for a wrong current password – that is not an expired token
         val passwordCheck = original.method == "PUT" && original.url.encodedPath.endsWith("/auth/me")
         if (response.code == 401 && explicitServer == null && session != null && !passwordCheck) onUnauthorized()
         return response
     }
 }
 
-/** Setzt den Pfad einer Retrofit-URL (relativ zum Platzhalter) unter die Adresse des Servers. */
+/** Places the path of a Retrofit URL (relative to the placeholder) under the server's address. */
 fun rebaseUrl(server: HttpUrl, requestUrl: HttpUrl): HttpUrl = server.newBuilder()
     .encodedPath(server.encodedPath.trimEnd('/') + requestUrl.encodedPath)
     .encodedQuery(requestUrl.encodedQuery)
@@ -87,7 +87,7 @@ fun rebaseUrl(server: HttpUrl, requestUrl: HttpUrl): HttpUrl = server.newBuilder
 object NetworkFactory {
     fun okHttp(sessionStore: SessionStore, debug: Boolean, onUnauthorized: () -> Unit): OkHttpClient =
         OkHttpClient.Builder()
-            .connectTimeout(10, TimeUnit.SECONDS) // kurz, damit ohne Server schnell der Offline-Cache greift
+            .connectTimeout(10, TimeUnit.SECONDS) // short, so the offline cache kicks in quickly without a server
             .readTimeout(60, TimeUnit.SECONDS)
             .addInterceptor(ServerInterceptor(sessionStore, onUnauthorized))
             .apply {
@@ -109,7 +109,7 @@ object NetworkFactory {
 }
 
 /**
- * Führt einen API-Aufruf aus und wandelt HTTP-Fehler in [ApiException] mit der Meldung des Servers um.
+ * Executes an API call and converts HTTP errors into [ApiException] with the server's message.
  */
 suspend fun <T> apiCall(block: suspend () -> T): T = try {
     block()

@@ -1,24 +1,24 @@
-//! Wiederkehrende Termine (RFC 5545 RRULE) validieren und expandieren.
+//! Validate and expand recurring events (RFC 5545 RRULE).
 
 use chrono::{DateTime, Duration, NaiveDate, NaiveDateTime, Utc};
 use rrule::{RRule, RRuleSet, Tz as RTz, Unvalidated};
 
 use crate::{models::Event, time};
 
-/// Maximale Anzahl Vorkommen pro Termin und Abfrage.
+/// Maximum number of occurrences per event and query.
 const MAX_OCCURRENCES: u16 = 3000;
 
 fn dtstart(start: DateTime<Utc>, tz: chrono_tz::Tz, all_day: bool) -> DateTime<RTz> {
     if all_day {
-        // Ganztägige Termine werden in UTC (Mitternacht) geführt.
+        // All-day events are kept in UTC (midnight).
         start.with_timezone(&RTz::UTC)
     } else {
         start.with_timezone(&RTz::Tz(tz))
     }
 }
 
-/// Normalisiert eine RRULE (ohne `RRULE:`-Präfix, Großschreibung, UNTIL immer in UTC)
-/// und prüft sie auf Gültigkeit.
+/// Normalizes an RRULE (without `RRULE:` prefix, upper case, UNTIL always in UTC)
+/// and checks it for validity.
 pub fn normalize(rule: &str, start: DateTime<Utc>, tz: chrono_tz::Tz, all_day: bool) -> Result<String, String> {
     let mut s = rule.trim().to_string();
     if s.to_uppercase().starts_with("RRULE:") {
@@ -44,14 +44,14 @@ pub fn normalize(rule: &str, start: DateTime<Utc>, tz: chrono_tz::Tz, all_day: b
     Ok(normalized)
 }
 
-/// UNTIL muss laut RFC 5545 bei zeitzonenbehafteten Startzeiten in UTC angegeben werden.
+/// According to RFC 5545, UNTIL must be given in UTC for start times with a time zone.
 fn normalize_until(v: &str, tz: chrono_tz::Tz, all_day: bool) -> String {
     let v = v.trim();
     if v.ends_with('Z') {
         return v.to_string();
     }
     let utc = if let Ok(d) = NaiveDate::parse_from_str(v, "%Y%m%d") {
-        // Ein reines Datum schließt den ganzen Tag ein.
+        // A plain date includes the whole day.
         let local = d.and_hms_opt(23, 59, 59).unwrap();
         if all_day {
             time::midnight_utc(d) + Duration::seconds(86399)
@@ -65,7 +65,7 @@ fn normalize_until(v: &str, tz: chrono_tz::Tz, all_day: bool) -> String {
             time::local_to_utc(local, tz)
         }
     } else {
-        return v.to_string(); // wird beim Validieren abgelehnt
+        return v.to_string(); // rejected during validation
     };
     utc.format("%Y%m%dT%H%M%SZ").to_string()
 }
@@ -77,7 +77,7 @@ fn build(rule: &str, start: DateTime<Utc>, tz: chrono_tz::Tz, all_day: bool) -> 
         .map_err(|e| format!("Ungültige Wiederholungsregel: {e}"))
 }
 
-/// Liefert die Startzeitpunkte aller Vorkommen, die den Zeitraum [from, to) berühren.
+/// Returns the start times of all occurrences that touch the range [from, to).
 pub fn occurrences(ev: &Event, from: DateTime<Utc>, to: DateTime<Utc>) -> Vec<DateTime<Utc>> {
     let duration = ev.end - ev.start;
     let overlaps = |s: DateTime<Utc>| s < to && (s + duration > from || (duration.is_zero() && s >= from));
@@ -135,12 +135,12 @@ mod tests {
 
     #[test]
     fn weekly_keeps_local_time_across_dst() {
-        // 09:00 Berlin (Winterzeit = 08:00 UTC), wöchentlich bis in den Sommer
+        // 09:00 Berlin (winter time = 08:00 UTC), weekly into the summer
         let start = Utc.with_ymd_and_hms(2026, 3, 16, 8, 0, 0).unwrap();
         let ev = event(start, start + Duration::hours(1), "Europe/Berlin", "FREQ=WEEKLY;COUNT=4");
         let occ = occurrences(&ev, start, start + Duration::days(30));
         assert_eq!(occ.len(), 4);
-        // Nach der Umstellung am 29.03. liegt 09:00 Berlin bei 07:00 UTC
+        // After the change on March 29, 09:00 Berlin is 07:00 UTC
         assert_eq!(occ[2], Utc.with_ymd_and_hms(2026, 3, 30, 7, 0, 0).unwrap());
     }
 
@@ -152,7 +152,7 @@ mod tests {
         let from = Utc.with_ymd_and_hms(2026, 1, 2, 11, 0, 0).unwrap();
         let to = Utc.with_ymd_and_hms(2026, 1, 5, 0, 0, 0).unwrap();
         let occ = occurrences(&ev, from, to);
-        // 02.01. (läuft noch bis 12:00), 03.01. ausgenommen, 04.01.
+        // Jan 2 (still running until 12:00), Jan 3 excluded, Jan 4
         assert_eq!(occ, vec![
             Utc.with_ymd_and_hms(2026, 1, 2, 10, 0, 0).unwrap(),
             Utc.with_ymd_and_hms(2026, 1, 4, 10, 0, 0).unwrap(),

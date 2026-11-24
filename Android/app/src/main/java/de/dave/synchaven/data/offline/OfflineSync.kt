@@ -37,22 +37,22 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
-/** Zustand des Offline-Betriebs für die Oberfläche */
+/** State of the offline mode for the UI */
 data class OfflineStatus(
-    /** Der Server war zuletzt nicht erreichbar – angezeigt werden die lokal gespeicherten Daten */
+    /** The server was last unreachable – the locally stored data is shown */
     val offline: Boolean = false,
-    /** Grund der letzten fehlgeschlagenen Verbindung */
+    /** Reason for the last failed connection */
     val reason: UiText? = null,
-    /** Noch nicht übertragene Änderungen */
+    /** Changes not yet transferred */
     val pending: Int = 0,
     val syncing: Boolean = false,
-    /** Letzter vollständiger Abgleich */
+    /** Last complete sync */
     val lastSync: Instant? = null,
-    /** Vom Server abgelehnte und daher verworfene Änderung (zuletzt) */
+    /** Change rejected by the server and therefore discarded (most recent) */
     val rejected: UiText? = null,
 )
 
-/** Server nicht erreichbar (Netzwerkfehler oder Gateway-Fehler eines vorgeschalteten Proxys) */
+/** Server unreachable (network error or gateway error of an upstream proxy) */
 fun Throwable.isOfflineError(): Boolean = when (this) {
     is NoServerConfiguredException, is InvalidServerUrlException -> false
     is IOException -> true
@@ -61,10 +61,10 @@ fun Throwable.isOfflineError(): Boolean = when (this) {
 }
 
 /**
- * Hält den [OfflineStore] mit dem Server abgeglichen: überträgt offline gemachte Änderungen in Reihenfolge, lädt
- * danach alle Kalender, Termine, Adressbücher und Kontakte neu und merkt sich, ob der Server erreichbar ist.
- * Abgeglichen wird beim Öffnen des Kontos, sobald das Gerät wieder ein Netz hat, beim Zurückkehren in die App und
- * auf Wunsch.
+ * Keeps the [OfflineStore] in sync with the server: transfers changes made offline in order, then reloads
+ * all calendars, events, address books and contacts and remembers whether the server is reachable.
+ * It syncs when the account is opened, as soon as the device has a network again, when returning to the app and
+ * on request.
  */
 class OfflineSync(
     context: Context,
@@ -72,23 +72,23 @@ class OfflineSync(
     private val store: OfflineStore,
     private val sessionStore: SessionStore,
     private val scope: CoroutineScope,
-    /** Termine auf dem Server geändert (beim Übertragen) */
+    /** Events changed on the server (during transfer) */
     private val onEventsChanged: () -> Unit,
-    /** Kontakte auf dem Server geändert (beim Übertragen) */
+    /** Contacts changed on the server (during transfer) */
     private val onContactsChanged: () -> Unit,
 ) {
-    /** `null` = unbekannt (z. B. nach einem Netzwechsel) */
+    /** `null` = unknown (e.g. after a network change) */
     private val reachable = MutableStateFlow<Boolean?>(null)
 
-    /** Lokaler Modus: Es gibt keinen Server – die „API“ schreibt direkt in den [store], abzugleichen ist nichts. */
+    /** Local mode: there is no server – the "API" writes directly to the [store], there is nothing to sync. */
     private val local: Boolean get() = sessionStore.current?.local == true
     private val reason = MutableStateFlow<UiText?>(null)
     private val syncing = MutableStateFlow(false)
     private val rejected = MutableStateFlow<UiText?>(null)
 
-    /** Schützt die Warteschlange: direkte Schreibzugriffe und das Übertragen laufen nacheinander. */
+    /** Protects the queue: direct writes and transfers run one after the other. */
     private val writeMutex = Mutex()
-    /** Der erste Eintrag der Warteschlange wird gerade übertragen und darf nicht mehr zusammengefasst werden. */
+    /** The first entry of the queue is currently being transferred and must no longer be coalesced. */
     private var inFlight = false
     private val requests = Channel<Unit>(Channel.CONFLATED)
 
@@ -113,7 +113,7 @@ class OfflineSync(
         runCatching {
             cm?.registerDefaultNetworkCallback(object : ConnectivityManager.NetworkCallback() {
                 override fun onAvailable(network: Network) {
-                    // Neues Netz: Server erneut versuchen und ausstehende Änderungen übertragen
+                    // New network: retry the server and transfer pending changes
                     reachable.value = null
                     requestSync()
                 }
@@ -125,12 +125,12 @@ class OfflineSync(
         }
     }
 
-    /** Stößt einen Abgleich an (mehrere Anfragen werden zusammengefasst). */
+    /** Triggers a sync (multiple requests are coalesced). */
     fun requestSync() {
         requests.trySend(Unit)
     }
 
-    /** Abgleich, wenn der letzte länger als [maxAge] her ist, Änderungen ausstehen oder der Server nicht erreichbar war. */
+    /** Syncs if the last sync is older than [maxAge], changes are pending or the server was unreachable. */
     fun syncIfNeeded(maxAge: Duration = Duration.ofMinutes(5)) {
         val s = status.value
         val stale = s.lastSync == null || s.lastSync.plus(maxAge) < Instant.now()
@@ -141,18 +141,18 @@ class OfflineSync(
         rejected.value = null
     }
 
-    /** Anderes Konto oder lokaler Modus: Erreichbarkeit und Meldungen des vorigen gelten nicht mehr. */
+    /** Different account or local mode: reachability and messages of the previous one no longer apply. */
     fun reset() {
         reachable.value = null
         reason.value = null
         rejected.value = null
     }
 
-    // ---------- Zugriffe der Repositories ----------
+    // ---------- Access from the repositories ----------
 
     /**
-     * Schreibt beim Server ([online]) oder – wenn er nicht erreichbar ist oder noch Änderungen ausstehen – lokal:
-     * [op] wird angewendet, in die Warteschlange gestellt und [offline] liefert das Ergebnis aus dem lokalen Stand.
+     * Writes to the server ([online]) or – if it is unreachable or changes are still pending – locally:
+     * [op] is applied and queued, and [offline] returns the result from the local state.
      */
     suspend fun <T> write(op: PendingOp, online: suspend () -> T, offline: (OfflineData) -> T): T {
         store.awaitReady()
@@ -175,7 +175,7 @@ class OfflineSync(
         return result
     }
 
-    /** Nur beim Server möglich (z. B. Import); merkt sich, ob er erreichbar war. */
+    /** Only possible with the server (e.g. import); remembers whether it was reachable. */
     suspend fun <T> online(block: suspend () -> T): T = try {
         block().also { markReachable() }
     } catch (e: Throwable) {
@@ -184,8 +184,8 @@ class OfflineSync(
     }
 
     /**
-     * Lesen mit Rückfall auf den Cache: vom Server ([fetch]), bei fehlender Verbindung aus [cached]. Ist der Server
-     * bekanntermaßen nicht erreichbar oder [preferCache] gesetzt, wird gar nicht erst gefragt.
+     * Read with fallback to the cache: from the server ([fetch]), from [cached] without a connection. If the server
+     * is known to be unreachable or [preferCache] is set, it isn't asked at all.
      */
     suspend fun <T> read(preferCache: Boolean = false, cached: (OfflineData) -> T?, fetch: suspend () -> T): T {
         store.awaitReady()
@@ -199,7 +199,7 @@ class OfflineSync(
         }
     }
 
-    /** Hat [id] noch nicht übertragene Änderungen? Dann ist der lokale Stand neuer als der des Servers. */
+    /** Does [id] have changes not yet transferred? Then the local state is newer than the server's. */
     fun hasPending(id: String): Boolean = store.data.value.let { d -> d.outbox.any { it.targetId == d.resolve(id) } }
 
     val hasAnyPending: Boolean get() = store.data.value.outbox.isNotEmpty()
@@ -208,7 +208,7 @@ class OfflineSync(
         if (reachable.value != true) {
             reachable.value = true
             reason.value = null
-            // Wieder erreichbar: ausstehende Änderungen übertragen
+            // Reachable again: transfer pending changes
             if (!syncing.value && store.data.value.outbox.isNotEmpty()) requestSync()
         }
     }
@@ -218,7 +218,7 @@ class OfflineSync(
         reason.value = e?.userMessage()
     }
 
-    // ---------- Abgleich ----------
+    // ---------- Sync ----------
 
     private suspend fun syncOnce() {
         store.awaitReady()
@@ -244,7 +244,7 @@ class OfflineSync(
 
     private class FlushResult(var complete: Boolean = true, var events: Boolean = false, var contacts: Boolean = false)
 
-    /** Überträgt die Warteschlange in Reihenfolge. Bricht ab, sobald der Server nicht erreichbar ist. */
+    /** Transfers the queue in order. Stops as soon as the server is unreachable. */
     private suspend fun flush(): FlushResult {
         val result = FlushResult()
         while (true) {
@@ -267,7 +267,7 @@ class OfflineSync(
                     result.complete = false
                     return result
                 }
-                // Vom Server abgelehnt (z. B. inzwischen gelöscht oder ungültig): verwerfen, sonst blockiert sie alles
+                // Rejected by the server (e.g. deleted in the meantime or invalid): discard, otherwise it blocks everything
                 Log.w(TAG, "Änderung verworfen: $op", e)
                 rejected.value = e.userMessage()
                 val keepAsIs: (OfflineData) -> OfflineData = { it }
@@ -284,12 +284,12 @@ class OfflineSync(
                 is PendingOp.CreateEvent, is PendingOp.UpdateEvent, is PendingOp.DeleteEvent, is PendingOp.AddExdate ->
                     result.events = true
                 is PendingOp.CreateContact, is PendingOp.UpdateContact, is PendingOp.DeleteContact -> {
-                    // Geburtstage hängen an den Kontakten
+                    // Birthdays depend on the contacts
                     result.contacts = true
                     result.events = true
                 }
                 is PendingOp.UpdateCalendar -> result.events = true
-                // Aufgaben zeigen die Ansichten direkt aus dem Store – nichts weiter anzustoßen
+                // The views show tasks directly from the store – nothing else to trigger
                 is PendingOp.CreateTask, is PendingOp.UpdateTask, is PendingOp.SetTaskCompleted,
                 is PendingOp.DeleteTask, is PendingOp.UpdateTaskList, is PendingOp.SetDefaultView -> Unit
             }
@@ -297,7 +297,7 @@ class OfflineSync(
         }
     }
 
-    /** Sendet eine Änderung und liefert, wie der lokale Stand danach anzupassen ist. */
+    /** Sends a change and returns how the local state has to be adjusted afterwards. */
     private suspend fun send(op: PendingOp): (OfflineData) -> OfflineData = when (op) {
         is PendingOp.CreateEvent -> {
             val ev = apiCall { api.createEvent(op.input) }
@@ -401,7 +401,7 @@ class OfflineSync(
         }
     }
 
-    /** Lädt alle Daten des Kontos neu und rechnet ausstehende Änderungen wieder ein. */
+    /** Reloads all data of the account and applies pending changes again. */
     suspend fun refreshAll() {
         val token = store.token
         coroutineScope {
@@ -410,7 +410,7 @@ class OfflineSync(
                 try {
                     calendars.map { c -> async { apiCall { api.calendarEvents(c.id) } } }.awaitAll().flatten()
                 } catch (e: ApiException) {
-                    // Älterer Server ohne Serien-Endpunkt: Termine nur online
+                    // Older server without the series endpoint: events only online
                     if (e.status == 404) null else throw e
                 }
             }
@@ -436,7 +436,7 @@ class OfflineSync(
         }
     }
 
-    /** Ersetzt die Daten einer Liste durch den Stand des Servers (ausstehende Änderungen bleiben eingerechnet). */
+    /** Replaces a list's data with the server's state (pending changes stay applied). */
     suspend fun mergeServer(transform: (OfflineData) -> OfflineData) {
         store.awaitReady()
         store.update { transform(it).withPending() }
@@ -448,8 +448,8 @@ class OfflineSync(
 }
 
 /**
- * Aufgabenlisten und alle Aufgaben vom Server; `null` bei einem älteren Server ohne Aufgaben (404).
- * Die Listen zuerst: `GET /task-lists` legt bei Bedarf „Meine Aufgaben“ an.
+ * Task lists and all tasks from the server; `null` for an older server without tasks (404).
+ * Lists first: `GET /task-lists` creates "Meine Aufgaben" if needed.
  */
 suspend fun fetchTasks(api: SyncHavenApi): Pair<List<TaskList>, List<Task>>? = try {
     val lists = apiCall { api.taskLists() }
@@ -458,7 +458,7 @@ suspend fun fetchTasks(api: SyncHavenApi): Pair<List<TaskList>, List<Task>>? = t
     if (e.status == 404) null else throw e
 }
 
-/** Ersetzt bereits übertragene vorläufige IDs durch die des Servers. */
+/** Replaces temporary IDs that have already been transferred with the server's. */
 private fun PendingOp.resolve(idMap: Map<String, String>): PendingOp {
     val server = idMap[targetId] ?: return this
     return listOf(this).remap(targetId, server).first()

@@ -8,8 +8,8 @@ import kotlinx.serialization.json.JsonElement
 import de.dave.synchaven.util.ReminderFieldSerializer
 import de.dave.synchaven.util.Reminders
 
-// Datenmodelle der REST API (siehe docs/API.md). Zeitangaben bleiben Strings im RFC-3339-Format;
-// die Umrechnung in java.time übernimmt die UI-Schicht (util/Dates.kt).
+// Data models of the REST API (see docs/API.md). Times stay strings in RFC 3339 format;
+// the UI layer converts them to java.time (util/Dates.kt).
 
 @Serializable
 data class ServerInfo(
@@ -24,7 +24,7 @@ data class User(
     val id: String,
     val email: String,
     val name: String = "",
-    /** Standardansicht des Kalenders: `month`, `week`, `day` oder `list` */
+    /** The calendar's default view: `month`, `week`, `day` or `list` */
     @SerialName("default_view") val defaultView: String = "month",
     @SerialName("created_at") val createdAt: String = "",
 )
@@ -54,7 +54,7 @@ data class UpdateMeRequest(
 @Serializable
 data class ApiErrorBody(val error: String = "", val message: String = "")
 
-// ---------- Kalender ----------
+// ---------- Calendars ----------
 
 @Serializable
 data class Calendar(
@@ -63,21 +63,21 @@ data class Calendar(
     val color: String = "#6750A4",
     val description: String = "",
     val visible: Boolean = true,
-    /** `default` oder `birthdays` (automatisch aus den Kontakten erzeugt) */
+    /** `default` or `birthdays` (generated automatically from the contacts) */
     val kind: String = "default",
-    /** Standard-Erinnerungen (Minuten vor Beginn) für Termine mit Uhrzeit */
+    /** Default reminders (minutes before the start) for timed events */
     @SerialName("default_reminders") val defaultReminders: List<Int> = Reminders.DEFAULT_TIMED,
-    /** Standard-Erinnerungen für ganztägige Termine (negativ = Uhrzeit am Tag selbst) */
+    /** Default reminders for all-day events (negative = time on the day itself) */
     @SerialName("default_all_day_reminders") val defaultAllDayReminders: List<Int> = Reminders.DEFAULT_ALL_DAY,
     @SerialName("created_at") val createdAt: String = "",
     @SerialName("updated_at") val updatedAt: String = "",
 ) {
-    /** Ohne Standard-Erinnerungen – der Server lässt sie dann unverändert */
+    /** Without default reminders – the server then leaves them unchanged */
     fun toInput() = CalendarInput(name, color, description, visible)
 
     fun defaultReminders(allDay: Boolean) = if (allDay) defaultAllDayReminders else defaultReminders
 
-    /** Geburtstagskalender: nicht löschbar, Termine schreibgeschützt */
+    /** Birthday calendar: cannot be deleted, events read-only */
     val isBirthdays get() = kind == "birthdays"
 }
 
@@ -87,7 +87,7 @@ data class CalendarInput(
     val color: String,
     val description: String = "",
     val visible: Boolean = true,
-    /** `null`: bisherige Standard-Erinnerungen bleiben erhalten */
+    /** `null`: the existing default reminders are kept */
     @SerialName("default_reminders") val defaultReminders: List<Int>? = null,
     @SerialName("default_all_day_reminders") val defaultAllDayReminders: List<Int>? = null,
 )
@@ -95,7 +95,7 @@ data class CalendarInput(
 @Serializable
 data class ImportResult(val imported: Int = 0, val skipped: List<String> = emptyList())
 
-/** Termin bzw. bei Serien die Serie selbst */
+/** Event, or for series the series itself */
 @Serializable
 data class CalEvent(
     val id: String,
@@ -110,7 +110,7 @@ data class CalEvent(
     val timezone: String = "UTC",
     val rrule: String? = null,
     val exdates: List<String> = emptyList(),
-    /** Erinnerungen in Minuten vor Beginn; `null` = Standard des Kalenders */
+    /** Reminders in minutes before the start; `null` = calendar default */
     val reminders: List<Int>? = null,
     @SerialName("contact_id") val contactId: String? = null,
     @SerialName("read_only") val readOnly: Boolean = false,
@@ -130,15 +130,15 @@ data class EventInput(
     val rrule: String?,
     val exdates: List<String> = emptyList(),
     /**
-     * Erinnerungen, siehe [remindersField]: `null` (Feld fehlt) lässt sie unverändert, `JsonNull` setzt den
-     * Kalender-Standard, eine Liste eigene Erinnerungen.
+     * Reminders, see [remindersField]: `null` (field missing) leaves them unchanged, `JsonNull` sets the
+     * calendar default, a list sets own reminders.
      */
     @EncodeDefault(EncodeDefault.Mode.NEVER)
     @Serializable(with = ReminderFieldSerializer::class)
     val reminders: JsonElement? = null,
 )
 
-/** Einzelnes Vorkommen eines Termins (Serien werden vom Server expandiert) */
+/** Single occurrence of an event (series are expanded by the server) */
 @Serializable
 data class Occurrence(
     val id: String,
@@ -153,18 +153,18 @@ data class Occurrence(
     val timezone: String = "UTC",
     val recurring: Boolean = false,
     val rrule: String? = null,
-    /** Kontakt, aus dessen Geburtstag der Termin erzeugt wurde */
+    /** Contact whose birthday the event was generated from */
     @SerialName("contact_id") val contactId: String? = null,
-    /** Automatisch erzeugte Termine (Geburtstage) können nicht bearbeitet werden */
+    /** Automatically generated events (birthdays) cannot be edited */
     @SerialName("read_only") val readOnly: Boolean = false,
-    /** Erinnerungen des Termins; `null` = Standard des Kalenders */
+    /** The event's reminders; `null` = calendar default */
     val reminders: List<Int>? = null,
 )
 
 @Serializable
 data class ExdateRequest(@SerialName("occurrence_start") val occurrenceStart: String)
 
-// ---------- Kontakte ----------
+// ---------- Contacts ----------
 
 @Serializable
 data class AddressBook(
@@ -177,7 +177,7 @@ data class AddressBook(
 @Serializable
 data class AddressBookInput(val name: String, val description: String = "")
 
-/** Telefonnummer, E-Mail-Adresse oder Website mit Typ (`mobile`, `home`, `work`, … oder eigene Bezeichnung) */
+/** Phone number, email address or website with a type (`mobile`, `home`, `work`, … or a custom label) */
 @Serializable
 data class TypedValue(val type: String = "", val value: String = "")
 
@@ -198,7 +198,7 @@ data class Contact(
     val id: String = "",
     @SerialName("addressbook_id") val addressBookId: String = "",
     val uid: String = "",
-    /** Ändert sich mit jeder Änderung des Kontakts (auch des Fotos) – für die Synchronisierung */
+    /** Changes with every change of the contact (also of the photo) – for syncing */
     val etag: String = "",
     @SerialName("full_name") val fullName: String = "",
     val prefix: String = "",
@@ -214,13 +214,13 @@ data class Contact(
     val emails: List<TypedValue> = emptyList(),
     val addresses: List<PostalAddress> = emptyList(),
     val urls: List<TypedValue> = emptyList(),
-    /** `YYYY-MM-DD` oder `--MM-DD` (ohne Jahr) */
+    /** `YYYY-MM-DD` or `--MM-DD` (without year) */
     val birthday: String = "",
     val note: String = "",
-    /** Kategorien (vCard `CATEGORIES`) */
+    /** Categories (vCard `CATEGORIES`) */
     val categories: List<String> = emptyList(),
     @SerialName("has_photo") val hasPhoto: Boolean = false,
-    /** nur bei Einzelabfrage: data:-URL */
+    /** only for single queries: data: URL */
     val photo: String? = null,
 ) {
     fun toInput() = ContactInput(
@@ -250,9 +250,9 @@ data class ContactInput(
     val urls: List<TypedValue>,
     val birthday: String,
     val note: String,
-    /** `null` lässt die Kategorien unverändert */
+    /** `null` leaves the categories unchanged */
     val categories: List<String>? = null,
-    /** Neues Foto als data:-URL, `""` entfernt es, `null` lässt es unverändert */
+    /** New photo as a data: URL, `""` removes it, `null` leaves it unchanged */
     val photo: String? = null,
 )
 
@@ -265,16 +265,16 @@ data class ContactImportResult(
     val skipped: List<String> = emptyList(),
 )
 
-// ---------- Aufgaben ----------
+// ---------- Tasks ----------
 
 @Serializable
 data class TaskList(
     val id: String,
     val name: String,
     val color: String = "#1A73E8",
-    /** Aufgaben dieser Liste im Kalender anzeigen */
+    /** Show this list's tasks in the calendar */
     val visible: Boolean = true,
-    /** Anzahl offener Aufgaben */
+    /** Number of open tasks */
     @SerialName("open_count") val openCount: Int = 0,
     @SerialName("created_at") val createdAt: String = "",
     @SerialName("updated_at") val updatedAt: String = "",
@@ -282,7 +282,7 @@ data class TaskList(
     fun toInput() = TaskListInput(name, color, visible)
 }
 
-/** `color` und `visible` sind optional; beim Bearbeiten bleiben fehlende Werte erhalten. */
+/** `color` and `visible` are optional; when editing, missing values are kept. */
 @Serializable
 data class TaskListInput(
     val name: String,
@@ -291,8 +291,8 @@ data class TaskListInput(
 )
 
 /**
- * Aufgabe. [due] folgt dem Zeitmodell der Termine: ganztägig als Mitternacht UTC des Tages, sonst ein Zeitpunkt in
- * UTC; `null` = ohne Datum (dann ist [allDay] immer `true`).
+ * Task. [due] follows the events' time model: all-day as midnight UTC of the day, otherwise a point in time in
+ * UTC; `null` = without date (then [allDay] is always `true`).
  */
 @Serializable
 data class Task(
@@ -306,10 +306,10 @@ data class Task(
     @SerialName("completed_at") val completedAt: String? = null,
     @SerialName("created_at") val createdAt: String = "",
     @SerialName("updated_at") val updatedAt: String = "",
-    /** Übergeordnete Aufgabe, wenn dies eine Unteraufgabe ist */
+    /** Parent task if this is a subtask */
     @SerialName("parent_id") val parentId: String? = null,
 ) {
-    /** Eingabe zum Speichern mit unverändertem Status (`completed` fehlt) */
+    /** Input for saving with unchanged status (`completed` missing) */
     fun toInput() = TaskInput(listId, title, notes, due, allDay, parentId = parentId)
 }
 
@@ -320,11 +320,11 @@ data class TaskInput(
     val notes: String = "",
     val due: String? = null,
     @SerialName("all_day") val allDay: Boolean = true,
-    /** `null` lässt den Status unverändert (neue Aufgaben sind offen) */
+    /** `null` leaves the status unchanged (new tasks are open) */
     val completed: Boolean? = null,
     /**
-     * Übergeordnete Aufgabe derselben Liste. `null` wird nicht gesendet und lässt die Zuordnung unverändert (neue
-     * Aufgaben: Hauptaufgabe); eine Unteraufgabe in einer anderen Liste wird zur Hauptaufgabe.
+     * Parent task in the same list. `null` is not sent and leaves the assignment unchanged (new
+     * tasks: top-level task); a subtask in another list becomes a top-level task.
      */
     @OptIn(ExperimentalSerializationApi::class)
     @EncodeDefault(EncodeDefault.Mode.NEVER)

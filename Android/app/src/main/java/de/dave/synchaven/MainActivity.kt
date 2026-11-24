@@ -30,7 +30,7 @@ class MainActivity : ComponentActivity() {
         handleIntent(intent)
     }
 
-    /** „Konto hinzufügen → Synchaven“ in den Android-Einstellungen: Konto für die Sitzung anlegen (sonst Anmeldung). */
+    /** "Add account → Synchaven" in the Android settings: create the account for the session (otherwise sign-in). */
     private fun handleIntent(intent: Intent?) {
         if (intent?.getBooleanExtra(EXTRA_SETUP_SYNC, false) != true) return
         intent.removeExtra(EXTRA_SETUP_SYNC)

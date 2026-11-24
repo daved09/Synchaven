@@ -16,7 +16,7 @@ use crate::{
     recurrence, reminders, time, AppState,
 };
 
-/// Validierte, speicherfertige Termindaten.
+/// Validated event data ready to be stored.
 pub struct EventData {
     pub calendar_id: String,
     pub title: String,
@@ -28,7 +28,7 @@ pub struct EventData {
     pub timezone: String,
     pub rrule: Option<String>,
     pub exdates: Vec<DateTime<Utc>>,
-    /// `None`: unverändert lassen; `Some(None)`: Kalender-Standard; `Some(Some(..))`: eigene Erinnerungen
+    /// `None`: leave unchanged; `Some(None)`: calendar default; `Some(Some(..))`: own reminders
     pub reminders: Option<Option<Vec<i32>>>,
 }
 
@@ -43,7 +43,7 @@ impl EventData {
             .ok_or_else(|| AppError::BadRequest(format!("Unbekannte Zeitzone: {tz_name}")))?;
 
         let (start, end) = if input.all_day {
-            // Ganztägig: Mitternacht UTC, Ende exklusiv
+            // All-day: midnight UTC, end exclusive
             let s = time::midnight_utc(input.start.date_naive());
             let e = time::midnight_utc(input.end.date_naive());
             (s, if e <= s { s + Duration::days(1) } else { e })
@@ -87,7 +87,7 @@ impl EventData {
         serde_json::to_string(&self.exdates.iter().map(|d| time::to_db(*d)).collect::<Vec<_>>()).unwrap()
     }
 
-    /// (Erinnerungen übernehmen?, JSON oder NULL)
+    /// (take over reminders?, JSON or NULL)
     fn reminders_db(&self) -> (bool, Option<String>) {
         match &self.reminders {
             None => (false, None),
@@ -96,7 +96,7 @@ impl EventData {
     }
 }
 
-/// Fügt einen Termin ein oder aktualisiert ihn anhand von (calendar_id, uid).
+/// Inserts an event or updates it by (calendar_id, uid).
 pub async fn upsert(state: &AppState, uid: &str, data: &EventData) -> AppResult<String> {
     let now = time::to_db(time::now());
     let (set_reminders, reminders) = data.reminders_db();
@@ -147,7 +147,7 @@ async fn owned_event(state: &AppState, user_id: &str, id: &str) -> AppResult<Eve
     .ok_or(AppError::NotFound)
 }
 
-/// Wie `owned_event`, aber nur für Termine, die von Hand bearbeitet werden dürfen.
+/// Like `owned_event`, but only for events that may be edited by hand.
 async fn editable_event(state: &AppState, user_id: &str, id: &str) -> AppResult<EventRow> {
     let row = owned_event(state, user_id, id).await?;
     if row.contact_id.is_some() {
@@ -160,13 +160,13 @@ async fn editable_event(state: &AppState, user_id: &str, id: &str) -> AppResult<
 pub struct ListQuery {
     start: DateTime<Utc>,
     end: DateTime<Utc>,
-    /// Kommagetrennte Kalender-IDs (optional)
+    /// Comma-separated calendar IDs (optional)
     calendar_ids: Option<String>,
-    /// Volltextsuche in Titel, Beschreibung und Ort (optional)
+    /// Full-text search in title, description and location (optional)
     q: Option<String>,
 }
 
-/// Termine eines Zeitraums – wiederkehrende Termine werden in Einzelvorkommen expandiert.
+/// Events in a range – recurring events are expanded into single occurrences.
 pub async fn list(
     State(state): State<AppState>,
     auth: AuthUser,
@@ -248,8 +248,8 @@ pub async fn list(
     Ok(Json(out))
 }
 
-/// Alle Termine eines Kalenders ohne Expansion (Serien als ein Eintrag mit `rrule`/`exdates`) –
-/// für Clients, die selbst synchronisieren (Android-Kalender).
+/// All events of a calendar without expansion (series as one entry with `rrule`/`exdates`) –
+/// for clients that sync themselves (Android calendar).
 pub async fn list_series(
     State(state): State<AppState>,
     auth: AuthUser,
@@ -326,11 +326,11 @@ pub async fn delete(State(state): State<AppState>, auth: AuthUser, Path(id): Pat
 
 #[derive(Deserialize)]
 pub struct ExdateInput {
-    /// Startzeit des Vorkommens, das entfallen soll
+    /// Start time of the occurrence to be removed
     occurrence_start: DateTime<Utc>,
 }
 
-/// Entfernt ein einzelnes Vorkommen aus einer Serie (EXDATE).
+/// Removes a single occurrence from a series (EXDATE).
 pub async fn add_exdate(
     State(state): State<AppState>,
     auth: AuthUser,

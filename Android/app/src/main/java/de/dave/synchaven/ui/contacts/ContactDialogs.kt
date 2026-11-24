@@ -40,7 +40,7 @@ import de.dave.synchaven.data.model.AddressBook
 import de.dave.synchaven.data.model.AddressBookInput
 import de.dave.synchaven.ui.common.ConfirmDialog
 
-/** Adressbücher anlegen, umbenennen, löschen, importieren und exportieren */
+/** Create, rename, delete, import and export address books */
 @Composable
 fun AddressBooksDialog(
     books: List<AddressBook>,

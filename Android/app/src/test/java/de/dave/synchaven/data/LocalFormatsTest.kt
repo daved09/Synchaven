@@ -19,7 +19,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** iCalendar, vCard und Geburtstage des lokalen Modus – dieselben Fälle wie die Tests im Backend. */
+/** iCalendar, vCard and birthdays of the local mode – the same cases as the tests in the backend. */
 class LocalFormatsTest {
 
     // ---------- iCalendar ----------
@@ -182,7 +182,7 @@ class LocalFormatsTest {
         assertEquals("--05-12", VCard.extract(card).birthday)
     }
 
-    // ---------- Geburtstage ----------
+    // ---------- Birthdays ----------
 
     @Test
     fun parsesBirthdays() {
@@ -212,18 +212,18 @@ class LocalFormatsTest {
         assertTrue(ev.readOnly && ev.allDay)
         assertEquals("Geboren am 12.08.1964", ev.description)
         assertTrue(own in d.events!!)
-        // Alter im Titel des Vorkommens
+        // Age in the title of the occurrence
         val occ = d.occurrences(Instant.parse("2026-08-01T00:00:00Z"), Instant.parse("2026-09-01T00:00:00Z"))!!
         assertEquals("🎂 Erika (62)", occ.single().title)
 
-        // Geburtstag entfernt: Termin weg, Kalender bleibt; ID bleibt bei Änderungen stabil
+        // Birthday removed: event gone, calendar stays; the ID stays stable across changes
         val changed = Birthdays.sync(d.copy(contacts = listOf(Contact(id = "k1", fullName = "Erika M.", birthday = "1964-08-13"))), newId, "x")
         assertEquals(ev.id, changed.events!!.single { it.contactId == "k1" }.id)
         val removed = Birthdays.sync(d.copy(contacts = listOf(Contact(id = "k1", fullName = "Erika"))), newId, "x")
         assertTrue(removed.events!!.none { it.contactId != null })
         assertTrue(removed.calendars!!.any { it.isBirthdays })
 
-        // Ohne Geburtstage entsteht kein Kalender
+        // Without birthdays no calendar is created
         assertEquals(start.copy(contacts = emptyList()), Birthdays.sync(start.copy(contacts = emptyList()), newId, "x"))
     }
 }

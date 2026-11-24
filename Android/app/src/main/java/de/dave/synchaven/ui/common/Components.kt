@@ -75,7 +75,7 @@ fun ErrorBox(message: UiText, onRetry: (() -> Unit)?, modifier: Modifier = Modif
     }
 }
 
-/** Bestätigungsdialog; [destructive] färbt die Bestätigung rot. Ohne [confirmLabel]: „Löschen“. */
+/** Confirmation dialog; [destructive] colors the confirmation red. Without [confirmLabel]: "Löschen". */
 @Composable
 fun ConfirmDialog(
     title: String,
@@ -100,7 +100,7 @@ fun ConfirmDialog(
     )
 }
 
-/** Farbauswahl als Kreise; die gewählte Farbe trägt einen Haken. */
+/** Color picker as circles; the selected color has a check mark. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun ColorSwatches(colors: List<String>, selected: String, onSelect: (String) -> Unit, modifier: Modifier = Modifier) {
@@ -127,7 +127,7 @@ fun ColorSwatches(colors: List<String>, selected: String, onSelect: (String) -> 
     }
 }
 
-// DatePicker rechnet in UTC-Millisekunden
+// DatePicker works in UTC milliseconds
 private fun LocalDate.toPickerMillis() = atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli()
 private fun Long.toPickerDate() = Instant.ofEpochMilli(this).atOffset(ZoneOffset.UTC).toLocalDate()
 
@@ -163,7 +163,7 @@ fun TimePickerModal(initial: LocalTime, onPick: (LocalTime) -> Unit, onDismiss: 
     )
 }
 
-/** Hauptbereiche der App in der unteren Navigationsleiste */
+/** Main sections of the app in the bottom navigation bar */
 enum class MainTab(@StringRes val labelRes: Int, val icon: ImageVector) {
     CALENDAR(R.string.tab_calendar, Icons.Outlined.CalendarMonth),
     TASKS(R.string.tab_tasks, Icons.Outlined.Checklist),

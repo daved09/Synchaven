@@ -50,7 +50,7 @@ import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.format.TextStyle
 
-/** Einstellungen für Wiederholungen (wie RecurrenceEditor.vue) */
+/** Recurrence settings (like RecurrenceEditor.vue) */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun RecurrenceEditor(
@@ -78,7 +78,7 @@ fun RecurrenceEditor(
                         text = { Text(stringResource(f.labelRes)) },
                         onClick = {
                             expanded = false
-                            // Beim Wechsel zu „Benutzerdefiniert“ die bisherige Regel als Vorlage übernehmen
+                            // When switching to "Custom", use the existing rule as a template
                             val raw = if (f == Freq.CUSTOM && form.raw.isBlank()) buildRRule(form, start).orEmpty() else form.raw
                             onChange(form.copy(freq = f, raw = raw, byDay = form.byDay.ifEmpty { setOf(start.dayOfWeek) }))
                         },

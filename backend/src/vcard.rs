@@ -1,22 +1,22 @@
-//! vCard lesen und schreiben (RFC 2426 / RFC 6350), inkl. Import von vCard 2.1.
+//! Reading and writing vCards (RFC 2426 / RFC 6350), incl. import of vCard 2.1.
 //!
-//! Kontakte werden als vollständiger vCard-Text gespeichert. Änderungen aus der Weboberfläche
-//! ersetzen nur die Eigenschaften, die sie tatsächlich ändern – alles andere (Fotos, Gruppen,
-//! Felder anderer Programme) bleibt unverändert erhalten, damit DAVx⁵ & Co. nichts verlieren.
+//! Contacts are stored as complete vCard text. Changes from the web UI
+//! only replace the properties they actually change – everything else (photos, groups,
+//! fields of other programs) is kept unchanged, so DAVx⁵ & co. don't lose anything.
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
-// ---------- Zeilen ----------
+// ---------- Lines ----------
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Line {
     pub group: Option<String>,
-    /// Großgeschrieben, z. B. `TEL`
+    /// Upper case, e.g. `TEL`
     pub name: String,
-    /// Parametername großgeschrieben, Wert ohne Anführungszeichen
+    /// Parameter name in upper case, value without quotes
     pub params: Vec<(String, String)>,
-    /// Roher (escapter) Wert
+    /// Raw (escaped) value
     pub value: String,
 }
 
@@ -36,7 +36,7 @@ impl Line {
         self.params.iter().find(|(k, _)| k == key).map(|(_, v)| v.as_str())
     }
 
-    /// Alle TYPE-Werte, kleingeschrieben (`TYPE=work,voice;TYPE=pref` → work, voice, pref).
+    /// All TYPE values, lower case (`TYPE=work,voice;TYPE=pref` → work, voice, pref).
     pub fn types(&self) -> Vec<String> {
         self.params
             .iter()
@@ -72,7 +72,7 @@ impl Line {
     }
 }
 
-/// Zeilen nach 75 Oktetts umbrechen, ohne UTF-8-Zeichen zu zerteilen.
+/// Fold lines after 75 octets without splitting UTF-8 characters.
 fn fold(line: &str, out: &mut String) {
     let mut len = 0;
     for ch in line.chars() {
@@ -91,8 +91,8 @@ fn is_qp(head: &str) -> bool {
     head.to_ascii_uppercase().contains("QUOTED-PRINTABLE")
 }
 
-/// Fortsetzungszeilen zusammenführen. vCard 2.1 bricht Quoted-Printable-Werte zusätzlich
-/// mit `=` am Zeilenende um („soft line break“), die Folgezeile beginnt dann ohne Leerzeichen.
+/// Unfold continuation lines. vCard 2.1 additionally folds quoted-printable values
+/// with `=` at the end of the line ("soft line break"); the next line then starts without a space.
 fn unfold(text: &str) -> Vec<String> {
     let text = text.trim_start_matches('\u{feff}');
     let raw: Vec<&str> = text.split('\n').map(|l| l.strip_suffix('\r').unwrap_or(l)).collect();
@@ -120,7 +120,7 @@ fn unfold(text: &str) -> Vec<String> {
     lines
 }
 
-/// Teilt an `sep`, ignoriert dabei Trennzeichen innerhalb von Anführungszeichen.
+/// Splits at `sep`, ignoring separators inside quotes.
 fn split_unquoted(s: &str, sep: char) -> Vec<&str> {
     let mut parts = Vec::new();
     let mut in_quotes = false;
@@ -159,7 +159,7 @@ fn parse_line(line: &str) -> Option<Line> {
         .filter(|p| !p.trim().is_empty())
         .map(|p| match p.split_once('=') {
             Some((k, v)) => (k.trim().to_uppercase(), v.trim().trim_matches('"').to_string()),
-            // vCard 2.1: Parameter ohne Namen, z. B. `TEL;CELL;PREF:` oder `;QUOTED-PRINTABLE`
+            // vCard 2.1: parameters without a name, e.g. `TEL;CELL;PREF:` or `;QUOTED-PRINTABLE`
             None => {
                 let v = p.trim().to_uppercase();
                 let key = match v.as_str() {
@@ -173,19 +173,19 @@ fn parse_line(line: &str) -> Option<Line> {
     Some(Line { group, name: name.to_uppercase(), params, value: value.to_string() })
 }
 
-// ---------- Karten ----------
+// ---------- Cards ----------
 
 #[derive(Debug, Clone, Default)]
 pub struct Card {
-    /// Inhalt zwischen BEGIN:VCARD und END:VCARD
+    /// Content between BEGIN:VCARD and END:VCARD
     pub lines: Vec<Line>,
 }
 
-/// Liest alle vCards aus einem Text (eine .vcf-Datei darf beliebig viele enthalten).
+/// Reads all vCards from a text (a .vcf file may contain any number of them).
 pub fn parse_cards(text: &str) -> Vec<Card> {
     let mut cards = Vec::new();
     let mut current: Option<Card> = None;
-    let mut depth = 0usize; // AGENT-Karten in vCard 2.1 können verschachtelt sein
+    let mut depth = 0usize; // AGENT cards in vCard 2.1 can be nested
     for raw in unfold(text) {
         let Some(line) = parse_line(&raw) else { continue };
         let is_vcard = line.value.trim().eq_ignore_ascii_case("VCARD");
@@ -243,7 +243,7 @@ impl Card {
     pub fn serialize(&self) -> String {
         let mut out = String::new();
         fold("BEGIN:VCARD", &mut out);
-        // VERSION muss direkt auf BEGIN folgen
+        // VERSION must directly follow BEGIN
         if let Some(v) = self.get("VERSION") {
             v.serialize(&mut out);
         }
@@ -254,7 +254,7 @@ impl Card {
         out
     }
 
-    /// Ersetzt alle Zeilen mit einem der Namen an der Position der ersten davon.
+    /// Replaces all lines with one of the names at the position of the first of them.
     fn replace(&mut self, names: &[&str], new_lines: Vec<Line>) {
         let pos = self.lines.iter().position(|l| names.contains(&l.name.as_str())).unwrap_or(self.lines.len());
         let before = self.lines[..pos].len();
@@ -270,7 +270,7 @@ impl Card {
         self.replace(&[name], value.map(|v| Line::new(name, v)).into_iter().collect());
     }
 
-    /// Gruppenzeilen wie `item1.X-ABLabel` entfernen, deren eigentliche Eigenschaft weg ist.
+    /// Remove group lines such as `item1.X-ABLabel` whose actual property is gone.
     fn drop_orphan_groups(&mut self) {
         let used: std::collections::HashSet<String> = self
             .lines
@@ -284,7 +284,7 @@ impl Card {
         });
     }
 
-    /// Freier Gruppenname `itemN`, der weder in der Karte noch in `extra` vorkommt.
+    /// Free group name `itemN` that occurs neither in the card nor in `extra`.
     fn free_group(&self, extra: &[Line]) -> String {
         let taken = |g: &str| {
             self.lines.iter().chain(extra).any(|l| l.group.as_deref().is_some_and(|x| x.eq_ignore_ascii_case(g)))
@@ -292,7 +292,7 @@ impl Card {
         (1..).map(|n| format!("item{n}")).find(|g| !taken(g)).unwrap()
     }
 
-    /// Eigene Bezeichnung einer gruppierten Eigenschaft (`itemN.X-ABLabel`).
+    /// Custom label of a grouped property (`itemN.X-ABLabel`).
     fn label_of(&self, line: &Line) -> Option<String> {
         let g = line.group.as_ref()?;
         self.lines
@@ -330,12 +330,12 @@ pub fn escape(s: &str) -> String {
         .replace('\r', "")
 }
 
-/// Strukturierten Wert (N, ADR, ORG) an unescapten `;` teilen und entschlüsseln.
+/// Split a structured value (N, ADR, ORG) at unescaped `;` and unescape it.
 fn components(value: &str) -> Vec<String> {
     split_escaped(value, ';')
 }
 
-/// Wert an unescapten Trennzeichen teilen und die Teile entschlüsseln.
+/// Split a value at unescaped separators and unescape the parts.
 fn split_escaped(value: &str, sep: char) -> Vec<String> {
     let mut parts = Vec::new();
     let mut cur = String::new();
@@ -360,11 +360,11 @@ fn join_components(parts: &[&str]) -> String {
     parts.iter().map(|p| escape(p.trim())).collect::<Vec<_>>().join(";")
 }
 
-// ---------- Datenmodell der Weboberfläche ----------
+// ---------- Data model of the web UI ----------
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct TypedValue {
-    /// z. B. `mobile`, `home`, `work`, `other` oder eine eigene Bezeichnung
+    /// e.g. `mobile`, `home`, `work`, `other` or a custom label
     #[serde(rename = "type", default)]
     pub kind: String,
     #[serde(default)]
@@ -402,14 +402,14 @@ pub struct ContactData {
     pub emails: Vec<TypedValue>,
     pub addresses: Vec<Address>,
     pub urls: Vec<TypedValue>,
-    /// `YYYY-MM-DD` oder `--MM-DD` (ohne Jahr)
+    /// `YYYY-MM-DD` or `--MM-DD` (without year)
     pub birthday: String,
     pub note: String,
-    /// Kategorien (`CATEGORIES`), z. B. „Familie“, „Arbeit“
+    /// Categories (`CATEGORIES`), e.g. "Family", "Work"
     pub categories: Vec<String>,
 }
 
-/// Kategorien bereinigen: Leerzeichen entfernen, leere und doppelte (ohne Groß-/Kleinschreibung) entfernen.
+/// Clean up categories: trim whitespace, remove empty ones and duplicates (case-insensitive).
 pub fn clean_categories<S: AsRef<str>>(list: &[S]) -> Vec<String> {
     let mut out: Vec<String> = Vec::new();
     for c in list {
@@ -422,7 +422,7 @@ pub fn clean_categories<S: AsRef<str>>(list: &[S]) -> Vec<String> {
 }
 
 impl ContactData {
-    /// Name aus den Namensteilen (Präfix, Vorname, weitere Vornamen, Nachname, Suffix).
+    /// Name from the name parts (prefix, first name, additional names, last name, suffix).
     pub fn parts_name(&self) -> String {
         [&self.prefix, &self.given_name, &self.additional_names, &self.family_name, &self.suffix]
             .iter()
@@ -432,13 +432,13 @@ impl ContactData {
             .join(" ")
     }
 
-    /// Eigener Name: der Spitzname, falls eingetragen, sonst der Name aus den Namensteilen.
+    /// Own name: the nickname, if set, otherwise the name from the name parts.
     pub fn own_name(&self) -> String {
         let nickname = self.nickname.trim();
         if nickname.is_empty() { self.parts_name() } else { nickname.to_string() }
     }
 
-    /// Anzeigename aus Spitzname, Namensteilen, Firma, E-Mail oder Telefon ableiten.
+    /// Derive the display name from nickname, name parts, company, email or phone.
     pub fn derived_name(&self) -> String {
         let name = self.own_name();
         let found = [name.as_str(), self.organization.trim()]
@@ -479,9 +479,9 @@ impl ContactData {
         self.update_full_name();
     }
 
-    /// Anzeigename festlegen: Ein Spitzname hat Vorrang, sonst wird er aus den Namensteilen gebildet (kein
-    /// eigener Anzeigename). Nur ohne beides bleibt ein vorhandener Name (z. B. `FN` einer importierten Karte),
-    /// sonst Firma, E-Mail oder Telefon.
+    /// Set the display name: a nickname takes precedence, otherwise it is built from the name parts (no
+    /// custom display name). Only without either is an existing name kept (e.g. `FN` of an imported card),
+    /// otherwise company, email or phone.
     pub fn update_full_name(&mut self) {
         let name = self.own_name();
         if !name.is_empty() {
@@ -492,7 +492,7 @@ impl ContactData {
     }
 }
 
-/// Bekannte Typen kleinschreiben, eigene Bezeichnungen unverändert lassen.
+/// Lower-case known types, leave custom labels unchanged.
 fn normalize_kind(kind: &str) -> String {
     let lower = kind.trim().to_lowercase();
     if lower.is_empty() || KNOWN_TEL.contains(&lower.as_str()) {
@@ -502,7 +502,7 @@ fn normalize_kind(kind: &str) -> String {
     }
 }
 
-/// Apple-Bezeichnungen wie `_$!<Mobile>!$_` auf unsere Typen abbilden.
+/// Map Apple labels such as `_$!<Mobile>!$_` to our types.
 fn label_type(label: &str) -> String {
     let inner = label.trim().trim_start_matches("_$!<").trim_end_matches(">!$_");
     match inner.to_lowercase().as_str() {
@@ -569,7 +569,7 @@ fn address(card: &Card, line: &Line) -> Address {
     }
 }
 
-/// Geburtstag in `YYYY-MM-DD` oder `--MM-DD` umwandeln.
+/// Convert a birthday to `YYYY-MM-DD` or `--MM-DD`.
 fn normalize_bday(line: &Line) -> String {
     let v = line.value.trim();
     let v = v.split('T').next().unwrap_or(v);
@@ -585,7 +585,7 @@ fn normalize_bday(line: &Line) -> String {
     v.to_string()
 }
 
-/// Strukturierte Daten aus einer Karte lesen.
+/// Read structured data from a card.
 pub fn extract(card: &Card) -> ContactData {
     let n = card.get("N").map(|l| components(&l.value)).unwrap_or_default();
     let n_part = |i: usize| n.get(i).map(|s| s.trim().to_string()).unwrap_or_default();
@@ -618,7 +618,7 @@ pub fn extract(card: &Card) -> ContactData {
     data
 }
 
-/// Foto als data:-URL (für die Anzeige in der Weboberfläche).
+/// Photo as a data: URL (for display in the web UI).
 pub fn photo(card: &Card) -> Option<String> {
     let line = card.get("PHOTO")?;
     let v = line.value.trim();
@@ -639,8 +639,8 @@ pub fn photo(card: &Card) -> Option<String> {
     None
 }
 
-/// Setzt oder entfernt das Foto. `data_url` ist eine data:-URL (`data:image/jpeg;base64,…`) oder leer
-/// zum Entfernen. Gibt `false` zurück, wenn die URL nicht verwendbar ist.
+/// Sets or removes the photo. `data_url` is a data: URL (`data:image/jpeg;base64,…`) or empty
+/// to remove it. Returns `false` if the URL is not usable.
 pub fn set_photo(card: &mut Card, data_url: &str) -> bool {
     let data_url = data_url.trim();
     if data_url.is_empty() {
@@ -669,7 +669,7 @@ pub fn set_photo(card: &mut Card, data_url: &str) -> bool {
     true
 }
 
-/// Text für die Suche (kleingeschrieben).
+/// Text for searching (lower case).
 pub fn search_text(d: &ContactData) -> String {
     let mut parts = vec![
         d.full_name.clone(), d.nickname.clone(), d.organization.clone(), d.department.clone(), d.title.clone(),
@@ -682,7 +682,7 @@ pub fn search_text(d: &ContactData) -> String {
     parts.join(" ").to_lowercase()
 }
 
-// ---------- Schreiben ----------
+// ---------- Writing ----------
 
 const KNOWN_TEL: [&str; 6] = ["mobile", "home", "work", "fax", "pager", "other"];
 const KNOWN_OTHER: [&str; 3] = ["home", "work", "other"];
@@ -702,8 +702,8 @@ fn is_known(name: &str, kind: &str) -> bool {
     kind.is_empty() || if name == "TEL" { KNOWN_TEL.contains(&kind) } else { KNOWN_OTHER.contains(&kind) }
 }
 
-/// Ersetzt die Zeilen einer mehrfachen Eigenschaft (TEL, EMAIL, URL, ADR). Unveränderte Einträge
-/// behalten ihre Originalzeile samt Parametern und Gruppen-Bezeichnungen.
+/// Replaces the lines of a multi-valued property (TEL, EMAIL, URL, ADR). Unchanged entries
+/// keep their original line including parameters and group labels.
 fn replace_multi<T: PartialEq>(
     card: &mut Card,
     name: &str,
@@ -727,7 +727,7 @@ fn replace_multi<T: PartialEq>(
         if is_known(name, &kind) {
             line = line.with_types(&type_params(name, &kind));
         } else {
-            // Eigene Bezeichnung wie bei Apple/DAVx⁵: itemN.TEL + itemN.X-ABLabel
+            // Custom label as with Apple/DAVx⁵: itemN.TEL + itemN.X-ABLabel
             let g = card.free_group(&labels);
             line.group = Some(g.clone());
             labels.push(Line { group: Some(g), ..Line::new("X-ABLABEL", escape(&kind)) });
@@ -738,12 +738,12 @@ fn replace_multi<T: PartialEq>(
     card.replace(&[name], lines);
 }
 
-/// Übernimmt die geänderten Felder (`new` gegenüber `old`) in die Karte.
+/// Applies the changed fields (`new` compared to `old`) to the card.
 pub fn apply(card: &mut Card, old: &ContactData, new: &ContactData) {
     let v4 = card.version().starts_with('4');
     let opt = |s: &str| (!s.trim().is_empty()).then(|| escape(s.trim()));
 
-    // Mit dem FN der Karte vergleichen: ein veraltetes FN wird beim nächsten Bearbeiten korrigiert.
+    // Compare with the card's FN: an outdated FN is corrected on the next edit.
     if card.text("FN").trim() != new.full_name {
         card.set("FN", Some(escape(&new.full_name)));
     }
@@ -778,7 +778,7 @@ pub fn apply(card: &mut Card, old: &ContactData, new: &ContactData) {
         let b = new.birthday.trim();
         let line = match b.strip_prefix("--") {
             Some(md) if v4 => Some(Line::new("BDAY", format!("--{}", md.replace('-', "")))),
-            // vCard 3.0 kennt kein Datum ohne Jahr: Apple-Konvention, die auch DAVx⁵ versteht
+            // vCard 3.0 has no date without a year: Apple convention, which DAVx⁵ also understands
             Some(md) => Some(Line {
                 params: vec![("X-APPLE-OMIT-YEAR".into(), "1604".into())],
                 ..Line::new("BDAY", format!("1604-{md}"))
@@ -811,7 +811,7 @@ pub fn rev_value(now: DateTime<Utc>) -> String {
     now.format("%Y%m%dT%H%M%SZ").to_string()
 }
 
-/// Neue Karte (vCard 3.0) aus den Formulardaten.
+/// New card (vCard 3.0) from the form data.
 pub fn create(uid: &str, data: &ContactData, now: DateTime<Utc>) -> Card {
     let mut card = Card {
         lines: vec![
@@ -856,7 +856,7 @@ fn decode_charset(bytes: Vec<u8>, charset: Option<&str>) -> String {
     }
     match String::from_utf8(bytes) {
         Ok(s) => s,
-        // Kein gültiges UTF-8: wahrscheinlich Latin-1 ohne CHARSET-Angabe
+        // Not valid UTF-8: probably Latin-1 without a CHARSET parameter
         Err(e) => e.into_bytes().iter().map(|&b| b as char).collect(),
     }
 }
@@ -864,8 +864,8 @@ fn decode_charset(bytes: Vec<u8>, charset: Option<&str>) -> String {
 const STRUCTURED: [&str; 3] = ["N", "ADR", "ORG"];
 const TEXT: [&str; 9] = ["FN", "NICKNAME", "TITLE", "ROLE", "NOTE", "LABEL", "CATEGORIES", "X-ABLABEL", "SORT-STRING"];
 
-/// Bereitet eine importierte Karte zum Speichern vor: vCard 2.1 wird in 3.0 umgewandelt,
-/// fehlende Pflichtfelder (UID, FN, N) werden ergänzt.
+/// Prepares an imported card for storage: vCard 2.1 is converted to 3.0,
+/// missing required fields (UID, FN, N) are added.
 pub fn normalize_import(mut card: Card, new_uid: impl FnOnce() -> String) -> Card {
     let v21 = card.version().starts_with('2');
     for line in &mut card.lines {
@@ -887,7 +887,7 @@ pub fn normalize_import(mut card: Card, new_uid: impl FnOnce() -> String) -> Car
             line.value.retain(|c| !c.is_whitespace());
         }
         if v21 {
-            // In vCard 2.1 sind Kommas nicht escapt, Semikolons trennen nur strukturierte Werte.
+            // In vCard 2.1, commas are not escaped; semicolons only separate structured values.
             if STRUCTURED.contains(&line.name.as_str()) {
                 let parts: Vec<String> = split_unquoted(&line.value, ';')
                     .into_iter()
@@ -895,13 +895,13 @@ pub fn normalize_import(mut card: Card, new_uid: impl FnOnce() -> String) -> Car
                     .collect();
                 line.value = parts.join(";");
             } else if line.name == "CATEGORIES" {
-                // Kommas trennen die Kategorien
+                // Commas separate the categories
                 let parts: Vec<String> = line.value.split(',').map(|p| escape(&p.replace("\\;", ";"))).collect();
                 line.value = parts.join(",");
             } else if TEXT.contains(&line.name.as_str()) {
                 line.value = escape(&line.value.replace("\\;", ";").replace("\\n", "\n").replace("\\N", "\n"));
             }
-            // TYPE-Werte zusammenfassen: TEL;TYPE=CELL;TYPE=PREF → TEL;TYPE=CELL,PREF
+            // Merge TYPE values: TEL;TYPE=CELL;TYPE=PREF → TEL;TYPE=CELL,PREF
             let types: Vec<String> =
                 line.params.iter().filter(|(k, _)| k == "TYPE").map(|(_, v)| v.clone()).collect();
             if types.len() > 1 {
@@ -1040,7 +1040,7 @@ mod tests {
 
     #[test]
     fn full_name_follows_name_parts() {
-        // Veraltetes FN (umbenannt in einem Programm, das FN nicht anpasst)
+        // Outdated FN (renamed in a program that doesn't update FN)
         let mut card = parse_cards("BEGIN:VCARD\nVERSION:3.0\nFN:Heike Weiss\nN:Heike;Tante;;;\nEND:VCARD\n").remove(0);
         let old = extract(&card);
         assert_eq!(old.full_name, "Tante Heike");
@@ -1049,12 +1049,12 @@ mod tests {
         apply(&mut card, &old, &new);
         assert!(card.serialize().contains("FN:Tante Heike"));
 
-        // Eingehender Anzeigename wird bei vorhandenen Namensteilen ignoriert
+        // Incoming display name is ignored when name parts exist
         let mut d = ContactData { full_name: "Alt".into(), given_name: "Neu".into(), ..Default::default() };
         d.normalize();
         assert_eq!(d.full_name, "Neu");
 
-        // Ohne Namensteile bleibt FN erhalten
+        // Without name parts, FN is kept
         let card = parse_cards("BEGIN:VCARD\nVERSION:3.0\nFN:Bäckerei Schmidt\nEND:VCARD\n").remove(0);
         assert_eq!(extract(&card).full_name, "Bäckerei Schmidt");
     }
@@ -1065,11 +1065,11 @@ mod tests {
         d.normalize();
         assert_eq!(d.full_name, "Hannes");
 
-        // Auch ohne Namensteile und gegenüber einem vorhandenen FN
+        // Also without name parts and against an existing FN
         let card = parse_cards("BEGIN:VCARD\nVERSION:3.0\nFN:Alt\nNICKNAME:Hannes\nEND:VCARD\n").remove(0);
         assert_eq!(extract(&card).full_name, "Hannes");
 
-        // Spitzname entfernt: wieder aus den Namensteilen
+        // Nickname removed: back to the name parts
         d.nickname.clear();
         d.normalize();
         assert_eq!(d.full_name, "Johannes Müller");
@@ -1098,7 +1098,7 @@ mod tests {
         apply(&mut card, &old, &new);
         assert!(!card.serialize().contains("CATEGORIES"));
 
-        // vCard 2.1: Kommas trennen die Kategorien
+        // vCard 2.1: commas separate the categories
         let v21 = parse_cards("BEGIN:VCARD\nVERSION:2.1\nN:A;B\nCATEGORIES:Familie,Arbeit\nEND:VCARD\n").remove(0);
         assert_eq!(extract(&normalize_import(v21, || "x".into())).categories, ["Familie", "Arbeit"]);
     }

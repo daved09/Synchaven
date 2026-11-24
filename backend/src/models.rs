@@ -1,4 +1,4 @@
-//! Datenbankzeilen und API-Datentypen.
+//! Database rows and API data types.
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -6,7 +6,7 @@ use sqlx::FromRow;
 
 use crate::{reminders, time::from_db};
 
-// ---------- Benutzer ----------
+// ---------- Users ----------
 
 #[derive(Debug, Clone, FromRow)]
 pub struct UserRow {
@@ -16,9 +16,9 @@ pub struct UserRow {
     pub password_hash: String,
     pub default_view: String,
     pub created_at: String,
-    /// Darf die Verwaltung öffnen (Benutzer, Einstellungen, Datensicherung); zunächst das erste registrierte Konto
+    /// May open the admin page (users, settings, backup); initially the first registered account
     pub is_admin: bool,
-    /// Gesperrt: keine Anmeldung, keine Synchronisierung
+    /// Disabled: no sign-in, no sync
     pub disabled: bool,
 }
 
@@ -27,10 +27,10 @@ pub struct User {
     pub id: String,
     pub email: String,
     pub name: String,
-    /// Standardansicht des Kalenders: `month`, `week`, `day` oder `list`
+    /// The calendar's default view: `month`, `week`, `day` or `list`
     pub default_view: String,
     pub created_at: DateTime<Utc>,
-    /// Darf die Verwaltung öffnen (zunächst das erste registrierte Konto)
+    /// May open the admin page (initially the first registered account)
     pub is_admin: bool,
 }
 
@@ -47,7 +47,7 @@ impl From<UserRow> for User {
     }
 }
 
-// ---------- Kalender ----------
+// ---------- Calendars ----------
 
 #[derive(Debug, Clone, FromRow)]
 pub struct CalendarRow {
@@ -58,7 +58,7 @@ pub struct CalendarRow {
     pub color: String,
     pub description: String,
     pub visible: bool,
-    /// `default` oder `birthdays` (siehe `birthdays.rs`)
+    /// `default` or `birthdays` (see `birthdays.rs`)
     pub kind: String,
     pub default_reminders: String,
     pub default_all_day_reminders: String,
@@ -74,9 +74,9 @@ pub struct Calendar {
     pub description: String,
     pub visible: bool,
     pub kind: String,
-    /// Standard-Erinnerungen (Minuten vor Beginn) für Termine mit Uhrzeit
+    /// Default reminders (minutes before the start) for timed events
     pub default_reminders: Vec<i32>,
-    /// Standard-Erinnerungen für ganztägige Termine (negativ = Uhrzeit am Tag selbst)
+    /// Default reminders for all-day events (negative = time on the day itself)
     pub default_all_day_reminders: Vec<i32>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
@@ -106,12 +106,12 @@ pub struct CalendarInput {
     #[serde(default)]
     pub description: String,
     pub visible: Option<bool>,
-    /// Fehlt das Feld, bleiben die bisherigen Standard-Erinnerungen erhalten.
+    /// If the field is missing, the existing default reminders are kept.
     pub default_reminders: Option<Vec<i32>>,
     pub default_all_day_reminders: Option<Vec<i32>>,
 }
 
-// ---------- Termine ----------
+// ---------- Events ----------
 
 #[derive(Debug, Clone, FromRow)]
 pub struct EventRow {
@@ -127,10 +127,10 @@ pub struct EventRow {
     pub timezone: String,
     pub rrule: Option<String>,
     pub exdates: String,
-    /// Gesetzt bei automatisch erzeugten Geburtstagsterminen
+    /// Set for automatically generated birthday events
     pub contact_id: Option<String>,
     pub birth_year: Option<i64>,
-    /// JSON-Liste (Minuten vor Beginn) oder NULL für die Standard-Erinnerungen des Kalenders
+    /// JSON list (minutes before the start) or NULL for the calendar's default reminders
     pub reminders: Option<String>,
     pub created_at: String,
     pub updated_at: String,
@@ -150,11 +150,11 @@ pub struct Event {
     pub timezone: String,
     pub rrule: Option<String>,
     pub exdates: Vec<DateTime<Utc>>,
-    /// Erinnerungen in Minuten vor Beginn; `null` = Standard-Erinnerungen des Kalenders
+    /// Reminders in minutes before the start; `null` = the calendar's default reminders
     pub reminders: Option<Vec<i32>>,
-    /// Kontakt, aus dessen Geburtstag der Termin erzeugt wurde
+    /// Contact whose birthday the event was generated from
     pub contact_id: Option<String>,
-    /// Automatisch erzeugte Termine können nicht bearbeitet werden.
+    /// Automatically generated events cannot be edited.
     pub read_only: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
@@ -200,13 +200,13 @@ pub struct EventInput {
     pub timezone: Option<String>,
     pub rrule: Option<String>,
     pub exdates: Option<Vec<DateTime<Utc>>>,
-    /// Feld fehlt: bisherige Erinnerungen bleiben erhalten; `null`: Kalender-Standard;
-    /// Liste: eigene Erinnerungen (leer = keine).
+    /// Field missing: existing reminders are kept; `null`: calendar default;
+    /// list: own reminders (empty = none).
     #[serde(default, deserialize_with = "present")]
     pub reminders: Option<Option<Vec<i32>>>,
 }
 
-/// Unterscheidet bei optionalen Feldern zwischen „fehlt“ (`None`) und `null` (`Some(None)`).
+/// Distinguishes between "missing" (`None`) and `null` (`Some(None)`) for optional fields.
 fn present<'de, D, T>(d: D) -> Result<Option<Option<T>>, D::Error>
 where
     D: serde::Deserializer<'de>,
@@ -215,11 +215,11 @@ where
     Option::<T>::deserialize(d).map(Some)
 }
 
-/// Ein konkretes Vorkommen eines Termins im angefragten Zeitraum.
-/// Bei wiederkehrenden Terminen entsteht pro Wiederholung ein Eintrag.
+/// A concrete occurrence of an event in the requested range.
+/// Recurring events produce one entry per recurrence.
 #[derive(Debug, Serialize)]
 pub struct Occurrence {
-    /// Eindeutige ID des Vorkommens: `<event_id>` bzw. `<event_id>_<startzeit>`
+    /// Unique ID of the occurrence: `<event_id>` or `<event_id>_<start time>`
     pub id: String,
     pub event_id: String,
     pub calendar_id: String,
@@ -234,11 +234,11 @@ pub struct Occurrence {
     pub rrule: Option<String>,
     pub contact_id: Option<String>,
     pub read_only: bool,
-    /// Erinnerungen des Termins in Minuten vor Beginn; `None` = Standard des Kalenders
+    /// The event's reminders in minutes before the start; `None` = calendar default
     pub reminders: Option<Vec<i32>>,
 }
 
-// ---------- Aufgaben ----------
+// ---------- Tasks ----------
 
 #[derive(Debug, Clone, FromRow)]
 pub struct TaskListRow {
@@ -257,9 +257,9 @@ pub struct TaskList {
     pub id: String,
     pub name: String,
     pub color: String,
-    /// Aufgaben dieser Liste im Kalender anzeigen
+    /// Show this list's tasks in the calendar
     pub visible: bool,
-    /// Anzahl offener Aufgaben
+    /// Number of open tasks
     pub open_count: i64,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
@@ -304,11 +304,11 @@ pub struct TaskRow {
 pub struct Task {
     pub id: String,
     pub list_id: String,
-    /// Übergeordnete Aufgabe, wenn dies eine Unteraufgabe ist
+    /// Parent task if this is a subtask
     pub parent_id: Option<String>,
     pub title: String,
     pub notes: String,
-    /// Fälligkeit; ganztägig als Mitternacht UTC. `null` = ohne Datum
+    /// Due date; all-day as midnight UTC. `null` = without date
     pub due: Option<DateTime<Utc>>,
     pub all_day: bool,
     pub completed: bool,
@@ -344,10 +344,10 @@ pub struct TaskInput {
     pub due: Option<DateTime<Utc>>,
     #[serde(default = "default_true")]
     pub all_day: bool,
-    /// Fehlt das Feld, bleibt der Status erhalten (neue Aufgaben: offen).
+    /// If the field is missing, the status is kept (new tasks: open).
     pub completed: Option<bool>,
-    /// Übergeordnete Aufgabe. Fehlt das Feld, bleibt die Zuordnung erhalten (neue Aufgaben: Hauptaufgabe);
-    /// `null` macht eine Unteraufgabe zur Hauptaufgabe.
+    /// Parent task. If the field is missing, the assignment is kept (new tasks: top-level task);
+    /// `null` turns a subtask into a top-level task.
     #[serde(default, deserialize_with = "present")]
     pub parent_id: Option<Option<String>>,
 }

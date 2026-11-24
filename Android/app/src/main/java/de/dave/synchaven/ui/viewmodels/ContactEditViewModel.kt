@@ -26,7 +26,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-/** Welche Liste eines Kontakts bearbeitet wird */
+/** Which list of a contact is being edited */
 enum class TypedField { PHONES, EMAILS, URLS }
 
 data class ContactEditUiState(
@@ -34,21 +34,21 @@ data class ContactEditUiState(
     val isNew: Boolean = true,
     val addressBooks: List<AddressBook> = emptyList(),
     /**
-     * `fullName` bleibt nur bei Kontakten ohne Spitzname und Namensteile erhalten (z. B. importiert mit nur FN),
-     * sonst leer: der Anzeigename wird immer aus Spitzname bzw. Namensteilen gebildet.
+     * `fullName` is only kept for contacts without a nickname and name parts (e.g. imported with only FN),
+     * otherwise empty: the display name is always built from the nickname or name parts.
      */
     val contact: Contact = Contact(),
-    /** Geburtstag wie eingegeben (TT.MM.JJJJ oder TT.MM.) */
+    /** Birthday as entered (DD.MM.YYYY or DD.MM.) */
     val birthdayInput: String = "",
-    /** Eingabe einer neuen Kategorie */
+    /** Input of a new category */
     val categoryInput: String = "",
-    /** Kategorien aller Kontakte (Vorschläge) */
+    /** Categories of all contacts (suggestions) */
     val allCategories: List<String> = emptyList(),
-    /** Präfix, zweiter Vorname, Suffix und Spitzname anzeigen */
+    /** Show prefix, middle name, suffix and nickname */
     val showAllNameFields: Boolean = false,
     val saving: Boolean = false,
     val error: UiText? = null,
-    /** Gespeichert → Bildschirm schließen; enthält die ID des Kontakts */
+    /** Saved → close the screen; contains the contact's ID */
     val savedId: String? = null,
 ) {
     val birthdayValid: Boolean get() = birthdayFromInput(birthdayInput) != null
@@ -97,11 +97,11 @@ class ContactEditViewModel(
 
     fun showAllNameFields() = _state.update { it.copy(showAllNameFields = true) }
 
-    // ---------- Kategorien ----------
+    // ---------- Categories ----------
 
     fun onCategoryInput(v: String) = _state.update { it.copy(categoryInput = v, error = null) }
 
-    /** Fügt die eingegebene (oder eine vorgeschlagene) Kategorie hinzu; bekannte in ihrer Schreibweise. */
+    /** Adds the entered (or a suggested) category; known ones in their existing spelling. */
     fun addCategory(name: String = _state.value.categoryInput) = _state.update { s ->
         val known = s.allCategories.firstOrNull { sameCategory(it, name.trim()) } ?: name
         s.copy(contact = s.contact.copy(categories = cleanCategories(s.contact.categories + known)), categoryInput = "")
@@ -109,7 +109,7 @@ class ContactEditViewModel(
 
     fun removeCategory(name: String) = update { it.copy(categories = it.categories.filterNot { c -> c == name }) }
 
-    // ---------- Telefon, E-Mail, Websites ----------
+    // ---------- Phone, email, websites ----------
 
     private fun Contact.list(field: TypedField) = when (field) {
         TypedField.PHONES -> phones
@@ -140,7 +140,7 @@ class ContactEditViewModel(
         it.withList(field, it.list(field).filterIndexed { i, _ -> i != index })
     }
 
-    // ---------- Adressen ----------
+    // ---------- Addresses ----------
 
     fun addAddress() = update { it.copy(addresses = it.addresses + PostalAddress(type = "home")) }
 

@@ -1,5 +1,5 @@
-// Favicon mit dem heutigen Tag (wie Google Kalender). Gleiches Motiv wie public/favicon.svg,
-// das als statischer Fallback (z. B. für Lesezeichen ohne JavaScript) bestehen bleibt.
+// Favicon with today's day (like Google Calendar). Same motif as public/favicon.svg,
+// which remains as a static fallback (e.g. for bookmarks without JavaScript).
 function faviconSvg(day: number): string {
   return (
     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">' +
@@ -23,7 +23,7 @@ function applyFavicon() {
   link.href = `data:image/svg+xml,${encodeURIComponent(faviconSvg(new Date().getDate()))}`
 }
 
-/** Setzt das Favicon auf heute und aktualisiert es nach Mitternacht bzw. beim Zurückkehren zum Tab. */
+/** Sets the favicon to today and updates it after midnight or when returning to the tab. */
 export function startDynamicFavicon() {
   applyFavicon()
   const scheduleMidnight = () => {
@@ -35,7 +35,7 @@ export function startDynamicFavicon() {
     }, next.getTime() - now.getTime())
   }
   scheduleMidnight()
-  // Timer laufen in Hintergrund-Tabs bzw. im Ruhezustand verzögert – beim Zurückkehren nachziehen.
+  // Timers are delayed in background tabs or during sleep – catch up when returning.
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') applyFavicon()
   })

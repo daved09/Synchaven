@@ -1,12 +1,12 @@
 #!/bin/sh
-# Startet Synchaven ohne Root-Rechte.
+# Starts Synchaven without root rights.
 #
-# Läuft der Container als root (Standard), werden dem Datenverzeichnis die IDs aus PUID/PGID
-# (Standard 10001) gegeben und das Programm anschließend mit diesen IDs gestartet. So
-# funktionieren sowohl benannte Volumes als auch Bind-Mounts wie ./data:/data – für einen
-# Bind-Mount PUID/PGID auf die IDs des Besitzers setzen (`id -u` / `id -g`).
+# If the container runs as root (default), the data directory is given the IDs from PUID/PGID
+# (default 10001) and the program is then started with these IDs. This way
+# both named volumes and bind mounts like ./data:/data work – for a
+# bind mount, set PUID/PGID to the owner's IDs (`id -u` / `id -g`).
 #
-# Wird der Container bereits mit `user:` / `--user` gestartet, startet das Programm direkt.
+# If the container is already started with `user:` / `--user`, the program starts directly.
 
 set -eu
 
@@ -26,7 +26,7 @@ case "$PUID$PGID" in
 esac
 
 mkdir -p "$DATA_DIR"
-# Nur Abweichendes anpassen, damit große Datenverzeichnisse nicht bei jedem Start durchlaufen werden
+# Only adjust what differs, so large data directories aren't traversed on every start
 find "$DATA_DIR" \( ! -user "$PUID" -o ! -group "$PGID" \) -exec chown "$PUID:$PGID" {} +
 
 exec setpriv --reuid="$PUID" --regid="$PGID" --clear-groups -- synchaven "$@"

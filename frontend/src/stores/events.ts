@@ -56,9 +56,9 @@ export const useEventsStore = defineStore('events', () => {
     await reload()
   }
   /**
-   * Verschiebt einen Termin so, dass er bei `newStart` beginnt; die Dauer bleibt erhalten.
-   * Bei Serien wird nur dieses Vorkommen verschoben: es wird als eigener Termin angelegt
-   * und in der Serie als Ausnahme eingetragen.
+   * Moves an event so that it starts at `newStart`; the duration is kept.
+   * For series, only this occurrence is moved: it is created as a separate event
+   * and added to the series as an exception.
    */
   async function move(ev: ViewEvent, newStart: Date) {
     let start: string
@@ -75,7 +75,7 @@ export const useEventsStore = defineStore('events', () => {
       end = new Date(ev.endDate.getTime() + delta).toISOString()
     }
 
-    // Sofort an neuer Stelle anzeigen, Server bestätigt danach per reload()
+    // Show at the new position right away, the server confirms afterwards via reload()
     raw.value = raw.value.map((o) => (o.id === ev.id ? { ...o, start, end } : o))
     try {
       const full = await api.event(ev.event_id)
@@ -92,7 +92,7 @@ export const useEventsStore = defineStore('events', () => {
         exdates: full.exdates,
       }
       if (ev.recurring) {
-        // Erst anlegen, dann ausnehmen: schlägt etwas fehl, gibt es eher ein Duplikat als einen Verlust
+        // Create first, then exclude: if something fails, a duplicate is more likely than a loss
         await api.createEvent({ ...input, rrule: null, exdates: [] })
         await api.addExdate(ev.event_id, ev.start)
       } else {

@@ -1,6 +1,6 @@
 /**
- * Erinnerungen: Minuten vor Beginn. Bei ganztägigen Terminen bezieht sich der Wert auf
- * Mitternacht; negative Werte sind eine Uhrzeit am Tag selbst (-540 = 09:00).
+ * Reminders: minutes before the start. For all-day events the value refers to
+ * midnight; negative values are a time on the day itself (-540 = 09:00).
  */
 
 export const MAX_REMINDERS = 5
@@ -8,17 +8,17 @@ export const MAX_BEFORE = 4 * 7 * 24 * 60
 
 const DAY = 1440
 
-/** Voreinstellung neuer Kalender: 15 Minuten vorher bzw. ganztägig am Tag selbst um 09:00 */
+/** Preset for new calendars: 15 minutes before, or all-day on the day itself at 09:00 */
 export const DEFAULT_TIMED = [15]
 export const DEFAULT_ALL_DAY = [-540]
 
-/** Vorschläge für Termine mit Uhrzeit */
+/** Suggestions for timed events */
 export const TIMED_PRESETS = [0, 5, 10, 15, 30, 60, 120, DAY, 2 * DAY, 7 * DAY]
 
-/** Minuten für „`daysBefore` Tage vorher um `hh:mm`“ bei ganztägigen Terminen */
+/** Minutes for "`daysBefore` days before at `hh:mm`" for all-day events */
 export const allDayMinutes = (daysBefore: number, hour: number, minute = 0) => daysBefore * DAY - (hour * 60 + minute)
 
-/** Vorschläge für ganztägige Termine */
+/** Suggestions for all-day events */
 export const ALL_DAY_PRESETS = [
   allDayMinutes(0, 9),
   allDayMinutes(1, 9),
@@ -31,7 +31,7 @@ function plural(n: number, one: string, many: string) {
   return `${n} ${n === 1 ? one : many}`
 }
 
-/** Zerlegt eine Erinnerung an einen ganztägigen Termin in Tage vorher und Uhrzeit. */
+/** Splits a reminder for an all-day event into days before and time. */
 export function splitAllDay(minutes: number): { days: number; hour: number; minute: number } {
   const days = Math.max(0, Math.ceil(minutes / DAY))
   const ofDay = days * DAY - minutes
@@ -54,7 +54,7 @@ export function describeReminder(minutes: number, allDay: boolean): string {
   return `${plural(minutes, 'Minute', 'Minuten')} vorher`
 }
 
-/** Gültig für die Art des Termins? */
+/** Valid for the kind of event? */
 export function isValidReminder(minutes: number, allDay: boolean): boolean {
   return Number.isInteger(minutes) && minutes <= MAX_BEFORE && minutes >= (allDay ? -(DAY - 1) : 0)
 }

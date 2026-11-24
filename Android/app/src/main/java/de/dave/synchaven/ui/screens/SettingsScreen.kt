@@ -80,7 +80,7 @@ fun SettingsScreen(onBack: () -> Unit) {
     val sync by vm.sync.collectAsStateWithLifecycle()
     val syncSetup by vm.syncSetup.collectAsStateWithLifecycle()
     val offline by vm.offline.collectAsStateWithLifecycle()
-    // Konto kann in den Android-Einstellungen entfernt, Berechtigungen können entzogen worden sein
+    // The account may have been removed in the Android settings, permissions may have been revoked
     LifecycleResumeEffect(Unit) {
         vm.refreshSync()
         onPauseOrDispose { }
@@ -101,7 +101,7 @@ fun SettingsScreen(onBack: () -> Unit) {
         snackbarHost = { SnackbarHost(snackbar) },
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState())) {
-            // ---------- Konto ----------
+            // ---------- Account ----------
             SectionTitle(stringResource(R.string.settings_account))
             if (session?.local == true) {
                 ListItem(
@@ -140,13 +140,13 @@ fun SettingsScreen(onBack: () -> Unit) {
             }
             HorizontalDivider()
 
-            // ---------- Offline-Daten (nur mit Server) ----------
+            // ---------- Offline data (only with a server) ----------
             if (session != null && session?.local != true) {
                 OfflineSection(offline, onSyncNow = vm::syncOfflineNow)
                 HorizontalDivider()
             }
 
-            // ---------- Synchronisierung mit Android ----------
+            // ---------- Sync with Android ----------
             if (session != null) {
                 SyncSection(
                     state = sync,
@@ -160,13 +160,13 @@ fun SettingsScreen(onBack: () -> Unit) {
                 HorizontalDivider()
             }
 
-            // ---------- Benachrichtigungen ----------
+            // ---------- Notifications ----------
             if (session != null) {
                 NotificationSection(settings.reminders, onToggle = { on -> vm.update { it.copy(reminders = on) } })
                 HorizontalDivider()
             }
 
-            // ---------- Darstellung ----------
+            // ---------- Appearance ----------
             SectionTitle(stringResource(R.string.settings_appearance))
             Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
@@ -202,7 +202,7 @@ fun SettingsScreen(onBack: () -> Unit) {
             }
             HorizontalDivider(Modifier.padding(top = 16.dp))
 
-            // ---------- Kalender ----------
+            // ---------- Calendar ----------
             SectionTitle(stringResource(R.string.tab_calendar))
             ChoiceItem(
                 title = stringResource(R.string.settings_default_view),

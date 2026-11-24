@@ -25,7 +25,7 @@ setUnauthorizedHandler(() => {
 
 app.mount('#app')
 startDynamicFavicon()
-// Service Worker für Web-Push-Erinnerungen; ein bestehendes Abonnement wird dem angemeldeten Konto zugeordnet
+// Service worker for Web Push reminders; an existing subscription is assigned to the signed-in account
 registerServiceWorker().then(() => {
   if (useAuthStore().loggedIn) refreshPush().catch(() => {})
 })

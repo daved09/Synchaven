@@ -1,12 +1,12 @@
-//! Erinnerungen an Termine: Validierung, Berechnung fälliger Erinnerungen und der Hintergrunddienst,
-//! der sie per Web Push an die Browser der Benutzer schickt.
+//! Event reminders: validation, computation of due reminders and the background service
+//! that sends them to the users' browsers via Web Push.
 //!
-//! Eine Erinnerung ist eine Minutenzahl vor Beginn. Bei ganztägigen Terminen bezieht sie sich auf
-//! Mitternacht in der Zeitzone des Empfängers; negative Werte bedeuten eine Uhrzeit am Tag selbst
-//! (-540 = 09:00), wie `TRIGGER:PT9H` in iCalendar.
+//! A reminder is a number of minutes before the start. For all-day events it refers to
+//! midnight in the recipient's time zone; negative values mean a time on the day itself
+//! (-540 = 09:00), like `TRIGGER:PT9H` in iCalendar.
 //!
-//! Offene Aufgaben mit Fälligkeit erinnern wie in Google Tasks einmal: zur fälligen Uhrzeit bzw. bei ganztägigen
-//! Aufgaben am Fälligkeitstag um [`TASK_ALL_DAY_MINUTE`] in der Zeitzone des Empfängers.
+//! Like in Google Tasks, open tasks with a due date remind once: at the due time, or for all-day
+//! tasks on the due date at [`TASK_ALL_DAY_MINUTE`] in the recipient's time zone.
 
 use std::{collections::HashMap, time::Duration as StdDuration};
 
@@ -22,22 +22,22 @@ use crate::{
 };
 
 pub const MAX_COUNT: usize = 5;
-/// Höchstens vier Wochen im Voraus
+/// At most four weeks in advance
 pub const MAX_BEFORE: i32 = 4 * 7 * 24 * 60;
-/// Ganztägig: spätestens 23:59 am Tag selbst
+/// All-day: at the latest 23:59 on the day itself
 const MIN_ALL_DAY: i32 = -(24 * 60 - 1);
 
-/// Voreinstellung neuer Kalender: 15 Minuten vorher
+/// Preset for new calendars: 15 minutes before
 pub const DEFAULT_TIMED: &[i32] = &[15];
-/// Voreinstellung neuer Kalender für ganztägige Termine: am Tag selbst um 09:00
+/// Preset for new calendars for all-day events: on the day itself at 09:00
 pub const DEFAULT_ALL_DAY: &[i32] = &[-540];
 
-/// Erinnerung an ganztägige Aufgaben: am Fälligkeitstag um 09:00 (Minuten nach Mitternacht)
+/// Reminder for all-day tasks: on the due date at 09:00 (minutes after midnight)
 pub const TASK_ALL_DAY_MINUTE: i64 = 9 * 60;
 
-/// Prüfintervall des Hintergrunddienstes
+/// Check interval of the background service
 const INTERVAL: StdDuration = StdDuration::from_secs(30);
-/// Nach einem Neustart werden verpasste Erinnerungen höchstens so weit rückwirkend gesendet.
+/// After a restart, missed reminders are sent retroactively at most this far back.
 const MAX_CATCH_UP: Duration = Duration::minutes(15);
 const CHECKPOINT_KEY: &str = "reminders_checked_at";
 
@@ -49,7 +49,7 @@ pub fn to_json(list: &[i32]) -> String {
     serde_json::to_string(list).unwrap()
 }
 
-/// Sortiert, entfernt Doppelte und prüft die Grenzen.
+/// Sorts, removes duplicates and checks the limits.
 pub fn validate(mut list: Vec<i32>, all_day: bool) -> Result<Vec<i32>, String> {
     list.sort_unstable();
     list.dedup();
@@ -67,7 +67,7 @@ pub fn validate(mut list: Vec<i32>, all_day: bool) -> Result<Vec<i32>, String> {
     Ok(list)
 }
 
-/// Erinnerungen eines Termins – eigene oder die Standard-Erinnerungen seines Kalenders.
+/// An event's reminders – its own or the default reminders of its calendar.
 pub fn effective(ev: &Event, cal: &CalendarRow) -> Vec<i32> {
     match &ev.reminders {
         Some(list) => list.clone(),
@@ -76,7 +76,7 @@ pub fn effective(ev: &Event, cal: &CalendarRow) -> Vec<i32> {
     }
 }
 
-/// Eine fällige Erinnerung an ein Vorkommen.
+/// A due reminder for an occurrence.
 #[derive(Debug, PartialEq)]
 pub struct Due {
     pub event_id: String,
@@ -86,18 +86,18 @@ pub struct Due {
     pub end: DateTime<Utc>,
     pub all_day: bool,
     pub minutes: i32,
-    /// Zeitpunkt der Erinnerung
+    /// Time of the reminder
     pub at: DateTime<Utc>,
 }
 
-/// Alle Erinnerungen des Termins, deren Zeitpunkt in (from, to] liegt.
-/// `tz` bestimmt, wann ein ganztägiger Termin beginnt.
+/// All reminders of the event whose time lies in (from, to].
+/// `tz` determines when an all-day event begins.
 pub fn due(ev: &Event, birth_year: Option<i64>, reminders: &[i32], tz: Tz, from: DateTime<Utc>, to: DateTime<Utc>) -> Vec<Due> {
     let duration = ev.end - ev.start;
     let mut out = Vec::new();
     for &m in reminders {
         let before = Duration::minutes(m.into());
-        // Ganztägige Termine beginnen je nach Zeitzone bis zu 14 Stunden früher oder später.
+        // Depending on the time zone, all-day events begin up to 14 hours earlier or later.
         let slack = if ev.all_day { Duration::days(1) } else { Duration::zero() };
         let starts = recurrence::occurrences(ev, from + before - slack, to + before + slack + Duration::seconds(1));
         for start in starts {
@@ -125,7 +125,7 @@ pub fn due(ev: &Event, birth_year: Option<i64>, reminders: &[i32], tz: Tz, from:
     out
 }
 
-/// Nutzlast der Push-Nachricht; der Service Worker formatiert Zeit und Text selbst.
+/// Payload of the push message; the service worker formats time and text itself.
 pub fn payload(d: &Due) -> serde_json::Value {
     json!({
         "type": "reminder",
@@ -140,21 +140,21 @@ pub fn payload(d: &Due) -> serde_json::Value {
     })
 }
 
-/// Eine fällige Erinnerung an eine Aufgabe.
+/// A due reminder for a task.
 #[derive(Debug, PartialEq)]
 pub struct TaskDue {
     pub task_id: String,
     pub list_id: String,
     pub title: String,
     pub notes: String,
-    /// Fälligkeit (ganztägig: Mitternacht UTC des Tages)
+    /// Due date (all-day: midnight UTC of the day)
     pub due: DateTime<Utc>,
     pub all_day: bool,
-    /// Zeitpunkt der Erinnerung
+    /// Time of the reminder
     pub at: DateTime<Utc>,
 }
 
-/// Zeitpunkt der Erinnerung an eine Aufgabe; `None` bei erledigten Aufgaben und Aufgaben ohne Datum.
+/// Time of the reminder for a task; `None` for completed tasks and tasks without a date.
 pub fn task_reminder_at(task: &Task, tz: Tz) -> Option<DateTime<Utc>> {
     if task.completed {
         return None;
@@ -167,7 +167,7 @@ pub fn task_reminder_at(task: &Task, tz: Tz) -> Option<DateTime<Utc>> {
     })
 }
 
-/// Erinnerung an die Aufgabe, falls ihr Zeitpunkt in (from, to] liegt.
+/// Reminder for the task if its time lies in (from, to].
 pub fn task_due(task: &Task, tz: Tz, from: DateTime<Utc>, to: DateTime<Utc>) -> Option<TaskDue> {
     let at = task_reminder_at(task, tz).filter(|at| *at > from && *at <= to)?;
     Some(TaskDue {
@@ -181,7 +181,7 @@ pub fn task_due(task: &Task, tz: Tz, from: DateTime<Utc>, to: DateTime<Utc>) -> 
     })
 }
 
-/// Nutzlast der Push-Nachricht für eine Aufgabe.
+/// Payload of the push message for a task.
 pub fn task_payload(d: &TaskDue) -> serde_json::Value {
     json!({
         "type": "task",
@@ -195,7 +195,7 @@ pub fn task_payload(d: &TaskDue) -> serde_json::Value {
     })
 }
 
-/// Startet den Hintergrunddienst.
+/// Starts the background service.
 pub fn spawn(state: AppState) {
     tokio::spawn(async move {
         let now = time::now();
@@ -226,7 +226,7 @@ pub fn spawn(state: AppState) {
                     .execute(&state.db)
                     .await;
                 }
-                // Beim nächsten Durchlauf wird derselbe Zeitraum erneut geprüft.
+                // The same range is checked again on the next run.
                 Err(e) => tracing::warn!("Erinnerungen konnten nicht geprüft werden: {e:#}"),
             }
         }
@@ -260,7 +260,7 @@ async fn run(state: &AppState, from: DateTime<Utc>, to: DateTime<Utc>) -> anyhow
             .into_iter()
             .map(|c| (c.id.clone(), c))
             .collect();
-        // Einzeltermine nur im möglichen Zeitfenster, Serien immer
+        // Single events only within the possible time window, series always
         let rows: Vec<EventRow> = sqlx::query_as(
             "SELECT e.* FROM events e JOIN calendars c ON c.id = e.calendar_id WHERE c.user_id = ?
              AND (e.rrule IS NOT NULL OR (e.start_at >= ? AND e.start_at <= ?))",
@@ -271,7 +271,7 @@ async fn run(state: &AppState, from: DateTime<Utc>, to: DateTime<Utc>) -> anyhow
         .fetch_all(&state.db)
         .await?;
 
-        // Offene Aufgaben, deren Erinnerung im Zeitfenster liegen kann (ganztägig: ± 1 Tag wegen der Zeitzone)
+        // Open tasks whose reminder may fall into the time window (all-day: ± 1 day because of the time zone)
         let tasks: Vec<Task> = sqlx::query_as::<_, TaskRow>(
             "SELECT t.* FROM tasks t JOIN task_lists l ON l.id = t.list_id WHERE l.user_id = ?
              AND t.completed_at IS NULL AND t.due_at IS NOT NULL AND t.due_at >= ? AND t.due_at <= ?",
@@ -309,7 +309,7 @@ async fn run(state: &AppState, from: DateTime<Utc>, to: DateTime<Utc>) -> anyhow
             }
             for d in tasks.iter().filter_map(|t| task_due(t, tz, from, to)) {
                 let body = task_payload(&d).to_string();
-                // Bis zum Ende des Fälligkeitstags zustellbar, mindestens eine Stunde
+                // Deliverable until the end of the due date, at least one hour
                 let ttl = 86_400 - (to - d.at).num_seconds().clamp(0, 86_400 - 3_600);
                 for sub in subs.iter().filter(|s| s.timezone == tz_name) {
                     deliver(state, sub, body.as_bytes(), StdDuration::from_secs(ttl as u64)).await;
@@ -379,17 +379,17 @@ mod tests {
     #[test]
     fn task_reminders() {
         let w = Duration::seconds(30);
-        // Mit Uhrzeit: genau zur Fälligkeit
+        // With a time: exactly at the due time
         let at = Utc.with_ymd_and_hms(2026, 11, 24, 13, 0, 0).unwrap();
         let t = task(Some(at), false, false);
         let d = task_due(&t, chrono_tz::UTC, at - w, at).unwrap();
         assert_eq!(d.at, at);
         assert!(task_due(&t, chrono_tz::UTC, at, at + w).is_none());
-        // Erledigt oder ohne Datum: keine Erinnerung
+        // Completed or without a date: no reminder
         assert!(task_due(&task(Some(at), false, true), chrono_tz::UTC, at - w, at).is_none());
         assert!(task_due(&task(None, true, false), chrono_tz::UTC, at - w, at + w).is_none());
 
-        // Ganztägig am 24.12.: um 09:00 Berliner Zeit (= 08:00 UTC)
+        // All-day on Dec 24: at 09:00 Berlin time (= 08:00 UTC)
         let day = time::midnight_utc(NaiveDate::from_ymd_opt(2026, 12, 24).unwrap());
         let t = task(Some(day), true, false);
         let at = Utc.with_ymd_and_hms(2026, 12, 24, 8, 0, 0).unwrap();
@@ -412,17 +412,17 @@ mod tests {
         let start = Utc.with_ymd_and_hms(2026, 11, 24, 13, 0, 0).unwrap();
         let ev = event(start, start + Duration::hours(1), false, None);
         let at = start - Duration::minutes(10);
-        // Fenster endet genau auf dem Zeitpunkt (inklusiv)
+        // Window ends exactly at the point in time (inclusive)
         let d = due(&ev, None, &[10], chrono_tz::UTC, at - Duration::seconds(30), at);
         assert_eq!(d.len(), 1);
         assert_eq!(d[0].at, at);
-        // Das folgende Fenster enthält ihn nicht mehr
+        // The following window no longer contains it
         assert!(due(&ev, None, &[10], chrono_tz::UTC, at, at + Duration::seconds(30)).is_empty());
     }
 
     #[test]
     fn recurring_and_all_day_in_local_time() {
-        // Täglich 08:00 UTC; Erinnerung 1 Tag vorher für das Vorkommen am 26.11.
+        // Daily 08:00 UTC; reminder 1 day before for the occurrence on Nov 26
         let start = Utc.with_ymd_and_hms(2026, 11, 20, 8, 0, 0).unwrap();
         let ev = event(start, start + Duration::hours(1), false, Some("FREQ=DAILY"));
         let at = Utc.with_ymd_and_hms(2026, 11, 25, 8, 0, 0).unwrap();
@@ -430,14 +430,14 @@ mod tests {
         assert_eq!(d.len(), 1);
         assert_eq!(d[0].start, Utc.with_ymd_and_hms(2026, 11, 26, 8, 0, 0).unwrap());
 
-        // Ganztägig am 24.12., Erinnerung am Vortag 18:00 Berliner Zeit (= 17:00 UTC)
+        // All-day on Dec 24, reminder the day before at 18:00 Berlin time (= 17:00 UTC)
         let day = time::midnight_utc(NaiveDate::from_ymd_opt(2026, 12, 24).unwrap());
         let ev = event(day, day + Duration::days(1), true, None);
         let berlin = chrono_tz::Europe::Berlin;
         let at = Utc.with_ymd_and_hms(2026, 12, 23, 17, 0, 0).unwrap();
         let d = due(&ev, None, &[360], berlin, at - Duration::seconds(30), at);
         assert_eq!(d.len(), 1);
-        // Am Tag selbst um 09:00 (= 08:00 UTC)
+        // On the day itself at 09:00 (= 08:00 UTC)
         let at = Utc.with_ymd_and_hms(2026, 12, 24, 8, 0, 0).unwrap();
         assert_eq!(due(&ev, None, &[-540], berlin, at - Duration::seconds(30), at).len(), 1);
         assert!(due(&ev, None, &[-540], chrono_tz::UTC, at - Duration::seconds(30), at).is_empty());

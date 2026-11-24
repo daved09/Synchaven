@@ -39,8 +39,8 @@ import de.dave.synchaven.util.ViewEvent
 import java.time.LocalDate
 
 /**
- * Terminliste, nach Tagen gruppiert. Mehrtägige Termine erscheinen an jedem Tag, den sie berühren
- * ([multiDay]); in Suchergebnissen nur an ihrem ersten Tag.
+ * Event list grouped by day. Multi-day events appear on every day they touch
+ * ([multiDay]); in search results only on their first day.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -51,7 +51,7 @@ fun AgendaView(
     onEventClick: (ViewEvent) -> Unit,
     modifier: Modifier = Modifier,
     multiDay: Boolean = true,
-    /** Abhak-Symbol einer Aufgabe angetippt */
+    /** A task's check-off icon was tapped */
     onTaskToggle: ((ViewEvent) -> Unit)? = null,
 ) {
     val groups = remember(days, events, multiDay) {
@@ -111,7 +111,7 @@ private fun AgendaItem(ev: ViewEvent, day: LocalDate, onClick: (ViewEvent) -> Un
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         if (ev.isTask) {
-            // Aufgabe: Abhak-Symbol in der Farbe der Liste, direkt antippbar
+            // Task: check-off icon in the list's color, can be tapped directly
             Box(
                 Modifier
                     .size(36.dp)

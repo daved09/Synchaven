@@ -7,7 +7,7 @@ import { taskDueDate, useTasksStore } from '@/stores/tasks'
 import { combine, dayKey, timeKey } from '@/utils/date'
 
 export interface TaskPreset {
-  /** Fälligkeit; ohne Angabe ist die Aufgabe ohne Datum */
+  /** Due date; if not given, the task has no date */
   due?: Date
   allDay?: boolean
   listId?: string
@@ -44,7 +44,7 @@ watch(open, async (v) => {
 })
 
 const listItems = computed(() => tasks.lists.map((l) => ({ title: l.name, value: l.id, color: l.color })))
-/** Hinweis, wenn der Listenwechsel Unteraufgaben betrifft */
+/** Hint when the list change affects subtasks */
 const listHint = computed(() => {
   const t = props.task
   if (!t || listId.value === t.list_id) return ''
@@ -61,7 +61,7 @@ async function save() {
     list_id: listId.value,
     title: title.value.trim(),
     notes: notes.value,
-    // Ganztägig wie bei Terminen: Mitternacht UTC des Tages
+    // All-day like events: midnight UTC of the day
     due: !date.value ? null : allDay ? `${date.value}T00:00:00Z` : combine(date.value, time.value).toISOString(),
     all_day: allDay,
   }

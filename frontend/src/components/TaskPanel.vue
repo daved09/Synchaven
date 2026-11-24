@@ -5,7 +5,7 @@ import { useNotifyStore } from '@/stores/notify'
 import { taskDueDate, useTasksStore } from '@/stores/tasks'
 import { addDays, fmt, fmtTime, isSameDay, startOfDay } from '@/utils/date'
 
-/** Gewählte Liste (wird vom Kalender geteilt, z. B. für „Neue Aufgabe“) */
+/** Selected list (shared with the calendar, e.g. for "New task") */
 const listId = defineModel<string>('listId', { required: true })
 const emit = defineEmits<{ open: [task: Task]; close: [] }>()
 const tasks = useTasksStore()
@@ -14,7 +14,7 @@ const notify = useNotifyStore()
 const quickTitle = ref('')
 const adding = ref(false)
 const showCompleted = ref(false)
-/** Hauptaufgabe, unter der gerade eine Unteraufgabe eingegeben wird */
+/** Parent task under which a subtask is currently being entered */
 const subFor = ref<string | null>(null)
 const subTitle = ref('')
 
@@ -69,7 +69,7 @@ async function addSubtask(parent: Task) {
   adding.value = true
   try {
     await tasks.createSubtask(parent, title)
-    subTitle.value = '' // Feld bleibt offen für die nächste Unteraufgabe
+    subTitle.value = '' // field stays open for the next subtask
   } catch (e) {
     notify.fail(e)
   } finally {

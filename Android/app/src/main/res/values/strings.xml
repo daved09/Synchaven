@@ -1,7 +1,7 @@
 <resources>
     <string name="app_name">Synchaven</string>
 
-    <!-- Allgemein -->
+    <!-- General -->
     <string name="action_cancel">Abbrechen</string>
     <string name="action_ok">OK</string>
     <string name="action_save">Speichern</string>
@@ -23,17 +23,17 @@
     <string name="label_description">Beschreibung</string>
     <string name="label_color">Farbe</string>
     <string name="label_type">Typ</string>
-    <!-- Anführungszeichen erhalten das Leerzeichen am Ende -->
+    <!-- Quotes preserve the trailing space -->
     <string name="list_separator">", "</string>
     <string name="time_range">%1$s – %2$s</string>
 
-    <!-- Hauptnavigation -->
+    <!-- Main navigation -->
     <string name="tab_calendar">Kalender</string>
     <string name="tab_tasks">Aufgaben</string>
     <string name="tab_contacts">Kontakte</string>
     <string name="tab_settings">Einstellungen</string>
 
-    <!-- Ansichten -->
+    <!-- Views -->
     <string name="view_month">Monat</string>
     <string name="view_week">Woche</string>
     <string name="view_day">Tag</string>
@@ -42,13 +42,13 @@
     <string name="view_title_list">Ab %1$s</string>
     <string name="month_range">%1$s – %2$s</string>
 
-    <!-- Zeitraum eines Termins -->
+    <!-- Time range of an event -->
     <string name="span_all_day">%1$s · ganztägig</string>
     <string name="span_days">%1$s – %2$s</string>
     <string name="span_same_day">%1$s · %2$s – %3$s</string>
     <string name="span_multi_day">%1$s, %2$s – %3$s, %4$s</string>
 
-    <!-- Wiederholungen -->
+    <!-- Recurrence -->
     <string name="freq_none">Keine Wiederholung</string>
     <string name="freq_daily">Täglich</string>
     <string name="freq_weekly">Wöchentlich</string>
@@ -105,7 +105,7 @@
     <string name="recurrence_after">Nach</string>
     <string name="recurrence_occurrences">Terminen</string>
 
-    <!-- Kalender -->
+    <!-- Calendars -->
     <string name="calendar_my_calendars">Meine Kalender</string>
     <string name="calendar_new">Neuer Kalender</string>
     <string name="calendar_edit">Kalender bearbeiten</string>
@@ -140,7 +140,7 @@
     <string name="agenda_subtitle">%1$s · %2$s</string>
     <string name="all_day">Ganztägig</string>
 
-    <!-- Termindetails -->
+    <!-- Event details -->
     <string name="event_edit_series">Serie bearbeiten</string>
     <string name="dialog_delete_event_title">Termin löschen?</string>
     <string name="dialog_delete_event_text">„%1$s“ wird gelöscht.</string>
@@ -149,7 +149,7 @@
     <string name="delete_only_this">Nur diesen Termin</string>
     <string name="delete_whole_series">Ganze Serie</string>
 
-    <!-- Termineditor -->
+    <!-- Event editor -->
     <string name="event_edit">Termin bearbeiten</string>
     <string name="event_title">Titel</string>
     <string name="event_calendar">Kalender</string>
@@ -163,7 +163,7 @@
     <string name="error_end_before_start">Das Ende liegt vor dem Beginn</string>
     <string name="error_rrule_required">Bitte eine RRULE eingeben</string>
 
-    <!-- Meldungen Kalender -->
+    <!-- Calendar messages -->
     <string name="msg_calendar_created">Kalender angelegt</string>
     <string name="msg_calendar_saved">Kalender gespeichert</string>
     <string name="msg_calendar_deleted">Kalender „%1$s“ gelöscht</string>
@@ -180,7 +180,7 @@
     <string name="msg_event_moved">Termin verschoben</string>
     <string name="msg_event_moved_series">Termin am %1$s verschoben und aus der Serie gelöst</string>
 
-    <!-- Kontakte -->
+    <!-- Contacts -->
     <string name="contacts_manage_books">Adressbücher verwalten</string>
     <string name="contacts_sync">Mit Android synchronisieren</string>
     <string name="contacts_search_hint">Name, Telefon, E-Mail, Ort …</string>
@@ -218,7 +218,7 @@
         <item quantity="other">%1$d übersprungen</item>
     </plurals>
 
-    <!-- Adressbücher -->
+    <!-- Address books -->
     <string name="books_title">Adressbücher</string>
     <plurals name="book_contact_count">
         <item quantity="one">%1$d Kontakt</item>
@@ -236,7 +236,7 @@
     </plurals>
 
 
-    <!-- Kontaktdetails -->
+    <!-- Contact details -->
     <string name="contact_call">Anrufen</string>
     <string name="contact_sms">SMS</string>
     <string name="contact_email">E-Mail</string>
@@ -262,7 +262,7 @@
     <string name="type_pager">Pager</string>
     <string name="type_other">Sonstige</string>
 
-    <!-- Kontakteditor -->
+    <!-- Contact editor -->
     <string name="contact_edit">Kontakt bearbeiten</string>
     <string name="field_prefix">Präfix (z. B. Dr.)</string>
     <string name="field_given_name">Vorname</string>
@@ -298,7 +298,7 @@
     <string name="error_address_book_required">Bitte ein Adressbuch wählen</string>
     <string name="error_contact_empty">Bitte einen Namen, eine Firma, E-Mail-Adresse oder Telefonnummer eingeben</string>
 
-    <!-- Anmeldung -->
+    <!-- Sign-in -->
     <string name="login_subtitle">Kalender und Kontakte vom eigenen Server</string>
     <string name="login_server">Server</string>
     <string name="login_server_placeholder" translatable="false">https://synchaven.example.org</string>
@@ -318,7 +318,7 @@
     <string name="login_local_hint">Kalender und Kontakte nur auf diesem Gerät speichern. Die Weboberfläche wird dafür nicht gebraucht.</string>
     <string name="local_account_name">Synchaven (lokal)</string>
 
-    <!-- Einstellungen -->
+    <!-- Settings -->
     <string name="settings_account">Konto</string>
     <string name="settings_server_value">%1$s · %2$s %3$s</string>
     <string name="settings_logout">Abmelden</string>
@@ -352,7 +352,7 @@
     <string name="error_password_too_short">Das neue Passwort braucht mindestens 8 Zeichen</string>
     <string name="error_current_password_required">Zum Ändern von E-Mail-Adresse oder Passwort bitte das aktuelle Passwort eingeben</string>
 
-    <!-- Synchronisierung mit Android -->
+    <!-- Sync with Android -->
     <string name="sync_title">Mit Android synchronisieren</string>
     <string name="sync_intro">Termine und Kontakte erscheinen im Kalender und in den Kontakten von Android – Änderungen dort werden auf den Server übertragen. DAVx⁵ wird dafür nicht mehr gebraucht.</string>
     <string name="sync_setup">Synchronisierung einrichten</string>
@@ -390,7 +390,7 @@
     </plurals>
     <string name="msg_sync_set_up">Synchronisierung eingerichtet</string>
 
-    <!-- Offline-Betrieb -->
+    <!-- Offline mode -->
     <string name="offline_title">Offline-Daten</string>
     <string name="offline_hint">Kalender und Kontakte werden auf dem Gerät gespeichert. Ohne Verbindung zum Server bleiben sie lesbar und bearbeitbar; Änderungen werden übertragen, sobald der Server wieder erreichbar ist.</string>
     <string name="offline_banner">Offline – gespeicherte Daten</string>
@@ -414,7 +414,7 @@
         <item quantity="other">Achtung: %1$d Änderungen wurden noch nicht zum Server übertragen und gehen beim Abmelden verloren.</item>
     </plurals>
 
-    <!-- Fehler -->
+    <!-- Errors -->
     <string name="error_server">Serverfehler (%1$d)</string>
     <string name="error_http">Fehler %1$d</string>
     <string name="error_local_network">Zugriff auf das lokale Netzwerk verweigert – bitte in den App-Einstellungen erlauben</string>
@@ -429,7 +429,7 @@
     <string name="error_file_write">Datei kann nicht geschrieben werden</string>
     <string name="error_unknown">Unbekannter Fehler</string>
 
-    <!-- Erinnerungen -->
+    <!-- Reminders -->
     <string name="reminders_title">Erinnerungen</string>
     <string name="reminder_add">Erinnerung hinzufügen</string>
     <string name="reminder_remove">Erinnerung entfernen</string>
@@ -478,7 +478,7 @@
         <item quantity="other">%1$d Wochen vorher um %2$s</item>
     </plurals>
 
-    <!-- Benachrichtigungen -->
+    <!-- Notifications -->
     <string name="notification_channel_reminders">Erinnerungen</string>
     <string name="notification_channel_reminders_description">Erinnerungen an Termine und fällige Aufgaben</string>
     <string name="notification_task_due">Fällig: %1$s</string>
@@ -492,7 +492,7 @@
     <string name="settings_reminders_open_settings">Einstellungen öffnen</string>
     <string name="settings_reminders_exact">Für pünktliche Erinnerungen „Wecker und Erinnerungen“ erlauben.</string>
 
-    <!-- Aufgaben -->
+    <!-- Tasks -->
     <string name="tasks_title">Aufgaben</string>
     <string name="tasks_add_hint">Aufgabe hinzufügen</string>
     <string name="tasks_empty">Keine offenen Aufgaben</string>

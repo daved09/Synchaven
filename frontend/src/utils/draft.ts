@@ -1,4 +1,4 @@
-// Vorläufige Terminkarte, die während des Anlegens im Kalender zu sehen ist.
+// Draft event card that is visible in the calendar while creating an event.
 import type { ViewEvent } from '@/api/types'
 import { startOfDay } from './date'
 
@@ -7,7 +7,7 @@ export const DRAFT_TITLE = '(Kein Titel)'
 
 export interface EventDraft {
   start: Date
-  /** exklusives Ende */
+  /** exclusive end */
   end: Date
   allDay: boolean
   title: string
@@ -35,7 +35,7 @@ export function draftEvent(d: EventDraft, color: string): ViewEvent {
     recurring: false,
     rrule: null,
     contact_id: null,
-    // Nicht ziehbar: Zeiten werden im Dialog geändert
+    // Not draggable: times are changed in the dialog
     read_only: true,
     reminders: null,
     startDate,

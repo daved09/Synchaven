@@ -12,28 +12,28 @@ import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
 
-/** Präfix der IDs, unter denen Aufgaben im Kalender erscheinen (getrennt von Termin-IDs) */
+/** Prefix of the IDs under which tasks appear in the calendar (separate from event IDs) */
 const val TASK_PREFIX = "task:"
 
-/** Höhe einer Aufgabe mit Uhrzeit im Zeitraster */
+/** Height of a timed task in the time grid */
 const val TASK_MINUTES = 30L
 
 private const val DEFAULT_TASK_COLOR = "#1A73E8"
 
-/** Fälligkeit in lokaler Zeit (ganztägig: Mitternacht des Tages); `null` = ohne Datum */
+/** Due date in local time (all-day: midnight of the day); `null` = without date */
 fun Task.dueLocal(zone: ZoneId = deviceZone()): LocalDateTime? {
     val d = due ?: return null
     return runCatching { if (allDay) allDayToLocal(d).atStartOfDay() else parseInstant(d).toLocal(zone) }.getOrNull()
 }
 
-/** Fälligkeit für die API: ganztägig als Mitternacht UTC des Tages, sonst der Zeitpunkt in UTC; ohne Datum `null`. */
+/** Due date for the API: all-day as midnight UTC of the day, otherwise the point in time in UTC; without date `null`. */
 fun taskDue(date: LocalDate?, time: LocalTime?, zone: ZoneId = deviceZone()): String? = when {
     date == null -> null
     time == null -> localToAllDay(date)
     else -> date.atTime(time).toInstant(zone).toString()
 }
 
-/** Aufgabe als Kalendereintrag: ganztägig einen Tag lang, mit Uhrzeit [TASK_MINUTES] Minuten. */
+/** Task as a calendar entry: all-day for one day, with a time [TASK_MINUTES] minutes. */
 fun Task.toViewEvent(color: String, zone: ZoneId = deviceZone()): ViewEvent? {
     val start = dueLocal(zone) ?: return null
     val end = if (allDay) start.plusDays(1) else start.plusMinutes(TASK_MINUTES)
@@ -50,15 +50,15 @@ fun Task.toViewEvent(color: String, zone: ZoneId = deviceZone()): ViewEvent? {
     return ViewEvent(occ, start, end, color, task = this)
 }
 
-/** Aufgaben mit Fälligkeit aus eingeblendeten Listen – für die Kalenderansichten */
+/** Tasks with a due date from visible lists – for the calendar views */
 fun calendarTasks(lists: List<TaskList>, tasks: List<Task>, zone: ZoneId = deviceZone()): List<ViewEvent> {
     val visible = lists.filter { it.visible }.associateBy { it.id }
     return tasks.mapNotNull { t -> visible[t.listId]?.let { t.toViewEvent(it.color.ifEmpty { DEFAULT_TASK_COLOR }, zone) } }
 }
 
 /**
- * Offene Hauptaufgaben einer Liste nach Fälligkeit, ohne Datum zuletzt. Offene Unteraufgaben ohne offene Hauptaufgabe
- * in der Liste stehen ebenfalls hier, damit nichts verloren geht.
+ * Open top-level tasks of a list by due date, without date last. Open subtasks without an open parent task
+ * in the list are listed here too, so nothing gets lost.
  */
 fun openTasks(tasks: List<Task>, listId: String): List<Task> {
     val open = tasks.filter { it.listId == listId && !it.completed }
@@ -67,24 +67,24 @@ fun openTasks(tasks: List<Task>, listId: String): List<Task> {
         .sortedWith(compareBy<Task>({ it.due == null }, { it.due?.let(::parseInstant) }, { it.createdAt }))
 }
 
-/** Offene Unteraufgaben je offener Hauptaufgabe der Liste, in der Reihenfolge, in der sie angelegt wurden */
+/** Open subtasks per open top-level task of the list, in the order they were created */
 fun openSubtasks(tasks: List<Task>, listId: String): Map<String, List<Task>> =
     tasks.filter { it.listId == listId && !it.completed && it.parentId != null }
         .sortedWith(compareBy<Task>({ it.createdAt }, { it.id }))
         .groupBy { it.parentId!! }
 
-/** Erledigte Aufgaben einer Liste, zuletzt erledigte zuerst */
+/** Completed tasks of a list, most recently completed first */
 fun completedTasks(tasks: List<Task>, listId: String): List<Task> =
     tasks.filter { it.listId == listId && it.completed }.sortedByDescending { it.completedAt.orEmpty() }
 
-/** Überfällig: offen und Fälligkeit vorbei (ganztägig: vor heute) */
+/** Overdue: open and due date passed (all-day: before today) */
 fun Task.isOverdue(now: LocalDateTime = LocalDateTime.now(), zone: ZoneId = deviceZone()): Boolean {
     if (completed) return false
     val d = dueLocal(zone) ?: return false
     return if (allDay) d.toLocalDate() < now.toLocalDate() else d < now
 }
 
-/** Kurze Fälligkeit für Listen: „Heute“, „Morgen“, „Gestern“ oder „Mo., 24. Nov.“, ggf. mit Uhrzeit */
+/** Short due date for lists: "Heute", "Morgen", "Gestern" or "Mo., 24. Nov.", with the time if set */
 fun Task.dueText(today: LocalDate = LocalDate.now(), zone: ZoneId = deviceZone()): UiText? {
     val d = dueLocal(zone) ?: return null
     val day = d.toLocalDate()

@@ -14,8 +14,8 @@ import de.dave.synchaven.data.model.UpdateMeRequest
 import okhttp3.RequestBody
 
 /**
- * Leitet jeden Aufruf an den Server ([remote]) oder – im lokalen Modus ohne Server – an [local] weiter.
- * Anmeldung und Registrierung gehen immer an den Server.
+ * Forwards every call to the server ([remote]) or – in local mode without a server – to [local].
+ * Sign-in and registration always go to the server.
  */
 class SessionApi(
     private val remote: SyncHavenApi,

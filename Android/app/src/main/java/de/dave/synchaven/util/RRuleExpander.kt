@@ -13,13 +13,13 @@ import java.time.ZonedDateTime
 import java.time.temporal.TemporalAdjusters
 
 /**
- * Lokale Expansion von RFC-5545-Wiederholungsregeln für die Offline-Ansicht – dieselbe Semantik wie
- * `backend/src/recurrence.rs`: Vorkommen behalten die Ortszeit in der Zeitzone des Termins (ganztägige in UTC),
- * EXDATEs werden exakt verglichen, geliefert werden alle Vorkommen, die den Zeitraum [from, to) berühren.
+ * Local expansion of RFC 5545 recurrence rules for the offline view – the same semantics as
+ * `backend/src/recurrence.rs`: occurrences keep the local time in the event's time zone (all-day ones in UTC),
+ * EXDATEs are compared exactly, and all occurrences that touch the range [from, to) are returned.
  *
- * Unterstützt FREQ (DAILY bis YEARLY), INTERVAL, COUNT, UNTIL, BYDAY (mit Ordnungszahlen), BYMONTHDAY, BYMONTH,
- * BYSETPOS und WKST – alles, was der Editor, die Weboberfläche und der Geburtstagskalender erzeugen. Bei anderen
- * Regeln wird wie beim Server für ungültige Regeln nur der erste Termin geliefert.
+ * Supports FREQ (DAILY to YEARLY), INTERVAL, COUNT, UNTIL, BYDAY (with ordinals), BYMONTHDAY, BYMONTH,
+ * BYSETPOS and WKST – everything the editor, the web UI and the birthday calendar produce. For other
+ * rules, as the server does for invalid rules, only the first event is returned.
  */
 object RRuleExpander {
     private const val MAX_OCCURRENCES = 3000
@@ -47,8 +47,8 @@ object RRuleExpander {
     )
 
     /**
-     * Startzeitpunkte aller Vorkommen, die [from, to) berühren.
-     * @param zone Zeitzone des Termins; bei ganztägigen Terminen ignoriert (UTC)
+     * Start times of all occurrences that touch [from, to).
+     * @param zone the event's time zone; ignored for all-day events (UTC)
      */
     fun occurrences(
         start: Instant,
@@ -96,7 +96,7 @@ object RRuleExpander {
         return out
     }
 
-    /** Lässt sich die Regel berechnen? Prüft Regeln im lokalen Modus, wo es keinen Server gibt, der sie prüft. */
+    /** Can the rule be computed? Checks rules in local mode, where there is no server to check them. */
     fun isSupported(rrule: String): Boolean = parse(rrule, ZoneOffset.UTC) != null
 
     private fun parse(raw: String, zone: ZoneId): Rule? {
@@ -124,7 +124,7 @@ object RRuleExpander {
         return Rule(freq, interval, count, until, byDay, byMonthDay, byMonth, bySetPos, wkst)
     }
 
-    /** UNTIL mit Z ist UTC, sonst Ortszeit des Termins; ein reines Datum schließt den ganzen Tag ein (wie der Server). */
+    /** UNTIL with Z is UTC, otherwise the event's local time; a plain date includes the whole day (like the server). */
     private fun parseUntil(v: String, zone: ZoneId): Instant? {
         val m = UNTIL_RE.matchEntire(v.trim()) ?: return null
         val (y, mo, d) = m.destructured
@@ -147,7 +147,7 @@ object RRuleExpander {
         }
     }
 
-    /** Sortierte Kandidaten eines Zeitraums (Tag, Woche, Monat oder Jahr) nach BYxxx und BYSETPOS. */
+    /** Sorted candidates of a period (day, week, month or year) by BYxxx and BYSETPOS. */
     private fun candidates(rule: Rule, date0: LocalDate, period: Long): List<LocalDate> {
         val start = periodStart(rule, date0, period)
         val dates: List<LocalDate> = when (rule.freq) {
@@ -213,7 +213,7 @@ object RRuleExpander {
         return if (date0.dayOfMonth <= ym.lengthOfMonth()) listOf(ym.atDay(date0.dayOfMonth)) else emptyList()
     }
 
-    /** BYMONTHDAY eines Monats; negative Werte zählen vom Monatsende, ungültige Tage entfallen. */
+    /** BYMONTHDAY of a month; negative values count from the end of the month, invalid days are dropped. */
     private fun monthDays(ym: YearMonth, days: List<Int>): List<LocalDate> {
         val len = ym.lengthOfMonth()
         return days.mapNotNull { d ->
@@ -222,7 +222,7 @@ object RRuleExpander {
         }
     }
 
-    /** BYDAY innerhalb [first, last]: ohne Zahl alle passenden Wochentage, mit Zahl der n-te (negativ: vom Ende). */
+    /** BYDAY within [first, last]: without a number all matching weekdays, with a number the n-th (negative: from the end). */
     private fun weekdaysIn(first: LocalDate, last: LocalDate, byDay: List<WeekdayNum>): List<LocalDate> =
         byDay.flatMap { wd ->
             val firstMatch = first.with(TemporalAdjusters.nextOrSame(wd.day))

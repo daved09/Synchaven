@@ -16,27 +16,27 @@ import kotlinx.coroutines.withContext
 data class KindSyncState(
     val enabled: Boolean = false,
     val syncing: Boolean = false,
-    /** Zeitpunkt der letzten erfolgreichen Synchronisierung (Epoch-Millisekunden) */
+    /** Time of the last successful sync (epoch milliseconds) */
     val lastSync: Long? = null,
-    /** Fehler der letzten Synchronisierung, bereits übersetzt */
+    /** Error of the last sync, already translated */
     val error: String? = null,
 )
 
 data class SyncState(
-    /** `null` = kein Android-Konto eingerichtet */
+    /** `null` = no Android account set up */
     val accountName: String? = null,
     val calendar: KindSyncState = KindSyncState(),
     val contacts: KindSyncState = KindSyncState(),
     val intervalMinutes: Int = SyncAccounts.DEFAULT_INTERVAL_MINUTES,
-    /** Nach dem Anlegen schon einmal nach den Berechtigungen gefragt (siehe [SyncController.finishOnboarding]) */
+    /** Permissions already requested once after creation (see [SyncController.finishOnboarding]) */
     val onboarded: Boolean = true,
 ) {
     operator fun get(kind: SyncKind) = if (kind == SyncKind.CALENDAR) calendar else contacts
 }
 
 /**
- * Steuert die Synchronisierung mit dem Android-Kalender und den Android-Kontakten: Konto anlegen/entfernen,
- * Bereiche ein- und ausschalten, Intervall und Anstoßen nach Änderungen in der App.
+ * Controls the sync with the Android calendar and Android contacts: create/remove the account,
+ * turn areas on and off, interval and triggering after changes in the app.
  */
 class SyncController(context: Context) {
     private val resolver = context.applicationContext.contentResolver
@@ -75,11 +75,11 @@ class SyncController(context: Context) {
     private fun isEnabled(account: Account, kind: SyncKind) =
         ContentResolver.getIsSyncable(account, kind.authority) > 0 && ContentResolver.getSyncAutomatically(account, kind.authority)
 
-    // ---------- Konto ----------
+    // ---------- Account ----------
 
     /**
-     * Konto anlegen bzw. Zugangsdaten aktualisieren – nach der Anmeldung (mit Passwort) oder aus einer bestehenden
-     * Sitzung (nur Token, das die Synchronisierung danach selbst erneuert).
+     * Create the account or update the credentials – after sign-in (with password) or from an existing
+     * session (token only, which the sync then renews itself).
      */
     fun setupAccount(
         serverUrl: String, userId: String, email: String, password: String?, token: String, expiresAt: String,
@@ -87,7 +87,7 @@ class SyncController(context: Context) {
         val isNew = !hasAccountFor(serverUrl, userId)
         val account = accounts.createOrUpdate(serverUrl, userId, email, password, token, expiresAt)
         if (isNew) {
-            // Eingeschaltet wird erst, wenn die Berechtigungen erteilt sind (siehe SyncOnboarding)
+            // Only turned on once the permissions have been granted (see SyncOnboarding)
             for (k in SyncKind.entries) ContentResolver.setIsSyncable(account, k.authority, 0)
         }
         refresh()
@@ -96,13 +96,13 @@ class SyncController(context: Context) {
     fun hasAccountFor(serverUrl: String, userId: String): Boolean =
         accounts.account()?.let { accounts.serverUrl(it).orEmpty() == serverUrl && accounts.userId(it) == userId } ?: false
 
-    /** Die einmalige Abfrage der Berechtigungen nach dem Anlegen ist erledigt. */
+    /** The one-time permission request after creating the account is done. */
     fun finishOnboarding() {
         accounts.account()?.let(accounts::setOnboarded)
         refresh()
     }
 
-    /** Beim Abmelden: Konto samt synchronisierter Kalender und Kontakte vom Gerät entfernen. */
+    /** When signing out: remove the account including synced calendars and contacts from the device. */
     fun removeAccount() {
         accounts.remove()
         refresh()
@@ -116,9 +116,9 @@ class SyncController(context: Context) {
         accounts.account()?.let { accounts.setEmail(it, email) }
     }
 
-    // ---------- Bereiche ----------
+    // ---------- Areas ----------
 
-    /** Schaltet einen Bereich ein (die Berechtigungen müssen bereits erteilt sein) und synchronisiert sofort. */
+    /** Turns an area on (the permissions must already be granted) and syncs immediately. */
     fun enable(kind: SyncKind) {
         val account = accounts.account() ?: return
         ContentResolver.setIsSyncable(account, kind.authority, 1)
@@ -129,7 +129,7 @@ class SyncController(context: Context) {
         refresh()
     }
 
-    /** Schaltet einen Bereich aus und entfernt dessen Daten vom Gerät (auf dem Server bleiben sie erhalten). */
+    /** Turns an area off and removes its data from the device (it is kept on the server). */
     suspend fun disable(kind: SyncKind) = withContext(Dispatchers.IO) {
         val account = accounts.account() ?: return@withContext
         ContentResolver.cancelSync(account, kind.authority)
@@ -173,7 +173,7 @@ class SyncController(context: Context) {
         }
     }
 
-    /** Intervall in Minuten, 0 = keine regelmäßige Synchronisierung (nur bei Änderungen und von Hand). */
+    /** Interval in minutes, 0 = no periodic sync (only on changes and manually). */
     fun setInterval(minutes: Int) {
         val account = accounts.account() ?: return
         accounts.setIntervalMinutes(account, minutes)
@@ -190,8 +190,8 @@ class SyncController(context: Context) {
     }
 
     /**
-     * Stößt die Synchronisierung eingeschalteter Bereiche an – nach Änderungen in der App, damit sie sofort
-     * im Android-Kalender bzw. in den Kontakten erscheinen, oder von Hand ([manual]).
+     * Triggers the sync of enabled areas – after changes in the app, so they appear immediately
+     * in the Android calendar or contacts, or manually ([manual]).
      */
     fun requestSync(vararg kinds: SyncKind, manual: Boolean = false) {
         val account = accounts.account() ?: return

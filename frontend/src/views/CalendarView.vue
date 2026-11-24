@@ -47,16 +47,16 @@ const selected = ref<ViewEvent | null>(null)
 const editorOpen = ref(false)
 const editId = ref<string | null>(null)
 const preset = ref<EventPreset | null>(null)
-/** Vorläufige Karte des Termins, der gerade angelegt wird */
+/** Draft card of the event currently being created */
 const draft = ref<EventDraft | null>(null)
 const draftAnchor = ref<HTMLElement | null>(null)
 const calendarDialog = ref(false)
 const editCalendar = ref<Calendar | null>(null)
 const accountMenu = ref<InstanceType<typeof AccountMenu>>()
 
-// Aufgaben
+// Tasks
 const taskPanel = ref(false)
-/** Im Aufgabenbereich gewählte Liste */
+/** List selected in the task panel */
 const taskListId = ref('')
 const taskDetailsOpen = ref(false)
 const taskDetailsId = ref<string | null>(null)
@@ -73,37 +73,37 @@ const modes: { value: ViewMode; title: string; icon: string; key: string }[] = [
   { value: 'list', title: 'Terminliste', icon: 'mdi-format-list-bulleted', key: 'L' },
 ]
 const currentMode = computed(() => modes.find((m) => m.value === view.mode)!)
-// Auf Touch-Geräten liegen links und rechts der aktuellen Seite die Nachbarzeiträume zum Wischen bereit
+// On touch devices, the neighboring periods sit left and right of the current page, ready for swiping
 const touchDevice = window.matchMedia('(pointer: coarse)').matches
 const pages = computed(() => (touchDevice ? [-1, 0, 1] : [0]).map((off) => {
   const date = off === 0 ? view.date : view.shift(view.date, off)
   const { start, end } = view.rangeOf(date)
   const n = Math.round((end.getTime() - start.getTime()) / 86_400_000)
-  // Schlüssel nach Datum: Nach dem Wischen wird die Nachbarseite ohne Neuaufbau zur aktuellen
+  // Keyed by date: after a swipe the neighboring page becomes the current one without rebuilding
   const key = `${view.mode}:${touchDevice ? dayKey(date) : 0}`
   return { off, key, date, start, end, days: Array.from({ length: n }, (_, i) => addDays(start, i)) }
 }))
 
-/** Termine und fällige Aufgaben, nach Beginn sortiert (ganztägige zuerst) */
+/** Events and due tasks, sorted by start (all-day first) */
 const calendarItems = computed(() =>
   [...events.visible, ...tasks.calendarEvents].sort((a, b) =>
     a.startDate.getTime() - b.startDate.getTime() || Number(b.all_day) - Number(a.all_day) || a.title.localeCompare(b.title)),
 )
-/** Termine im Raster samt vorläufiger Karte */
+/** Events in the grid including the draft card */
 const gridEvents = computed(() => {
   const d = draft.value
   if (!d) return calendarItems.value
   return [...calendarItems.value, draftEvent(d, calendars.byId.get(d.calendarId)?.color ?? '#6750A4')]
 })
 const findDraftEl = () => surface.value?.querySelector<HTMLElement>('.page.current .draft') ?? null
-// Wandert die Karte (anderer Tag, ganztägig …), entsteht ein neues Element; der Dialog folgt ihm.
-// Verschwindet sie aus dem sichtbaren Zeitraum, bleibt der Dialog an der letzten Stelle.
+// If the card moves (other day, all-day …), a new element is created; the dialog follows it.
+// If it disappears from the visible range, the dialog stays at the last position.
 watch(draft, () => nextTick(() => {
   const el = findDraftEl()
   if (el) draftAnchor.value = el
 }))
 
-// --- URL-Synchronisierung (?view=week&date=2026-11-22) ---
+// --- URL sync (?view=week&date=2026-11-22) ---
 function readRoute() {
   const m = route.query.view as ViewMode | undefined
   if (m && modes.some((x) => x.value === m)) view.show(m)
@@ -115,7 +115,7 @@ watch(() => [view.mode, view.date] as const, ([mode, date]) => {
   router.replace({ query: { view: mode, date: dayKey(date) } })
 })
 
-// --- Daten laden: aktueller Zeitraum samt vorigem und nächstem (für das Wischen) ---
+// --- Load data: current period plus previous and next (for swiping) ---
 const loadRange = computed(() => ({
   start: view.rangeOf(view.shift(view.date, -1)).start,
   end: view.rangeOf(view.shift(view.date, 1)).end,
@@ -134,7 +134,7 @@ onMounted(async () => {
 })
 onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 
-// --- Aktionen ---
+// --- Actions ---
 function openEvent(ev: ViewEvent) {
   if (isDraft(ev)) return
   if (ev.task) return openTask(ev.task)
@@ -154,7 +154,7 @@ async function newEvent(start?: Date, allDay = false) {
   const calendarId = calendars.writable.find((c) => c.visible)?.id ?? calendars.writable[0]?.id
   preset.value = { start: s, end: allDay ? addDays(s, 1) : addMinutes(s, 60), allDay, calendarId }
   editId.value = null
-  // Karte zuerst zeigen, damit der Dialog daneben aufgehen kann
+  // Show the card first so the dialog can open next to it
   draftAnchor.value = null
   if (calendarId && view.mode !== 'list') {
     draft.value = { ...preset.value, title: '', calendarId }
@@ -208,12 +208,12 @@ async function moveEvent(ev: ViewEvent, newStart: Date) {
     notify.fail(e)
   }
 }
-// --- Aufgaben ---
+// --- Tasks ---
 function openTask(t: Task) {
   taskDetailsId.value = t.id
   taskDetailsOpen.value = true
 }
-/** Neue Aufgabe; ohne Datum fällig am angezeigten Tag (wie im Google Kalender) */
+/** New task; without a date, due on the displayed day (like in Google Calendar) */
 function newTask(due?: Date, allDay = true) {
   editTask.value = null
   taskPreset.value = { due: due ?? view.date, allDay, listId: taskListId.value || undefined }
@@ -330,12 +330,12 @@ async function onImportFile(e: Event) {
 }
 watch(calendarDialog, (v) => !v && events.reload())
 
-// --- Wischgesten (Touch): Die Ansicht folgt dem Finger und rastet beim Loslassen auf einem Zeitraum ein ---
+// --- Swipe gestures (touch): the view follows the finger and snaps to a period on release ---
 const SETTLE_MS = 250
 const surface = ref<HTMLElement>()
-/** Aktuelle Verschiebung der Seiten in Pixeln */
+/** Current offset of the pages in pixels */
 const dragX = ref(0)
-/** Seiten gleiten gerade in ihre Endlage */
+/** Pages are currently gliding into their final position */
 const settling = ref(false)
 let swipe: { x: number; y: number; axis: 'x' | 'y' | null; lastX: number; lastT: number; v: number } | null = null
 
@@ -354,7 +354,7 @@ function onTouchMove(e: TouchEvent) {
   const dx = t.clientX - swipe.x
   const dy = t.clientY - swipe.y
   if (!swipe.axis) {
-    // Richtung erst nach etwas Bewegung festlegen – senkrecht bleibt es normales Scrollen
+    // Only determine the direction after some movement – vertical stays normal scrolling
     if (Math.hypot(dx, dy) < 10) return
     swipe.axis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y'
     if (swipe.axis === 'x') syncGridScroll()
@@ -372,20 +372,20 @@ function endSwipe(e: TouchEvent, cancel = false) {
   if (!s || s.axis !== 'x') return
   const w = surface.value?.clientWidth || window.innerWidth
   const dx = dragX.value
-  // Finger vor dem Loslassen angehalten → kein Schwung
+  // Finger stopped before release → no momentum
   const v = e.timeStamp - s.lastT > 100 ? 0 : s.v
   const fling = Math.abs(v) > 0.4 && Math.sign(v) === Math.sign(dx)
   const dir: -1 | 0 | 1 = cancel || (Math.abs(dx) < w / 2 && !fling) ? 0 : dx < 0 ? 1 : -1
   settling.value = true
   dragX.value = -dir * w
   setTimeout(() => {
-    // Ohne Übergang zurücksetzen: Die Nachbarseite ist nun die aktuelle und steht schon an ihrem Platz
+    // Reset without transition: the neighboring page is now the current one and already in place
     settling.value = false
     if (dir) view.step(dir)
     dragX.value = 0
   }, SETTLE_MS)
 }
-/** Nachbarseiten auf dieselbe Uhrzeit scrollen wie die aktuelle, damit die Stunden beim Wischen fluchten */
+/** Scroll neighboring pages to the same time as the current one, so the hours line up while swiping */
 function syncGridScroll() {
   const current = surface.value?.querySelector<HTMLElement>('.page.current .tg-scroll')
   if (!current) return
@@ -394,7 +394,7 @@ function syncGridScroll() {
   })
 }
 
-// --- Tastenkürzel ---
+// --- Keyboard shortcuts ---
 const anyDialog = () => detailsOpen.value || editorOpen.value || calendarDialog.value || !!accountMenu.value?.dialogOpen
   || taskDetailsOpen.value || taskEditorOpen.value || taskListDialog.value
 function onKey(e: KeyboardEvent) {
@@ -638,7 +638,7 @@ function onKey(e: KeyboardEvent) {
 .track { display: flex; height: 100%; }
 .track.settling { transition: transform .25s cubic-bezier(.2, 0, 0, 1); }
 .page { flex: 0 0 100%; min-width: 0; height: 100%; overflow: hidden; }
-/* Waagerechtes Ziehen gehört der Wischgeste, senkrechtes dem Scrollen */
+/* Horizontal dragging belongs to the swipe gesture, vertical to scrolling */
 .page, .page :deep(.tg-scroll), .page :deep(.agenda) { touch-action: pan-y; }
 .create-btn { text-transform: none; letter-spacing: .1px; font-weight: 500; }
 .search { width: 280px; max-width: 40vw; }

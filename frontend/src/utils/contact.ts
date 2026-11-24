@@ -20,7 +20,7 @@ export const OTHER_TYPES: TypeOption[] = [
   { title: 'Sonstige', value: 'other' },
 ]
 
-/** Anzeigetext eines Typs; eigene Bezeichnungen werden unverändert angezeigt. */
+/** Display text of a type; custom labels are shown unchanged. */
 export function typeLabel(type: string, phone = false): string {
   const known = (phone ? PHONE_TYPES : OTHER_TYPES).find((t) => t.value === type)
   return known?.title ?? (type || 'Sonstige')
@@ -38,7 +38,7 @@ export function emptyAddress(type = 'home'): PostalAddress {
   return { type, po_box: '', extended: '', street: '', locality: '', region: '', postal_code: '', country: '' }
 }
 
-/** Name aus den Namensteilen (wie im Backend). */
+/** Name from the name parts (as in the backend). */
 export function partsName(c: ContactData): string {
   return [c.prefix, c.given_name, c.additional_names, c.family_name, c.suffix]
     .map((s) => s.trim())
@@ -46,12 +46,12 @@ export function partsName(c: ContactData): string {
     .join(' ')
 }
 
-/** Eigener Name: der Spitzname, falls eingetragen, sonst der Name aus den Namensteilen (wie im Backend). */
+/** Own name: the nickname, if set, otherwise the name from the name parts (as in the backend). */
 export function ownName(c: ContactData): string {
   return c.nickname.trim() || partsName(c)
 }
 
-/** Anzeigename aus Spitzname, Namensteilen, Firma, E-Mail oder Telefon (wie im Backend). */
+/** Display name from nickname, name parts, company, email or phone (as in the backend). */
 export function derivedName(c: ContactData): string {
   const name = ownName(c)
   return [name, c.organization.trim(), ...c.emails.map((e) => e.value.trim()), ...c.phones.map((p) => p.value.trim())]
@@ -63,8 +63,8 @@ export function displayName(c: ContactData): string {
 }
 
 /**
- * Eigentlicher Name ohne Spitzname (für den Kopf der Detailansicht, unter dem der Spitzname eigens steht):
- * Namensteile, sonst Firma, E-Mail oder Telefon, sonst der Anzeigename
+ * Actual name without nickname (for the header of the detail view, below which the nickname is shown separately):
+ * name parts, otherwise company, email or phone, otherwise the display name
  */
 export function realName(c: ContactData): string {
   return partsName(c) || derivedName({ ...c, nickname: '' }) || displayName(c)
@@ -86,7 +86,7 @@ export function avatarColor(c: Contact): string {
   return AVATAR_COLORS[h % AVATAR_COLORS.length]
 }
 
-/** Buchstabe für die Gruppierung der Liste */
+/** Letter for grouping the list */
 export function groupLetter(c: ContactData): string {
   const first = displayName(c).trim()[0]?.toUpperCase() ?? '#'
   const base = first.normalize('NFD').replace(/[̀-ͯ]/g, '')
@@ -111,7 +111,7 @@ export function matches(c: Contact, query: string): boolean {
   return digits.length >= 3 && c.phones.some((p) => p.value.replace(/[^\d+]/g, '').includes(digits))
 }
 
-/** Gleiche Kategorie (ohne Groß-/Kleinschreibung, wie im Backend) */
+/** Same category (case-insensitive, as in the backend) */
 export function sameCategory(a: string, b: string): boolean {
   return a.toLowerCase() === b.toLowerCase()
 }
@@ -136,7 +136,7 @@ export function websiteUrl(t: TypedValue): string {
   return /^[a-z][a-z0-9+.-]*:/i.test(t.value) ? t.value : `https://${t.value}`
 }
 
-// ---------- Geburtstag ----------
+// ---------- Birthday ----------
 
 /** `1990-05-12` → `12.05.1990`, `--05-12` → `12.05.` */
 export function birthdayToInput(b: string): string {
@@ -147,7 +147,7 @@ export function birthdayToInput(b: string): string {
   return b
 }
 
-/** `12.5.1990` / `12.05.` / `1990-05-12` → gespeichertes Format; `null` bei ungültiger Eingabe */
+/** `12.5.1990` / `12.05.` / `1990-05-12` → stored format; `null` for invalid input */
 export function birthdayFromInput(s: string): string | null {
   const t = s.trim()
   if (!t) return ''

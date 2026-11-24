@@ -19,15 +19,15 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 
-/** Anmeldung mit den gespeicherten Zugangsdaten ist fehlgeschlagen (Passwort geändert?). */
+/** Sign-in with the stored credentials failed (password changed?). */
 class SyncAuthException : IOException("authentication failed")
 
-/** Token wird erneuert, wenn es in weniger als dieser Zeit abläuft. */
+/** The token is renewed if it expires in less than this time. */
 private const val REFRESH_BEFORE_MS = 7L * 24 * 3600 * 1000
 
 /**
- * Hängt das Token des Android-Kontos an und erneuert es rechtzeitig vor dem Ablauf. Ist es trotzdem abgelaufen
- * (401), meldet es sich mit dem gespeicherten Passwort neu an – falls eines gespeichert ist.
+ * Attaches the Android account's token and renews it in time before it expires. If it has expired anyway
+ * (401), it signs in again with the stored password – if one is stored.
  */
 private class AccountInterceptor(
     private val accounts: SyncAccounts,
@@ -61,7 +61,7 @@ private class AccountInterceptor(
         val token = accounts.token(account) ?: return login(server)
         val expires = accounts.tokenExpiresAt(account)
         if (expires == null || expires - System.currentTimeMillis() < REFRESH_BEFORE_MS) {
-            // Fehlschlag ist hier kein Problem: das alte Token gilt ggf. noch, sonst folgt der 401-Pfad
+            // Failure is not a problem here: the old token may still be valid, otherwise the 401 path follows
             runCatching { return refresh(server, token) }
         }
         return token
@@ -83,7 +83,7 @@ private class AccountInterceptor(
         return authCall(request) ?: throw SyncAuthException()
     }
 
-    /** Login oder Refresh; speichert das neue Token. `null` bei 401. */
+    /** Login or refresh; stores the new token. `null` on 401. */
     private fun authCall(request: Request): String? =
         loginClient.newCall(request).execute().use { res ->
             if (res.code == 401) return null
@@ -94,7 +94,7 @@ private class AccountInterceptor(
         }
 }
 
-/** REST-Client der SyncAdapter – unabhängig von der Sitzung der App, angemeldet über das Android-Konto. */
+/** REST client of the SyncAdapters – independent of the app's session, signed in via the Android account. */
 fun syncApi(accounts: SyncAccounts, account: Account): SyncHavenApi {
     val loginClient = OkHttpClient.Builder()
         .connectTimeout(20, TimeUnit.SECONDS)

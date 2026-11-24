@@ -1,4 +1,4 @@
-//! Speicherung von Adressbüchern und Kontakten – gemeinsam genutzt von REST-API und CardDAV.
+//! Storage of address books and contacts – shared by the REST API and CardDAV.
 
 use sha2::{Digest, Sha256};
 use sqlx::{FromRow, SqliteConnection, SqlitePool};
@@ -45,7 +45,7 @@ pub fn etag_of(vcard: &str) -> String {
     Sha256::digest(vcard.as_bytes())[..16].iter().map(|b| format!("{b:02x}")).collect()
 }
 
-/// Dateiname der CardDAV-Ressource für eine neue Karte.
+/// File name of the CardDAV resource for a new card.
 pub fn href_for(uid: &str) -> String {
     let safe = !uid.is_empty()
         && uid.len() <= 200
@@ -61,7 +61,7 @@ pub fn new_uid() -> String {
     uuid::Uuid::new_v4().to_string()
 }
 
-/// Aus dem vCard-Text abgeleitete Spalten.
+/// Columns derived from the vCard text.
 pub struct Indexed {
     pub uid: String,
     #[allow(dead_code)]
@@ -80,7 +80,7 @@ pub fn index(card: &Card, fallback_uid: &str) -> Indexed {
     }
 }
 
-/// Jeder Benutzer hat mindestens ein Adressbuch.
+/// Every user has at least one address book.
 pub async fn ensure_default_book(db: &SqlitePool, user_id: &str) -> AppResult<()> {
     let (count,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM addressbooks WHERE user_id = ?")
         .bind(user_id)
@@ -122,7 +122,7 @@ pub async fn owned_book(db: &SqlitePool, user_id: &str, id: &str) -> AppResult<A
         .ok_or(AppError::NotFound)
 }
 
-/// Änderungszähler erhöhen, damit Sync-Clients die Änderung bemerken.
+/// Increment the change counter so sync clients notice the change.
 pub async fn bump(conn: &mut SqliteConnection, book_id: &str) -> AppResult<()> {
     sqlx::query("UPDATE addressbooks SET revision = revision + 1, updated_at = ? WHERE id = ?")
         .bind(time::to_db(time::now()))
@@ -184,7 +184,7 @@ pub async fn update(conn: &mut SqliteConnection, row: &ContactRow, text: &str, i
     crate::birthdays::sync_contact(conn, &row.id).await
 }
 
-/// Ein zugehöriger Geburtstagstermin wird per `ON DELETE CASCADE` mitgelöscht.
+/// An associated birthday event is deleted along with it via `ON DELETE CASCADE`.
 pub async fn delete(conn: &mut SqliteConnection, row: &ContactRow) -> AppResult<()> {
     sqlx::query("DELETE FROM contacts WHERE id = ?").bind(&row.id).execute(&mut *conn).await?;
     bump(conn, &row.addressbook_id).await

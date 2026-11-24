@@ -38,7 +38,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.rememberCoroutineScope
 
-/** Oberste Ebene: wartet auf die Sitzung, fragt die Berechtigung fürs lokale Netz an und zeigt die Navigation. */
+/** Top level: waits for the session, requests the local network permission and shows the navigation. */
 @Composable
 fun AppRoot(sessionStore: SessionStore, syncController: SyncController, settingsStore: SettingsStore) {
     val session by sessionStore.state.collectAsStateWithLifecycle()
@@ -49,7 +49,7 @@ fun AppRoot(sessionStore: SessionStore, syncController: SyncController, settings
         }
         val loggedIn = session is SessionState.LoggedIn
 
-        // Server im Heimnetz brauchen unter Android 17 die Berechtigung – vor der Anmeldung anfragen
+        // Servers on the home network need the permission on Android 17 – request it before sign-in
         val context = LocalContext.current
         var permissionAsked by rememberSaveable { mutableStateOf(false) }
         val requestPermission = rememberLocalNetworkPermissionRequest { permissionAsked = true }
@@ -70,8 +70,8 @@ fun AppRoot(sessionStore: SessionStore, syncController: SyncController, settings
 }
 
 /**
- * Android 13+: einmal nach der Berechtigung für Benachrichtigungen (Erinnerungen) fragen – erst nach den
- * Berechtigungen für die Synchronisierung, damit nicht zwei Anfragen gleichzeitig erscheinen.
+ * Android 13+: ask once for the notification permission (reminders) – only after the
+ * permissions for syncing, so two requests don't appear at the same time.
  */
 @Composable
 private fun NotificationOnboarding(sync: SyncController, settingsStore: SettingsStore) {
@@ -90,9 +90,9 @@ private fun NotificationOnboarding(sync: SyncController, settingsStore: Settings
 }
 
 /**
- * Sobald das Android-Konto angelegt ist (Anmeldung oder Update), einmal nach den Berechtigungen für Kalender und
- * Kontakte fragen und die erlaubten Bereiche einschalten – wie nach dem Einrichten eines Kontos in DAVx⁵.
- * Später lässt sich das unter Einstellungen → Mit Android synchronisieren ändern.
+ * As soon as the Android account has been created (sign-in or update), ask once for the calendar and
+ * contacts permissions and turn on the allowed areas – like after setting up an account in DAVx⁵.
+ * This can be changed later under Settings → Sync with Android.
  */
 @Composable
 private fun SyncOnboarding(sync: SyncController) {
@@ -114,8 +114,8 @@ private fun SyncOnboarding(sync: SyncController) {
 }
 
 /**
- * Wechselt bei Anmeldung, Abmeldung oder abgelaufenem Token zwischen Anmeldung und App.
- * Läuft auch nach einer Konfigurationsänderung mit wiederhergestelltem Back-Stack, daher nur bei echtem Wechsel.
+ * Switches between sign-in and the app on sign-in, sign-out or an expired token.
+ * Also runs after a configuration change with a restored back stack, so only on an actual switch.
  */
 @Composable
 private fun SessionNavigationEffect(navController: NavHostController, loggedIn: Boolean) {

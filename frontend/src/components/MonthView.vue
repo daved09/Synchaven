@@ -21,7 +21,7 @@ const emit = defineEmits<{
   create: [day: Date]
   openDay: [day: Date]
   move: [ev: ViewEvent, newStart: Date]
-  /** Aufgabe abhaken oder wieder öffnen */
+  /** Check off a task or reopen it */
   toggle: [ev: ViewEvent]
 }>()
 
@@ -55,10 +55,10 @@ onMounted(() => {
 })
 onBeforeUnmount(() => observer?.disconnect())
 
-// --- Drag & Drop: Termin auf einen anderen Tag ziehen, Uhrzeit bleibt erhalten ---
+// --- Drag & drop: drag an event to another day, the time is kept ---
 const drag = ref<{ ev: ViewEvent; start: Date } | null>(null)
 
-/** Tag (Index ab Rasterbeginn) unter dem Zeiger */
+/** Day (index from the start of the grid) under the pointer */
 function dayIndexAt(x: number, y: number) {
   const rows = Array.from(body.value?.querySelectorAll<HTMLElement>('.week-inner') ?? [])
   const row = indexAtY(rows, y)
@@ -79,7 +79,7 @@ function onItemDown(e: PointerEvent, ev: ViewEvent) {
     cancel: () => (drag.value = null),
   })
 }
-/** Tage, die der Termin an der Zielposition belegen würde */
+/** Days the event would occupy at the target position */
 const dropDays = computed(() => {
   const d = drag.value
   if (!d) return new Set<number>()
@@ -92,7 +92,7 @@ function dayLabel(d: Date) {
   return d.getDate() === 1 ? fmt(d, { day: 'numeric', month: 'short' }) : String(d.getDate())
 }
 function barStyle(ev: ViewEvent) {
-  // Die vorläufige Karte immer gefüllt zeigen, damit sie auffällt
+  // Always show the draft card filled so it stands out
   return isDraft(ev) || isBarEvent(ev) || !isSameDay(ev.startDate, ev.endDate)
 }
 </script>
@@ -224,7 +224,7 @@ function barStyle(ev: ViewEvent) {
   box-shadow: inset 0 0 0 2px rgba(var(--v-theme-primary), .5);
 }
 .item.bar { font-weight: 500; display: block; }
-/* Aufgaben: Abhak-Symbol vor dem Titel, erledigte durchgestrichen */
+/* Tasks: check-off icon before the title, completed ones struck through */
 .item.bar.task { display: flex; }
 .item.done .title { text-decoration: line-through; }
 .item.done { opacity: .6; }

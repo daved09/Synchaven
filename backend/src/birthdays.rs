@@ -1,8 +1,8 @@
-//! Automatischer Geburtstagskalender: Für jeden Kontakt mit Geburtstag gibt es einen
-//! jährlichen, ganztägigen Termin im Kalender „Geburtstage“ des Benutzers.
+//! Automatic birthday calendar: for each contact with a birthday there is a
+//! yearly, all-day event in the user's "Geburtstage" calendar.
 //!
-//! Die Termine werden bei jeder Kontaktänderung (REST und CardDAV) nachgeführt und sind
-//! schreibgeschützt. Gelöschte Kontakte nehmen ihren Termin per `ON DELETE CASCADE` mit.
+//! The events are updated on every contact change (REST and CardDAV) and are
+//! read-only. Deleted contacts take their event with them via `ON DELETE CASCADE`.
 
 use chrono::{Datelike, Duration, NaiveDate};
 use sqlx::{SqliteConnection, SqlitePool};
@@ -17,10 +17,10 @@ use crate::{
 pub const KIND: &str = "birthdays";
 const NAME: &str = "Geburtstage";
 const COLOR: &str = "#D81B60";
-/// Jahr für Geburtstage ohne Jahresangabe (Schaltjahr, damit auch der 29.02. gültig ist)
+/// Year for birthdays without a year (a leap year, so Feb 29 is valid too)
 const NO_YEAR: i32 = 2000;
 
-/// Liefert die ID des Geburtstagskalenders und legt ihn bei Bedarf an.
+/// Returns the ID of the birthday calendar and creates it if needed.
 pub async fn ensure_calendar(conn: &mut SqliteConnection, user_id: &str) -> AppResult<String> {
     let now = time::to_db(time::now());
     sqlx::query(
@@ -45,7 +45,7 @@ pub async fn ensure_calendar(conn: &mut SqliteConnection, user_id: &str) -> AppR
     Ok(id)
 }
 
-/// Geburtstag aus `YYYY-MM-DD` oder `--MM-DD`: (Datum des ersten Termins, Geburtsjahr falls bekannt)
+/// Birthday from `YYYY-MM-DD` or `--MM-DD`: (date of the first event, birth year if known)
 pub fn parse(birthday: &str) -> Option<(NaiveDate, Option<i32>)> {
     let b = birthday.trim();
     if let Some(md) = b.strip_prefix("--") {
@@ -56,7 +56,7 @@ pub fn parse(birthday: &str) -> Option<(NaiveDate, Option<i32>)> {
     Some((date, Some(date.year())))
 }
 
-/// Jährliche Wiederholung; am 29.02. Geborene feiern in Nicht-Schaltjahren am 28.02.
+/// Yearly recurrence; people born on Feb 29 celebrate on Feb 28 in non-leap years.
 pub fn rrule_for(date: NaiveDate) -> &'static str {
     if date.month() == 2 && date.day() == 29 {
         "FREQ=YEARLY;BYMONTH=2;BYMONTHDAY=-1"
@@ -69,7 +69,7 @@ pub fn title_for(name: &str) -> String {
     format!("🎂 {name}")
 }
 
-/// Titel eines einzelnen Vorkommens, ggf. mit Alter: „🎂 Erika Mustermann (62)“
+/// Title of a single occurrence, with age if known: "🎂 Erika Mustermann (62)"
 pub fn occurrence_title(title: &str, birth_year: Option<i64>, occurrence_year: i32) -> String {
     match birth_year.map(|y| i64::from(occurrence_year) - y) {
         Some(age) if age > 0 => format!("{title} ({age})"),
@@ -88,7 +88,7 @@ fn uid_for(contact_id: &str) -> String {
     format!("birthday-{contact_id}@synchaven")
 }
 
-/// Geburtstagstermin eines Kontakts anlegen, aktualisieren oder entfernen.
+/// Create, update or remove a contact's birthday event.
 pub async fn sync_contact(conn: &mut SqliteConnection, contact_id: &str) -> AppResult<()> {
     let row: Option<(String, String, String)> = sqlx::query_as(
         "SELECT c.vcard, c.kind, b.user_id FROM contacts c JOIN addressbooks b ON b.id = c.addressbook_id WHERE c.id = ?",
@@ -177,7 +177,7 @@ pub async fn sync_contact(conn: &mut SqliteConnection, contact_id: &str) -> AppR
     Ok(())
 }
 
-/// Gleicht beim Start alle Kontakte ab (z. B. für Kontakte aus der Zeit vor dem Geburtstagskalender).
+/// Syncs all contacts on startup (e.g. for contacts from before the birthday calendar existed).
 pub async fn sync_all(db: &SqlitePool) -> AppResult<()> {
     let ids: Vec<(String,)> = sqlx::query_as("SELECT id FROM contacts").fetch_all(db).await?;
     let mut tx = db.begin().await?;

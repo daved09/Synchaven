@@ -9,13 +9,13 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 
-/** Nicht umbenennen: Der Dateiname leitet sich davon ab (auch in den Backup-Regeln). */
+/** Don't rename: the file name is derived from it (also in the backup rules). */
 private val Context.dataStore by preferencesDataStore(name = "synchaven")
 
-/** Der eine Preferences-DataStore der App; [SessionStore] und [SettingsStore] verwalten jeweils eigene Schlüssel. */
+/** The app's single Preferences DataStore; [SessionStore] and [SettingsStore] each manage their own keys. */
 class AppDataStore(context: Context, val scope: CoroutineScope) {
     val store: DataStore<Preferences> = context.applicationContext.dataStore
 
-    /** Rohdaten; `null`, bis DataStore zum ersten Mal geladen hat. */
+    /** Raw data; `null` until DataStore has loaded for the first time. */
     val prefs: StateFlow<Preferences?> = store.data.stateIn(scope, SharingStarted.Eagerly, null)
 }

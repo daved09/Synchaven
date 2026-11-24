@@ -1,7 +1,7 @@
-//! Einstellungen, die der Administrator in der Weboberfläche ändern kann.
+//! Settings the administrator can change in the web UI.
 //!
-//! Sie liegen in der Tabelle `settings` und werden im Speicher gehalten, damit z. B. das Ausstellen eines Tokens
-//! keine Datenbankabfrage braucht. Fehlt ein Eintrag, gilt der Wert aus der Umgebungsvariablen (`Config`).
+//! They are stored in the `settings` table and kept in memory, so that e.g. issuing a token
+//! doesn't need a database query. If an entry is missing, the value from the environment variable applies (`Config`).
 
 use std::sync::RwLock;
 
@@ -13,20 +13,20 @@ use crate::config::Config;
 const KEY_ALLOW_REGISTRATION: &str = "allow_registration";
 const KEY_TOKEN_TTL_DAYS: &str = "token_ttl_days";
 
-/// Erlaubter Bereich für die Gültigkeit der Anmeldung
+/// Allowed range for the session lifetime
 pub const TOKEN_TTL_RANGE: std::ops::RangeInclusive<i64> = 1..=3650;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct Settings {
-    /// Neue Konten dürfen sich registrieren (das erste Konto geht immer)
+    /// New accounts may register (the first account always can)
     pub allow_registration: bool,
-    /// Gültigkeit eines Anmelde-Tokens in Tagen
+    /// Lifetime of a sign-in token in days
     pub token_ttl_days: i64,
 }
 
 pub struct SettingsStore {
     current: RwLock<Settings>,
-    /// Standardwerte aus den Umgebungsvariablen
+    /// Default values from the environment variables
     defaults: Settings,
 }
 
@@ -38,7 +38,7 @@ impl SettingsStore {
         Ok(store)
     }
 
-    /// Liest die Tabelle neu ein, z. B. nach einem Datenbank-Import.
+    /// Reloads the table, e.g. after a database import.
     pub async fn reload(&self, db: &SqlitePool) -> anyhow::Result<()> {
         let rows: Vec<(String, String)> = sqlx::query_as("SELECT key, value FROM settings").fetch_all(db).await?;
         let mut s = self.defaults.clone();
@@ -65,7 +65,7 @@ impl SettingsStore {
         &self.defaults
     }
 
-    /// Speichert die übergebenen Werte; `None` lässt den Wert unverändert.
+    /// Stores the given values; `None` leaves the value unchanged.
     pub async fn update(
         &self,
         db: &SqlitePool,

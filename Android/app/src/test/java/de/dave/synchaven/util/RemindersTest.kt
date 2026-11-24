@@ -47,7 +47,7 @@ class RemindersTest {
         val due = Reminders.due(ev, listOf(1440), utc, at.minusSeconds(60), at)
         assertEquals(listOf(t("2026-11-26T08:00:00Z")), due.map { it.start })
 
-        // Ganztägig am 24.12., Vortag 18:00 Berliner Zeit = 17:00 UTC; am Tag selbst 09:00 = 08:00 UTC
+        // All-day on Dec 24, the day before at 18:00 Berlin time = 17:00 UTC; on the day itself 09:00 = 08:00 UTC
         val day = event("2026-12-24T00:00:00Z", "2026-12-25T00:00:00Z", allDay = true)
         val berlin = ZoneId.of("Europe/Berlin")
         val eve = t("2026-12-23T17:00:00Z")
@@ -62,7 +62,7 @@ class RemindersTest {
         val cal = Calendar(id = "c", name = "K", defaultReminders = listOf(30), defaultAllDayReminders = listOf(-540))
         val ev = event("2026-11-24T13:00:00Z", "2026-11-24T14:00:00Z")
         assertEquals(t("2026-11-24T12:30:00Z"), Reminders.next(listOf(ev), listOf(cal), utc, t("2026-11-24T00:00:00Z"), t("2026-11-25T00:00:00Z")))
-        // Eigene Erinnerungen (auch leer) haben Vorrang
+        // Own reminders (even empty) take precedence
         assertNull(Reminders.next(listOf(ev.copy(reminders = emptyList())), listOf(cal), utc, t("2026-11-24T00:00:00Z"), t("2026-11-25T00:00:00Z")))
     }
 
@@ -82,7 +82,7 @@ class RemindersTest {
         assertFalse(Reminders.isValid(Reminders.MAX_BEFORE + 1, true))
     }
 
-    /** „Feld fehlt“ (unverändert) und `null` (Kalender-Standard) müssen auf dem Weg zum Server und im Cache erhalten bleiben. */
+    /** "Field missing" (unchanged) and `null` (calendar default) must be preserved on the way to the server and in the cache. */
     @Test
     fun reminderFieldKeepsAbsentNullAndList() {
         val absent = AppJson.encodeToString(EventInput.serializer(), input())
@@ -104,13 +104,13 @@ class RemindersTest {
         assertNull(input(remindersField(null)).toLocalEvent("e", base).reminders)
         val data = OfflineData(events = listOf(base)).apply(PendingOp.UpdateEvent("e", input(remindersField(listOf(0)))))
         assertEquals(listOf(0), data.events!!.single().reminders)
-        // Gespeicherte Warteschlange: `null` bleibt „Kalender-Standard“
+        // Stored queue: `null` stays "calendar default"
         val json = AppJson.encodeToString(OfflineData.serializer(), OfflineData(outbox = listOf(PendingOp.UpdateEvent("e", input(remindersField(null))))))
         val back = AppJson.decodeFromString(OfflineData.serializer(), json).outbox.single() as PendingOp.UpdateEvent
         assertNull(back.input.applyReminders(listOf(15)))
     }
 
-    /** Lokaler Modus: leere Standard-Erinnerungen einer frühen Testversion werden einmalig ersetzt, danach nicht mehr. */
+    /** Local mode: empty default reminders of an early test version are replaced once, and not afterwards. */
     @Test
     fun localMigrationSetsDefaultOnce() {
         val json = """{"calendars":[{"id":"c","name":"K","default_reminders":[],"default_all_day_reminders":[]},
@@ -120,10 +120,10 @@ class RemindersTest {
         assertEquals(listOf(15), migrated.calendars!![0].defaultReminders)
         assertEquals(listOf(-540), migrated.calendars!![0].defaultAllDayReminders)
         assertEquals(listOf(30), migrated.calendars!![1].defaultReminders)
-        // Danach bewusst geleerte Standards bleiben leer
+        // Defaults deliberately cleared afterwards stay empty
         val cleared = migrated.copy(calendars = migrated.calendars!!.map { it.copy(defaultReminders = emptyList(), defaultAllDayReminders = emptyList()) })
         assertEquals(emptyList<Int>(), cleared.migrateLocal().calendars!![0].defaultReminders)
-        // Daten ohne die Felder (vor den Erinnerungen) erhalten die Voreinstellung schon beim Lesen
+        // Data without the fields (from before reminders) gets the preset when read
         val before = AppJson.decodeFromString(OfflineData.serializer(), """{"calendars":[{"id":"c","name":"K"}]}""")
         assertEquals(listOf(15), before.calendars!![0].defaultReminders)
     }
@@ -140,7 +140,7 @@ class RemindersTest {
         assertNull(Reminders.taskReminderAt(task("2026-11-24T13:00:00Z", allDay = false, completed = true), utc))
         assertNull(Reminders.taskReminderAt(task(null, allDay = true), utc))
 
-        // Ganztägig am 24.12.: 09:00 Berliner Zeit = 08:00 UTC
+        // All-day on Dec 24: 09:00 Berlin time = 08:00 UTC
         val allDay = task("2026-12-24T00:00:00Z", allDay = true)
         assertEquals(t("2026-12-24T08:00:00Z"), Reminders.taskReminderAt(allDay, ZoneId.of("Europe/Berlin")))
         assertEquals(t("2026-12-24T08:00:00Z"),

@@ -58,8 +58,8 @@ import de.dave.synchaven.util.describeSpan
 import de.dave.synchaven.ui.viewmodels.DeleteScope
 
 /**
- * Details eines Termins mit Bearbeiten und Löschen (bei Serien: dieses Vorkommen oder die ganze Serie).
- * Geburtstage sind schreibgeschützt und verweisen stattdessen auf den Kontakt.
+ * Details of an event with edit and delete (for series: this occurrence or the whole series).
+ * Birthdays are read-only and link to the contact instead.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -98,7 +98,7 @@ fun EventDetailsSheet(
                 }
             }
             if (ev.occ.description.isNotBlank()) DetailRow(Icons.AutoMirrored.Outlined.Notes, ev.occ.description)
-            // Wann benachrichtigt wird: eigene Erinnerungen des Termins oder der Standard des Kalenders
+            // When notifications are sent: the event's own reminders or the calendar default
             val reminders = Reminders.sorted(ev.occ.reminders ?: calendar?.defaultReminders(ev.allDay).orEmpty())
             if (reminders.isNotEmpty()) {
                 DetailRow(Icons.Outlined.NotificationsNone, reminders.joinToString("\n") { Reminders.describe(context.resources, it, ev.allDay) })
@@ -107,7 +107,7 @@ fun EventDetailsSheet(
 
             val contactId = ev.occ.contactId
             if (ev.occ.readOnly) {
-                // Geburtstage werden über den Kontakt bearbeitet.
+                // Birthdays are edited via the contact.
                 if (contactId != null) {
                     FilledTonalButton(onClick = { onOpenContact(contactId) }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
                         Icon(Icons.Outlined.Person, null, Modifier.size(18.dp))

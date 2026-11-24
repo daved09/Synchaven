@@ -21,7 +21,7 @@ data class LoginUiState(
     val password: String = "",
     val name: String = "",
     val register: Boolean = false,
-    /** Antwort von `/api/info` für den eingegebenen Server, `null` solange unbekannt */
+    /** Response of `/api/info` for the entered server, `null` as long as unknown */
     val serverInfo: ServerInfo? = null,
     val serverError: UiText? = null,
     val checkingServer: Boolean = false,
@@ -59,7 +59,7 @@ class LoginViewModel(
     fun onNameChange(v: String) = _state.update { it.copy(name = v, error = null) }
     fun onRegisterChange(v: Boolean) = _state.update { it.copy(register = v, error = null) }
 
-    /** Fragt `/api/info` ab, sobald die Eingabe kurz ruht – zeigt Servername und ob Registrierung möglich ist. */
+    /** Queries `/api/info` as soon as the input pauses briefly – shows the server name and whether registration is possible. */
     fun checkServer(immediately: Boolean = false) {
         checkJob?.cancel()
         val server = _state.value.server
@@ -80,7 +80,7 @@ class LoginViewModel(
         }
     }
 
-    /** Ohne Server weiter; der Sitzungszustand wechselt und die Navigation reagiert darauf. */
+    /** Continue without a server; the session state changes and the navigation reacts to it. */
     fun useLocally() {
         if (_state.value.loading) return
         _state.update { it.copy(loading = true, error = null) }
@@ -90,7 +90,7 @@ class LoginViewModel(
         }
     }
 
-    /** Bei Erfolg wechselt der Sitzungszustand und die Navigation reagiert darauf. */
+    /** On success the session state changes and the navigation reacts to it. */
     fun submit() {
         val s = _state.value
         if (!s.canSubmit) return

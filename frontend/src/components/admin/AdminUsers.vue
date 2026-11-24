@@ -60,7 +60,7 @@ function replace(u: AdminUser) {
   const i = users.value.findIndex((x) => x.id === u.id)
   if (i >= 0) users.value[i] = u
   else users.value.push(u)
-  // Eigene Änderungen (Name, E-Mail) sofort im Kontomenü zeigen
+  // Show your own changes (name, email) in the account menu right away
   if (isOwn(u)) auth.fetchMe().catch(() => {})
 }
 

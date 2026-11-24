@@ -4,20 +4,20 @@ export interface User {
   id: string
   email: string
   name: string
-  /** Standardansicht des Kalenders */
+  /** The calendar's default view */
   default_view: ViewMode
   created_at: string
-  /** Darf die Verwaltung öffnen (zunächst das erste registrierte Konto) */
+  /** May open the admin page (initially the first registered account) */
   is_admin: boolean
 }
 
-/** Konto in der Benutzerliste der Verwaltung */
+/** Account in the admin page's user list */
 export interface AdminUser {
   id: string
   email: string
   name: string
   is_admin: boolean
-  /** Gesperrt: keine Anmeldung, keine Synchronisierung */
+  /** Disabled: no sign-in, no sync */
   disabled: boolean
   created_at: string
   last_login_at: string | null
@@ -25,7 +25,7 @@ export interface AdminUser {
   events: number
   contacts: number
   tasks: number
-  /** Browser mit eingeschalteten Benachrichtigungen */
+  /** Browsers with notifications enabled */
   devices: number
 }
 
@@ -42,7 +42,7 @@ export interface AdminSettingsValues {
   token_ttl_days: number
 }
 
-/** Einstellungen der Verwaltung; `defaults` stammen aus den Umgebungsvariablen */
+/** Admin settings; `defaults` come from the environment variables */
 export interface AdminSettings extends AdminSettingsValues {
   defaults: AdminSettingsValues
 }
@@ -50,7 +50,7 @@ export interface AdminSettings extends AdminSettingsValues {
 export interface AdminOverview {
   version: string
   started_at: string
-  /** Größe der Datenbank in Bytes */
+  /** Database size in bytes */
   database_size: number
   counts: {
     users: number
@@ -65,11 +65,11 @@ export interface AdminOverview {
   config: { bind: string; data_dir: string; cors_origins: string[]; vapid_subject: string }
 }
 
-/** Ergebnis von POST /api/admin/import */
+/** Result of POST /api/admin/import */
 export interface DbImportReport {
-  /** Übernommene Einträge je Tabelle, z. B. "events: 12" */
+  /** Imported entries per table, e.g. "events: 12" */
   summary: string[]
-  /** Übersprungene Tabellen und Spalten */
+  /** Skipped tables and columns */
   warnings: string[]
 }
 
@@ -86,11 +86,11 @@ export interface Calendar {
   color: string
   description: string
   visible: boolean
-  /** `birthdays`: automatisch aus den Kontakten erzeugt, Termine schreibgeschützt */
+  /** `birthdays`: generated automatically from the contacts, events read-only */
   kind: 'default' | 'birthdays'
-  /** Standard-Erinnerungen in Minuten vor Beginn (Termine mit Uhrzeit) */
+  /** Default reminders in minutes before the start (timed events) */
   default_reminders: number[]
-  /** Standard-Erinnerungen für ganztägige Termine (negativ = Uhrzeit am Tag selbst) */
+  /** Default reminders for all-day events (negative = time on the day itself) */
   default_all_day_reminders: number[]
   created_at: string
   updated_at: string
@@ -101,12 +101,12 @@ export interface CalendarInput {
   color?: string
   description?: string
   visible?: boolean
-  /** Fehlt das Feld, bleiben die bisherigen Standard-Erinnerungen erhalten */
+  /** If the field is missing, the existing default reminders are kept */
   default_reminders?: number[]
   default_all_day_reminders?: number[]
 }
 
-/** Termin (bei Serien: die Serie selbst) */
+/** Event (for series: the series itself) */
 export interface CalEvent {
   id: string
   calendar_id: string
@@ -120,9 +120,9 @@ export interface CalEvent {
   timezone: string
   rrule: string | null
   exdates: string[]
-  /** Erinnerungen in Minuten vor Beginn; `null` = Standard des Kalenders */
+  /** Reminders in minutes before the start; `null` = calendar default */
   reminders: number[] | null
-  /** Kontakt, aus dessen Geburtstag der Termin erzeugt wurde */
+  /** Contact whose birthday the event was generated from */
   contact_id: string | null
   read_only: boolean
   created_at: string
@@ -140,11 +140,11 @@ export interface EventInput {
   timezone: string
   rrule: string | null
   exdates?: string[]
-  /** `null` = Standard des Kalenders; fehlt das Feld, bleiben die bisherigen Erinnerungen erhalten */
+  /** `null` = calendar default; if the field is missing, the existing reminders are kept */
   reminders?: number[] | null
 }
 
-/** Einzelnes Vorkommen eines Termins in einem Zeitraum */
+/** Single occurrence of an event in a range */
 export interface Occurrence {
   id: string
   event_id: string
@@ -159,31 +159,31 @@ export interface Occurrence {
   recurring: boolean
   rrule: string | null
   contact_id: string | null
-  /** Automatisch erzeugte Termine (Geburtstage) können nicht bearbeitet werden */
+  /** Automatically generated events (birthdays) cannot be edited */
   read_only: boolean
-  /** Erinnerungen des Termins; `null` = Standard des Kalenders */
+  /** The event's reminders; `null` = calendar default */
   reminders: number[] | null
 }
 
-/** Vorkommen mit lokal berechneten Datumswerten für die Darstellung */
+/** Occurrence with locally computed date values for display */
 export interface ViewEvent extends Occurrence {
   startDate: Date
-  /** exklusives Ende */
+  /** exclusive end */
   endDate: Date
   color: string
-  /** Gesetzt, wenn der Eintrag eine Aufgabe ist (`calendar_id` ist dann die Aufgabenliste) */
+  /** Set if the entry is a task (`calendar_id` is then the task list) */
   task?: Task
 }
 
-// ---------- Aufgaben ----------
+// ---------- Tasks ----------
 
 export interface TaskList {
   id: string
   name: string
   color: string
-  /** Aufgaben dieser Liste im Kalender anzeigen */
+  /** Show this list's tasks in the calendar */
   visible: boolean
-  /** Anzahl offener Aufgaben */
+  /** Number of open tasks */
   open_count: number
   created_at: string
   updated_at: string
@@ -198,11 +198,11 @@ export interface TaskListInput {
 export interface Task {
   id: string
   list_id: string
-  /** Übergeordnete Aufgabe, wenn dies eine Unteraufgabe ist */
+  /** Parent task if this is a subtask */
   parent_id: string | null
   title: string
   notes: string
-  /** Fälligkeit; ganztägig als Mitternacht UTC, `null` = ohne Datum */
+  /** Due date; all-day as midnight UTC, `null` = without date */
   due: string | null
   all_day: boolean
   completed: boolean
@@ -217,9 +217,9 @@ export interface TaskInput {
   notes: string
   due: string | null
   all_day: boolean
-  /** Fehlt das Feld, bleibt der Status erhalten */
+  /** If the field is missing, the status is kept */
   completed?: boolean
-  /** Übergeordnete Aufgabe; `null` = Hauptaufgabe, fehlt das Feld, bleibt die Zuordnung erhalten */
+  /** Parent task; `null` = top-level task; if the field is missing, the assignment is kept */
   parent_id?: string | null
 }
 
@@ -230,7 +230,7 @@ export interface ServerInfo {
   allow_registration: boolean
 }
 
-/** Abonnement eines Browsers, wie es `PushSubscription.toJSON()` liefert, plus Zeitzone */
+/** A browser's subscription as returned by `PushSubscription.toJSON()`, plus time zone */
 export interface PushSubscriptionInput {
   endpoint: string
   keys: { p256dh: string; auth: string }
@@ -243,7 +243,7 @@ export interface ImportResult {
   skipped: string[]
 }
 
-// ---------- Kontakte ----------
+// ---------- Contacts ----------
 
 export interface AddressBook {
   id: string
@@ -259,7 +259,7 @@ export interface AddressBookInput {
   description?: string
 }
 
-/** Telefonnummer, E-Mail-Adresse oder Website mit Typ (`mobile`, `home`, `work`, … oder eigene Bezeichnung) */
+/** Phone number, email address or website with a type (`mobile`, `home`, `work`, … or a custom label) */
 export interface TypedValue {
   type: string
   value: string
@@ -291,10 +291,10 @@ export interface ContactData {
   emails: TypedValue[]
   addresses: PostalAddress[]
   urls: TypedValue[]
-  /** `YYYY-MM-DD` oder `--MM-DD` (ohne Jahr) */
+  /** `YYYY-MM-DD` or `--MM-DD` (without year) */
   birthday: string
   note: string
-  /** Kategorien (vCard `CATEGORIES`) */
+  /** Categories (vCard `CATEGORIES`) */
   categories: string[]
 }
 
@@ -303,7 +303,7 @@ export interface Contact extends ContactData {
   addressbook_id: string
   uid: string
   has_photo: boolean
-  /** nur bei Einzelabfrage: data:-URL */
+  /** only for single queries: data: URL */
   photo?: string
   created_at: string
   updated_at: string

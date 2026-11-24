@@ -9,7 +9,7 @@ const theme = useTheme()
 const { settings } = useSettingsStore()
 const notify = useNotifyStore()
 
-// Systemeinstellung für hell/dunkel beobachten
+// Watch the system setting for light/dark
 const media = window.matchMedia('(prefers-color-scheme: dark)')
 const systemDark = ref(media.matches)
 const onMedia = (e: MediaQueryListEvent) => (systemDark.value = e.matches)

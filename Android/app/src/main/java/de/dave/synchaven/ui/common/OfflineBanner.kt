@@ -38,14 +38,14 @@ import de.dave.synchaven.data.offline.OfflineSync
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.StateFlow
 
-/** Zustand des Offline-Betriebs für [OfflineBanner] */
+/** State of the offline mode for [OfflineBanner] */
 class OfflineStatusViewModel(private val sync: OfflineSync) : ViewModel() {
     val status: StateFlow<OfflineStatus> = sync.status
 
-    /** App im Vordergrund: abgleichen, wenn nötig */
+    /** App in the foreground: sync if needed */
     fun onForeground() = sync.syncIfNeeded()
 
-    /** Regelmäßig im Vordergrund: Server erneut versuchen, solange er nicht erreichbar ist oder Änderungen ausstehen */
+    /** Periodically in the foreground: retry the server as long as it is unreachable or changes are pending */
     fun retryIfNeeded() {
         val s = status.value
         if ((s.offline || s.pending > 0) && !s.syncing) sync.requestSync()
@@ -56,8 +56,8 @@ class OfflineStatusViewModel(private val sync: OfflineSync) : ViewModel() {
 }
 
 /**
- * Hinweis über der Navigationsleiste: offline (gespeicherte Daten), ausstehende Änderungen oder eine vom Server
- * abgelehnte Änderung. Solange die App sichtbar ist, wird der Server jede Minute erneut versucht.
+ * Notice above the navigation bar: offline (stored data), pending changes or a change rejected by the
+ * server. As long as the app is visible, the server is retried every minute.
  */
 @Composable
 fun OfflineBanner() {

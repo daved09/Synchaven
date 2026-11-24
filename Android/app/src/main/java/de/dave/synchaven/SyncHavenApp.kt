@@ -13,9 +13,9 @@ class SyncHavenApp : Application() {
     override fun onCreate() {
         super.onCreate()
         container = AppContainer(this)
-        // Launcher-Icon auf den heutigen Tag stellen (PackageManager-Aufrufe sind IPC → nicht im Main-Thread)
+        // Set the launcher icon to today's day (PackageManager calls are IPC → not on the main thread)
         container.appScope.launch { runCatching { DynamicLauncherIcon.update(this@SyncHavenApp) } }
-        // Erinnerungen an Termine planen und bei Datenänderungen neu planen
+        // Schedule event reminders and reschedule them when data changes
         ReminderNotifier.start(this, container)
     }
 }

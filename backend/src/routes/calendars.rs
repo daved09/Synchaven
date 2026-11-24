@@ -12,7 +12,7 @@ use crate::{
     reminders, time, AppState,
 };
 
-/// Termine in diesem Kalender werden automatisch erzeugt und dürfen nicht von Hand geändert werden.
+/// Events in this calendar are generated automatically and must not be changed by hand.
 pub fn ensure_writable(cal: &CalendarRow) -> AppResult<()> {
     if cal.kind == birthdays::KIND {
         return Err(AppError::BadRequest(
@@ -22,7 +22,7 @@ pub fn ensure_writable(cal: &CalendarRow) -> AppResult<()> {
     Ok(())
 }
 
-/// Lädt einen Kalender, sofern er dem Benutzer gehört.
+/// Loads a calendar if it belongs to the user.
 pub async fn owned_calendar(state: &AppState, user_id: &str, id: &str) -> AppResult<CalendarRow> {
     sqlx::query_as::<_, CalendarRow>("SELECT * FROM calendars WHERE id = ? AND user_id = ?")
         .bind(id)
@@ -32,7 +32,7 @@ pub async fn owned_calendar(state: &AppState, user_id: &str, id: &str) -> AppRes
         .ok_or(AppError::NotFound)
 }
 
-/// Standard-Erinnerungen prüfen; `None` (Feld fehlt) lässt die bisherigen unverändert.
+/// Validate default reminders; `None` (field missing) leaves the existing ones unchanged.
 fn validate_defaults(input: &CalendarInput) -> AppResult<(Option<String>, Option<String>)> {
     let check = |list: &Option<Vec<i32>>, all_day| -> AppResult<Option<String>> {
         list.clone()
@@ -50,7 +50,7 @@ fn validate(input: &CalendarInput) -> AppResult<(String, Option<String>)> {
     Ok((name.to_string(), parse_color(input.color.as_deref())?))
 }
 
-/// Farbe im Format `#RRGGBB` (Großbuchstaben); `None` bei fehlender oder leerer Angabe.
+/// Color in the format `#RRGGBB` (upper case); `None` if missing or empty.
 pub fn parse_color(color: Option<&str>) -> AppResult<Option<String>> {
     match color.map(str::trim) {
         None | Some("") => Ok(None),
@@ -132,7 +132,7 @@ pub async fn delete(State(state): State<AppState>, auth: AuthUser, Path(id): Pat
             "Der Geburtstagskalender kann nicht gelöscht, aber ausgeblendet werden".into(),
         ));
     }
-    // Termine werden per ON DELETE CASCADE mitgelöscht.
+    // Events are deleted along with it via ON DELETE CASCADE.
     sqlx::query("DELETE FROM calendars WHERE id = ?").bind(&id).execute(&state.db).await?;
     Ok(StatusCode::NO_CONTENT)
 }

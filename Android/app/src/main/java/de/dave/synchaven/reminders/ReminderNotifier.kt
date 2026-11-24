@@ -41,10 +41,10 @@ import kotlinx.coroutines.sync.withLock
 import androidx.compose.ui.graphics.toArgb
 
 /**
- * Erinnerungen an Termine und fällige Aufgaben als Android-Benachrichtigungen. Grundlage ist der lokale Cache ([OfflineData]) – das
- * funktioniert auch offline und im lokalen Modus. Geplant wird immer nur der nächste fällige Zeitpunkt per
- * [AlarmManager]; beim Auslösen werden alle seit der letzten Prüfung fälligen Erinnerungen angezeigt und der
- * nächste Alarm geplant. Ändern sich die Daten, wird neu geplant.
+ * Reminders for events and due tasks as Android notifications. They are based on the local cache ([OfflineData]) – this
+ * also works offline and in local mode. Only the next due time is ever scheduled via
+ * [AlarmManager]; when it fires, all reminders due since the last check are shown and the
+ * next alarm is scheduled. When the data changes, it is rescheduled.
  */
 object ReminderNotifier {
     private const val TAG = "ReminderNotifier"
@@ -55,16 +55,16 @@ object ReminderNotifier {
     private const val KEY_CHECKED = "checked_at"
     private const val KEY_ACCOUNT = "account"
 
-    /** So weit wird im Voraus nach der nächsten Erinnerung gesucht */
+    /** How far ahead to look for the next reminder */
     private val LOOKAHEAD = Duration.ofDays(8)
-    /** Spätestens dann wacht die App auf, um neue Termine vom Server zu holen */
+    /** At the latest then the app wakes up to fetch new events from the server */
     private val REFRESH = Duration.ofHours(4)
-    /** Nach längerer Pause (Gerät aus) werden ältere Erinnerungen nicht mehr nachgeholt */
+    /** After a longer pause (device off), older reminders are no longer caught up */
     private val MAX_CATCH_UP = Duration.ofMinutes(30)
 
     private val mutex = Mutex()
 
-    /** Beobachtet Daten und Einstellungen und plant bei jeder Änderung neu (einmal beim App-Start). */
+    /** Observes data and settings and reschedules on every change (once at app start). */
     @OptIn(FlowPreview::class)
     fun start(context: Context, container: AppContainer) {
         val app = context.applicationContext
@@ -78,8 +78,8 @@ object ReminderNotifier {
     }
 
     /**
-     * Zeigt alle seit der letzten Prüfung fälligen Erinnerungen an und plant den nächsten Alarm.
-     * [alarm]: durch den Alarm ausgelöst – dann auch neue Daten vom Server anfordern.
+     * Shows all reminders due since the last check and schedules the next alarm.
+     * [alarm]: triggered by the alarm – then also request new data from the server.
      */
     suspend fun check(context: Context, container: AppContainer, alarm: Boolean) = mutex.withLock {
         val store = container.offlineStore
@@ -95,7 +95,7 @@ object ReminderNotifier {
             return@withLock
         }
 
-        // Nach einem Kontowechsel nichts nachholen
+        // Don't catch up on anything after an account switch
         val checked = if (prefs.getString(KEY_ACCOUNT, null) == account) Instant.ofEpochMilli(prefs.getLong(KEY_CHECKED, now.toEpochMilli())) else now
         val from = maxOf(checked, now.minus(MAX_CATCH_UP))
         val data = store.data.value
@@ -131,7 +131,7 @@ object ReminderNotifier {
             (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
                 ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED)
 
-    /** Exakte Alarme erlaubt? (Android 12/12L: vom Benutzer abschaltbar; ab 13 über USE_EXACT_ALARM immer) */
+    /** Exact alarms allowed? (Android 12/12L: can be turned off by the user; from 13 always via USE_EXACT_ALARM) */
     fun canScheduleExact(context: Context): Boolean =
         Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
             context.getSystemService(AlarmManager::class.java)?.canScheduleExactAlarms() == true
@@ -212,7 +212,7 @@ object ReminderNotifier {
         }
     }
 
-    /** „Heute, 14:00–15:00“, „Morgen (ganztägig)“, „Fr., 28. Nov., 09:00–10:00“ */
+    /** "Heute, 14:00–15:00", "Morgen (ganztägig)", "Fr., 28. Nov., 09:00–10:00" */
     private fun describeTime(context: Context, d: Reminders.Due): String {
         val zone = ZoneId.systemDefault()
         val today = LocalDate.now(zone)
@@ -253,7 +253,7 @@ object ReminderNotifier {
     }
 }
 
-/** Erinnerungs-Alarm sowie Neustart, App-Update und Zeit-/Zeitzonenänderung → prüfen und neu planen */
+/** Reminder alarm as well as reboot, app update and time/time zone change → check and reschedule */
 class ReminderReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action !in HANDLED_ACTIONS) return

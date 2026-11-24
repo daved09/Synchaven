@@ -228,7 +228,7 @@ private fun QuickAction(icon: ImageVector, label: String, enabled: Boolean, onCl
     }
 }
 
-/** Zeile mit Symbol (nur beim ersten Eintrag einer Gruppe), Wert und Typ */
+/** Row with an icon (only for the first entry of a group), value and type */
 @Composable
 private fun DetailItem(icon: ImageVector?, value: String, label: String, onClick: (() -> Unit)? = null) {
     ListItem(

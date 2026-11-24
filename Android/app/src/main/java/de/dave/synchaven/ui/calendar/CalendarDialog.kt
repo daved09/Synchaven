@@ -26,7 +26,7 @@ import de.dave.synchaven.ui.event.ReminderEditor
 import de.dave.synchaven.util.Reminders
 import de.dave.synchaven.ui.theme.CALENDAR_COLORS
 
-/** Kalender anlegen ([calendar] = null) oder bearbeiten */
+/** Create ([calendar] = null) or edit a calendar */
 @Composable
 fun CalendarDialog(calendar: Calendar?, onSave: (CalendarInput) -> Unit, onDismiss: () -> Unit) {
     var name by rememberSaveable { mutableStateOf(calendar?.name.orEmpty()) }

@@ -9,20 +9,20 @@ import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 
 /**
- * Geburtstagskalender im lokalen Modus – wie `backend/src/birthdays.rs`: Für jeden Kontakt mit Geburtstag gibt es
- * einen jährlichen, ganztägigen, schreibgeschützten Termin im Kalender „Geburtstage“. Das Alter im Titel ergänzt
- * [OfflineData.occurrences] aus dem Geburtsjahr des Kontakts.
+ * Birthday calendar in local mode – like `backend/src/birthdays.rs`: for each contact with a birthday there is
+ * a yearly, all-day, read-only event in the "Geburtstage" calendar. [OfflineData.occurrences] adds the age
+ * to the title from the contact's birth year.
  */
 object Birthdays {
     const val KIND = "birthdays"
     private const val NAME = "Geburtstage"
     private const val COLOR = "#D81B60"
     private const val DESCRIPTION = "Wird automatisch aus den Kontakten erstellt"
-    /** Jahr für Geburtstage ohne Jahresangabe (Schaltjahr, damit auch der 29.02. gültig ist) */
+    /** Year for birthdays without a year (a leap year, so Feb 29 is valid too) */
     private const val NO_YEAR = 2000
     private val GERMAN_DATE = DateTimeFormatter.ofPattern("dd.MM.yyyy")
 
-    /** Geburtstag aus `YYYY-MM-DD` oder `--MM-DD`: Datum des ersten Termins und Geburtsjahr, falls bekannt */
+    /** Birthday from `YYYY-MM-DD` or `--MM-DD`: date of the first event and birth year, if known */
     fun parse(birthday: String): Pair<LocalDate, Int?>? {
         val b = birthday.trim()
         if (b.startsWith("--")) {
@@ -32,13 +32,13 @@ object Birthdays {
         return runCatching { LocalDate.parse(b) }.getOrNull()?.let { it to it.year }
     }
 
-    /** Jährliche Wiederholung; am 29.02. Geborene feiern in Nicht-Schaltjahren am 28.02. */
+    /** Yearly recurrence; people born on Feb 29 celebrate on Feb 28 in non-leap years. */
     fun rruleFor(date: LocalDate) =
         if (date.monthValue == 2 && date.dayOfMonth == 29) "FREQ=YEARLY;BYMONTH=2;BYMONTHDAY=-1" else "FREQ=YEARLY"
 
     /**
-     * Gleicht die Geburtstagstermine mit den Kontakten ab: anlegen, aktualisieren, entfernen. Der Kalender entsteht
-     * beim ersten Geburtstag und bleibt danach bestehen (er kann ausgeblendet, aber nicht gelöscht werden).
+     * Syncs the birthday events with the contacts: create, update, remove. The calendar is created
+     * with the first birthday and stays afterwards (it can be hidden but not deleted).
      */
     fun sync(data: OfflineData, newId: () -> String, now: String): OfflineData {
         val wanted = data.contacts.orEmpty().mapNotNull { c -> parse(c.birthday)?.let { c to it } }

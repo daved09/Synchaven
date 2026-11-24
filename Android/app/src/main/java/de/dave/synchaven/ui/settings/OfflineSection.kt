@@ -22,7 +22,7 @@ import de.dave.synchaven.util.FMT_DATE_SHORT
 import de.dave.synchaven.util.FMT_TIME
 import java.time.ZoneId
 
-/** Stand des lokalen Caches: letzter Abgleich, ausstehende Änderungen, Erreichbarkeit des Servers */
+/** State of the local cache: last sync, pending changes, reachability of the server */
 @Composable
 internal fun OfflineSection(status: OfflineStatus, onSyncNow: () -> Unit) {
     SectionTitle(stringResource(R.string.offline_title))

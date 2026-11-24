@@ -34,17 +34,17 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
 
 /**
- * Kalender und Termine. Kalender und alle Termine liegen im [OfflineStore], damit die App auch ohne Verbindung
- * zum Server funktioniert: Online werden die Vorkommen vom Server geholt, offline aus den gespeicherten Serien
- * berechnet. Änderungen ohne Verbindung landen in der Warteschlange von [OfflineSync].
- * [eventsVersion] zählt jede Änderung an Terminen hoch, sodass geöffnete Ansichten neu laden.
+ * Calendars and events. Calendars and all events are kept in the [OfflineStore] so the app also works without a
+ * connection to the server: online, the occurrences are fetched from the server; offline, they are computed from the
+ * stored series. Changes without a connection go into the queue of [OfflineSync].
+ * [eventsVersion] counts up on every change to events, so open views reload.
  */
 class CalendarRepository(
     private val api: SyncHavenApi,
     private val store: OfflineStore,
     private val sync: OfflineSync,
     private val scope: CoroutineScope,
-    /** Daten auf dem Server geändert – stößt die Synchronisierung mit dem Android-Kalender an */
+    /** Data changed on the server – triggers the sync with the Android calendar */
     private val onServerChanged: () -> Unit = {},
 ) {
     val calendars: StateFlow<List<Calendar>?> =
@@ -53,19 +53,19 @@ class CalendarRepository(
     private val _eventsVersion = MutableStateFlow(0L)
     val eventsVersion: StateFlow<Long> = _eventsVersion.asStateFlow()
 
-    /** Termine wurden auf dem Server geändert (auch indirekt, z. B. Geburtstage durch Kontaktänderungen). */
+    /** Events were changed on the server (also indirectly, e.g. birthdays through contact changes). */
     fun eventsChanged() {
         localChange()
         onServerChanged()
     }
 
-    /** Nur lokal geändert (offline) – Ansichten neu laden, die Synchronisierung folgt nach dem Übertragen. */
+    /** Only changed locally (offline) – reload views; the sync follows after the transfer. */
     private fun localChange() = _eventsVersion.update { it + 1 }
 
-    /** Termine wurden außerhalb der App geändert (lokaler Modus: Android-Kalender) – nur die Ansichten neu laden. */
+    /** Events were changed outside the app (local mode: Android calendar) – only reload the views. */
     fun refreshViews() = localChange()
 
-    /** Kontakte wurden auf dem Server geändert: Geburtstagskalender neu laden. */
+    /** Contacts were changed on the server: reload the birthday calendar. */
     fun birthdaysChanged() {
         scope.launch {
             runCatching {
@@ -75,7 +75,7 @@ class CalendarRepository(
         }
     }
 
-    /** Gleicht den Cache mit dem Server ab (ausstehende Änderungen übertragen, alles neu laden). */
+    /** Syncs the cache with the server (transfer pending changes, reload everything). */
     fun syncNow() = sync.requestSync()
 
     suspend fun loadCalendars(): List<Calendar> = sync.read(cached = { it.calendars }) {
@@ -112,7 +112,7 @@ class CalendarRepository(
         },
     )
 
-    /** Blendet einen Kalender ein/aus – sofort lokal, danach auf dem Server (wie in der Weboberfläche). */
+    /** Shows/hides a calendar – immediately locally, then on the server (as in the web UI). */
     suspend fun toggleVisible(cal: Calendar) {
         val toggled = cal.copy(visible = !cal.visible)
         sync.mergeServer { it.apply(PendingOp.UpdateCalendar(cal.id, toggled.toInput())) }
@@ -143,7 +143,7 @@ class CalendarRepository(
         return res
     }
 
-    /** Lädt die Termine eines Kalenders neu in den Cache. */
+    /** Reloads a calendar's events into the cache. */
     private suspend fun refreshCalendarEvents(calendarId: String) {
         val list = sync.online { apiCall { api.calendarEvents(calendarId) } }
         sync.mergeServer { d ->
@@ -151,11 +151,11 @@ class CalendarRepository(
         }
     }
 
-    // ---------- Termine ----------
+    // ---------- Events ----------
 
     /**
-     * Vorkommen im Zeitraum – vom Server, solange er erreichbar ist und keine Änderungen ausstehen, sonst aus dem
-     * Cache berechnet.
+     * Occurrences in the range – from the server as long as it is reachable and no changes are pending, otherwise
+     * computed from the cache.
      */
     suspend fun occurrences(start: Instant, end: Instant, query: String? = null): List<Occurrence> =
         withContext(Dispatchers.Default) {
@@ -164,7 +164,7 @@ class CalendarRepository(
             }
         }
 
-    /** Vorkommen aus dem Cache zum sofortigen Anzeigen; `null`, solange noch nichts gespeichert ist. */
+    /** Occurrences from the cache for immediate display; `null` as long as nothing has been stored yet. */
     suspend fun cachedOccurrences(start: Instant, end: Instant): List<Occurrence>? {
         store.awaitReady()
         val data = store.data.value
@@ -213,7 +213,7 @@ class CalendarRepository(
         localChange()
     }
 
-    /** Entfernt ein einzelnes Vorkommen aus einer Serie */
+    /** Removes a single occurrence from a series */
     suspend fun removeOccurrence(eventId: String, occurrenceStart: String) {
         sync.write(
             PendingOp.AddExdate(eventId, occurrenceStart),
@@ -224,9 +224,9 @@ class CalendarRepository(
     }
 
     /**
-     * Verschiebt ein Vorkommen auf neue Start-/Endzeit. Bei Serien wird nur dieses Vorkommen als eigener
-     * Termin angelegt und in der Serie ausgenommen – erst anlegen, dann ausnehmen, damit bei einem Fehler
-     * eher ein Duplikat als ein Verlust entsteht (wie in der Weboberfläche).
+     * Moves an occurrence to a new start/end time. For series, only this occurrence is created as a separate
+     * event and excluded from the series – create first, then exclude, so that an error is more likely to
+     * produce a duplicate than a loss (as in the web UI).
      */
     suspend fun moveOccurrence(occ: Occurrence, start: String, end: String) {
         try {
@@ -235,7 +235,7 @@ class CalendarRepository(
                 calendarId = full.calendarId, title = full.title, description = full.description,
                 location = full.location, start = start, end = end, allDay = full.allDay,
                 timezone = full.timezone, rrule = full.rrule, exdates = full.exdates,
-                // Das herausgelöste Vorkommen behält die Erinnerungen der Serie
+                // The detached occurrence keeps the series' reminders
                 reminders = remindersField(full.reminders),
             )
             if (occ.recurring) {
@@ -249,7 +249,7 @@ class CalendarRepository(
         }
     }
 
-    /** Übernimmt einen vom Server gelieferten Termin in den Cache. */
+    /** Takes an event returned by the server into the cache. */
     private suspend fun patchEvent(ev: CalEvent) {
         sync.mergeServer { d ->
             d.copy(events = d.events?.let { list ->

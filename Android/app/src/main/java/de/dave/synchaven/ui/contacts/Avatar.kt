@@ -16,7 +16,7 @@ import de.dave.synchaven.ui.theme.parseHexColor
 import de.dave.synchaven.util.avatarColor
 import de.dave.synchaven.util.initials
 
-/** Runder Avatar mit Initialen in einer aus der UID abgeleiteten Farbe */
+/** Round avatar with initials in a color derived from the UID */
 @Composable
 fun Avatar(c: Contact, sizeDp: Int) {
     val color = parseHexColor(c.avatarColor())

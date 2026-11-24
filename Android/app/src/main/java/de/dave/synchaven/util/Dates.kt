@@ -17,17 +17,17 @@ import java.time.temporal.IsoFields
 import java.time.temporal.TemporalAdjusters
 import java.util.Locale
 
-// Datumshilfen – angezeigt wird immer in der Zeitzone des Geräts.
-// Die Datumsmuster (Reihenfolge, Abkürzungen) folgen bewusst dem deutschen Format der Weboberfläche.
+// Date helpers – always displayed in the device's time zone.
+// The date patterns (order, abbreviations) deliberately follow the web UI's German format.
 
 val LOCALE: Locale = Locale.GERMANY
 
-/** Anzahl Tage der Terminliste ab dem gewählten Datum */
+/** Number of days of the event list from the selected date */
 const val LIST_DAYS = 60L
 
 fun deviceZone(): ZoneId = ZoneId.systemDefault()
 
-/** RFC-3339-Zeitpunkt mit beliebigem Offset → Instant */
+/** RFC 3339 point in time with any offset → Instant */
 fun parseInstant(s: String): Instant = OffsetDateTime.parse(s).toInstant()
 
 fun Instant.toLocal(zone: ZoneId = deviceZone()): LocalDateTime = atZone(zone).toLocalDateTime()
@@ -36,12 +36,12 @@ fun LocalDateTime.toInstant(zone: ZoneId = deviceZone()): Instant = atZone(zone)
 
 fun LocalDate.startInstant(zone: ZoneId = deviceZone()): Instant = atStartOfDay(zone).toInstant()
 
-/** Ganztägige Termine werden als Mitternacht UTC übertragen; nur der Datumsteil zählt. */
+/** All-day events are transferred as midnight UTC; only the date part counts. */
 fun allDayToLocal(iso: String): LocalDate = LocalDate.parse(iso.substring(0, 10))
 
 fun localToAllDay(d: LocalDate): String = "${d}T00:00:00Z"
 
-/** Zeitpunkt mit Offset der Gerätezeitzone, z. B. `2026-11-26T14:30:00+01:00` */
+/** Point in time with the device time zone's offset, e.g. `2026-11-26T14:30:00+01:00` */
 fun LocalDateTime.toOffsetString(zone: ZoneId = deviceZone()): String =
     atZone(zone).toOffsetDateTime().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)
 
@@ -67,13 +67,13 @@ private val FMT_MONTH_SHORT: DateTimeFormatter = fmt("MMM")
 private val FMT_MONTH_SHORT_YEAR: DateTimeFormatter = fmt("MMM yyyy")
 private val FMT_DAY_TITLE: DateTimeFormatter = fmt("EEE, d. MMMM yyyy")
 
-/** Wochentagsnamen ab [weekStart], z. B. „Mo“, „Di“, … */
+/** Weekday names from [weekStart], e.g. "Mo", "Di", … */
 fun weekdayNames(weekStart: DayOfWeek, style: TextStyle = TextStyle.SHORT): List<String> =
     (0L until 7L).map { weekStart.plus(it).getDisplayName(style, LOCALE).removeSuffix(".") }
 
 fun DayOfWeek.shortName(): String = getDisplayName(TextStyle.SHORT, LOCALE).removeSuffix(".")
 
-/** Sichtbarer Zeitraum einer Ansicht; `end` ist exklusiv. Monat: volle Wochen. */
+/** Visible range of a view; `end` is exclusive. Month: whole weeks. */
 data class DateRange(val start: LocalDate, val end: LocalDate) {
     val days: List<LocalDate> get() = generateSequence(start) { it.plusDays(1) }.takeWhile { it < end }.toList()
 }
@@ -104,7 +104,7 @@ fun viewTitle(mode: ViewMode, date: LocalDate, range: DateRange): UiText = when 
 
 private fun String.capitalized() = replaceFirstChar { it.uppercase(LOCALE) }
 
-/** Nächster Zeitraum in Richtung [dir] (±1) */
+/** Next range in direction [dir] (±1) */
 fun stepDate(mode: ViewMode, date: LocalDate, dir: Int): LocalDate = when (mode) {
     ViewMode.MONTH -> date.plusMonths(dir.toLong())
     ViewMode.WEEK -> date.plusWeeks(dir.toLong())
@@ -112,7 +112,7 @@ fun stepDate(mode: ViewMode, date: LocalDate, dir: Int): LocalDate = when (mode)
     ViewMode.LIST -> date.plusDays(30L * dir)
 }
 
-/** Lesbarer Zeitraum eines Termins, z. B. „Mo., 23. Nov. 2026 · 09:00 – 10:00“; [end] ist exklusiv. */
+/** Readable time range of an event, e.g. "Mo., 23. Nov. 2026 · 09:00 – 10:00"; [end] is exclusive. */
 fun describeSpan(start: LocalDateTime, end: LocalDateTime, allDay: Boolean): UiText {
     fun day(d: LocalDate) = d.format(FMT_SPAN_DAY)
     if (allDay) {

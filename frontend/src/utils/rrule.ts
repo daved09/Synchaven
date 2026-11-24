@@ -1,4 +1,4 @@
-// Formularmodell für RFC-5545-Wiederholungsregeln und deutsche Beschreibung.
+// Form model for RFC 5545 recurrence rules and German description.
 import { fmt, fmtDateShort } from './date'
 
 export type Freq = 'NONE' | 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY' | 'CUSTOM'
@@ -20,7 +20,7 @@ export interface RecurrenceForm {
 }
 
 export const jsDayToCode = (d: Date) => WEEKDAYS[(d.getDay() + 6) % 7]
-/** Ordnungszahl des Wochentags im Monat: 1..4 oder -1 (letzter) */
+/** Ordinal of the weekday in the month: 1..4 or -1 (last) */
 export function weekdayOrdinal(d: Date): number {
   const n = Math.ceil(d.getDate() / 7)
   const daysInMonth = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate()
@@ -43,7 +43,7 @@ function parts(rule: string): Map<string, string> {
   return m
 }
 
-/** UNTIL (UTC) in ein lokales Datum YYYY-MM-DD umwandeln */
+/** Convert UNTIL (UTC) to a local date YYYY-MM-DD */
 function untilToDate(v: string): string {
   const m = /^(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2})(\d{2})Z?)?$/.exec(v)
   if (!m) return ''
@@ -103,7 +103,7 @@ export function buildRRule(form: RecurrenceForm, start: Date): string | null {
 
 const ordinalText = (n: number) => (n === -1 ? 'letzten' : `${n}.`)
 
-/** Deutsche Kurzbeschreibung, z. B. "Alle 2 Wochen am Mo, Mi bis 31.12.2026" */
+/** Short German description, e.g. "Alle 2 Wochen am Mo, Mi bis 31.12.2026" */
 export function describeRRule(rule: string | null, start: Date): string {
   if (!rule) return ''
   const p = parts(rule)

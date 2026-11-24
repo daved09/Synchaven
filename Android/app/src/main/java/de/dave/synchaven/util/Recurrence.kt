@@ -11,7 +11,7 @@ import java.time.LocalDateTime
 import java.time.ZoneOffset
 import java.time.format.TextStyle
 
-// Formularmodell für RFC-5545-Wiederholungsregeln und deutsche Beschreibung (wie utils/rrule.ts im Web).
+// Form model for RFC 5545 recurrence rules and German description (like utils/rrule.ts on the web).
 
 enum class Freq(@StringRes val labelRes: Int) {
     NONE(R.string.freq_none), DAILY(R.string.freq_daily), WEEKLY(R.string.freq_weekly), MONTHLY(R.string.freq_monthly),
@@ -37,7 +37,7 @@ private val CODES = listOf("MO", "TU", "WE", "TH", "FR", "SA", "SU")
 fun DayOfWeek.code(): String = CODES[value - 1]
 private fun dayFromCode(code: String): DayOfWeek? = CODES.indexOf(code).takeIf { it >= 0 }?.let { DayOfWeek.of(it + 1) }
 
-/** Ordnungszahl des Wochentags im Monat: 1..4 oder -1 (letzter) */
+/** Ordinal of the weekday in the month: 1..4 or -1 (last) */
 fun weekdayOrdinal(d: LocalDate): Int {
     val n = (d.dayOfMonth + 6) / 7
     return if (d.dayOfMonth + 7 > d.lengthOfMonth() && n >= 4) -1 else n
@@ -53,7 +53,7 @@ private fun parts(rule: String): Map<String, String> =
 
 private val UNTIL_RE = Regex("""^(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2})(\d{2})Z?)?$""")
 
-/** UNTIL (bei Uhrzeit mit Z: UTC) in ein lokales Datum umwandeln */
+/** Convert UNTIL (with a time and Z: UTC) to a local date */
 private fun untilToDate(v: String): LocalDate? {
     val m = UNTIL_RE.matchEntire(v) ?: return null
     val (y, mo, d) = m.destructured
@@ -111,12 +111,12 @@ fun buildRRule(form: RecurrenceForm, start: LocalDate): String? {
     return r.joinToString(";")
 }
 
-/** „letzten“ bzw. „2.“ für BYDAY=-1MO / 2MO */
+/** "letzten" or "2." for BYDAY=-1MO / 2MO */
 fun ordinalText(n: Int): UiText = if (n == -1) uiText(R.string.ordinal_last) else uiText(R.string.ordinal_n, n)
 
 private fun longName(d: DayOfWeek) = d.getDisplayName(TextStyle.FULL, LOCALE)
 
-/** Deutsche Kurzbeschreibung, z. B. „Alle 2 Wochen am Mo, Mi bis 31.12.2026“ */
+/** Short German description, e.g. "Alle 2 Wochen am Mo, Mi bis 31.12.2026" */
 fun describeRRule(rule: String?, start: LocalDate): UiText {
     if (rule.isNullOrBlank()) return UiText.Plain("")
     val p = parts(rule)

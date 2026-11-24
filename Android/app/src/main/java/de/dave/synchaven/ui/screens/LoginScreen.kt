@@ -180,7 +180,7 @@ fun LoginScreen() {
                     )
                 }
 
-                // ---------- Ohne Server ----------
+                // ---------- Without server ----------
                 Row(
                     Modifier.fillMaxWidth().padding(top = 12.dp),
                     verticalAlignment = Alignment.CenterVertically,

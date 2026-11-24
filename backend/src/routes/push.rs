@@ -1,4 +1,4 @@
-//! Web-Push-Abonnements der Browser verwalten.
+//! Manage the browsers' Web Push subscriptions.
 
 use std::time::Duration;
 
@@ -13,7 +13,7 @@ use crate::{
     time, AppState,
 };
 
-/// Öffentlicher VAPID-Schlüssel für `pushManager.subscribe({ applicationServerKey })`
+/// Public VAPID key for `pushManager.subscribe({ applicationServerKey })`
 pub async fn public_key(State(state): State<AppState>) -> Json<Value> {
     Json(json!({ "public_key": state.push.public_key }))
 }
@@ -28,13 +28,13 @@ pub struct Keys {
 pub struct SubscribeInput {
     endpoint: String,
     keys: Keys,
-    /// IANA-Zeitzone des Browsers, z. B. `Europe/Berlin`
+    /// The browser's IANA time zone, e.g. `Europe/Berlin`
     timezone: Option<String>,
     #[serde(default)]
     user_agent: String,
 }
 
-/// Der Server ruft den Endpunkt selbst auf – nur HTTPS-Adressen öffentlicher Hosts zulassen.
+/// The server calls the endpoint itself – only allow HTTPS addresses of public hosts.
 fn validate_endpoint(endpoint: &str) -> AppResult<()> {
     let bad = || AppError::BadRequest("Ungültiger Push-Endpunkt".into());
     let url = reqwest::Url::parse(endpoint).map_err(|_| bad())?;
@@ -66,7 +66,7 @@ pub async fn subscribe(
         .unwrap_or_else(|| "UTC".into());
     let ua: String = input.user_agent.chars().take(300).collect();
     let now = time::to_db(time::now());
-    // Ein Browser kann den Benutzer wechseln: der Endpunkt gehört immer dem zuletzt angemeldeten.
+    // A browser can switch users: the endpoint always belongs to the one who subscribed last.
     sqlx::query(
         "INSERT INTO push_subscriptions (id, user_id, endpoint, p256dh, auth, timezone, user_agent, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -108,11 +108,11 @@ pub async fn unsubscribe(
 
 #[derive(Deserialize)]
 pub struct TestInput {
-    /// Nur an diesen Browser senden (sonst an alle des Benutzers)
+    /// Only send to this browser (otherwise to all of the user's browsers)
     endpoint: Option<String>,
 }
 
-/// Sendet eine Testbenachrichtigung.
+/// Sends a test notification.
 pub async fn test(
     State(state): State<AppState>,
     auth: AuthUser,

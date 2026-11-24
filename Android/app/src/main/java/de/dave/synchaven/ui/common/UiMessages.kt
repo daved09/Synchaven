@@ -9,7 +9,7 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.receiveAsFlow
 
-/** Einmalige Meldungen eines ViewModels an die UI, angezeigt als Snackbar. */
+/** One-time messages from a ViewModel to the UI, shown as a snackbar. */
 class UiMessages {
     private val channel = Channel<UiText>(Channel.BUFFERED)
     val flow: Flow<UiText> = channel.receiveAsFlow()

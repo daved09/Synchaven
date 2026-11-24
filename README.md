@@ -93,8 +93,7 @@ docker run -d --name synchaven -p 8080:8080 -v synchaven-data:/data ghcr.io/dave
 | `PUID` / `PGID`      | `10001`           | Benutzer-/Gruppen-ID für Programm und `/data` (nur Docker) |
 
 **Administrator** ist das erste Konto, das registriert wird – es darf die ganze Datenbank exportieren und
-importieren. Das erste Konto lässt sich auch bei `ALLOW_REGISTRATION=false` anlegen. Bei Datenbanken aus älteren
-Versionen (vorher `ADMIN_EMAILS`, das nicht mehr ausgewertet wird) wird beim Update das älteste Konto Administrator.
+importieren. Das erste Konto lässt sich auch bei `ALLOW_REGISTRATION=false` anlegen.
 
 **Hinweis:** Für den Betrieb im Internet einen Reverse-Proxy mit HTTPS (z. B. Caddy, Traefik, nginx)
 vorschalten und nach dem Anlegen der eigenen Konten `ALLOW_REGISTRATION=false` setzen.

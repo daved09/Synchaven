@@ -2,7 +2,6 @@
 import { computed, ref, watch } from 'vue'
 import { SEED_COLORS } from '@/plugins/theme'
 import type { ViewMode } from '@/api/types'
-import AdminSection from '@/components/AdminSection.vue'
 import { useAuthStore } from '@/stores/auth'
 import { useNotifyStore } from '@/stores/notify'
 import { useSettingsStore } from '@/stores/settings'
@@ -125,7 +124,18 @@ const hours = Array.from({ length: 13 }, (_, h) => ({ title: `${String(h).padSta
           Testbenachrichtigung senden
         </v-btn>
 
-        <AdminSection v-if="auth.user?.is_admin" />
+        <template v-if="auth.user?.is_admin">
+          <div class="text-title-small mt-6 mb-1">Verwaltung</div>
+          <div class="text-body-small text-medium-emphasis mb-2">
+            Benutzer, Registrierung und Datensicherung für alle Konten.
+          </div>
+          <v-btn
+            variant="tonal" size="small" prepend-icon="mdi-shield-account-outline" :to="{ name: 'admin' }"
+            @click="open = false"
+          >
+            Verwaltung öffnen
+          </v-btn>
+        </template>
       </v-card-text>
       <template #actions>
         <v-spacer />

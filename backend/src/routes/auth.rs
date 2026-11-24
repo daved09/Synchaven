@@ -40,7 +40,7 @@ pub struct AuthResponse {
     user: User,
 }
 
-fn normalize_email(email: &str) -> AppResult<String> {
+pub(super) fn normalize_email(email: &str) -> AppResult<String> {
     let email = email.trim().to_lowercase();
     let valid = email.len() <= 254
         && email.split_once('@').is_some_and(|(l, d)| !l.is_empty() && d.contains('.') && !d.starts_with('.'));
@@ -52,7 +52,7 @@ fn normalize_email(email: &str) -> AppResult<String> {
 
 const VIEW_MODES: [&str; 4] = ["month", "week", "day", "list"];
 
-fn check_password(pw: &str) -> AppResult<()> {
+pub(super) fn check_password(pw: &str) -> AppResult<()> {
     if pw.chars().count() < 8 {
         return Err(AppError::BadRequest("Das Passwort muss mindestens 8 Zeichen lang sein".into()));
     }
@@ -62,7 +62,7 @@ fn check_password(pw: &str) -> AppResult<()> {
     Ok(())
 }
 
-async fn load_user(state: &AppState, id: &str) -> AppResult<UserRow> {
+pub(super) async fn load_user(state: &AppState, id: &str) -> AppResult<UserRow> {
     Ok(sqlx::query_as::<_, UserRow>("SELECT * FROM users WHERE id = ?")
         .bind(id)
         .fetch_one(&state.db)
@@ -70,14 +70,15 @@ async fn load_user(state: &AppState, id: &str) -> AppResult<UserRow> {
 }
 
 fn respond(state: &AppState, user: UserRow) -> AppResult<Json<AuthResponse>> {
-    let (token, expires_at) = state.jwt.issue(&user.id)?;
+    let (token, expires_at) = state.jwt.issue(&user.id, state.settings.get().token_ttl_days)?;
     Ok(Json(AuthResponse { token, token_type: "Bearer", expires_at, user: user.into() }))
 }
 
-/// Registrierung erlaubt? Das erste Konto (der Administrator) lässt sich immer anlegen – sonst käme man nach einem
-/// Neuanfang mit leerer Datenbank (etwa um einen Export einzuspielen) bei `ALLOW_REGISTRATION=false` nicht mehr hinein.
+/// Registrierung erlaubt (Einstellung der Verwaltung, sonst `ALLOW_REGISTRATION`)? Das erste Konto (der
+/// Administrator) lässt sich immer anlegen – sonst käme man nach einem Neuanfang mit leerer Datenbank (etwa um einen
+/// Export einzuspielen) bei geschlossener Registrierung nicht mehr hinein.
 pub async fn registration_open(state: &AppState) -> AppResult<bool> {
-    if state.config.allow_registration {
+    if state.settings.get().allow_registration {
         return Ok(true);
     }
     let any: Option<(i64,)> = sqlx::query_as("SELECT 1 FROM users LIMIT 1").fetch_optional(&state.db).await?;
@@ -87,7 +88,18 @@ pub async fn registration_open(state: &AppState) -> AppResult<bool> {
 /// Neues Token für die angemeldete Sitzung – damit Clients wie die Android-Synchronisierung angemeldet bleiben,
 /// ohne das Passwort zu speichern.
 pub async fn refresh(State(state): State<AppState>, auth: AuthUser) -> AppResult<Json<AuthResponse>> {
+    touch_login(&state, &auth.id).await?;
     respond(&state, load_user(&state, &auth.id).await?)
+}
+
+/// Merkt sich die letzte Anmeldung für die Benutzerliste der Verwaltung.
+async fn touch_login(state: &AppState, id: &str) -> AppResult<()> {
+    sqlx::query("UPDATE users SET last_login_at = ? WHERE id = ?")
+        .bind(time::to_db(time::now()))
+        .bind(id)
+        .execute(&state.db)
+        .await?;
+    Ok(())
 }
 
 pub async fn register(
@@ -97,9 +109,24 @@ pub async fn register(
     if !registration_open(&state).await? {
         return Err(AppError::Forbidden("Registrierung ist deaktiviert".into()));
     }
-    let email = normalize_email(&input.email)?;
-    check_password(&input.password)?;
-    let name = match input.name.trim() {
+    let id = create_user(&state, &input.email, &input.name, &input.password, None).await?;
+    touch_login(&state, &id).await?;
+    let user = load_user(&state, &id).await?;
+    Ok((StatusCode::CREATED, respond(&state, user)?))
+}
+
+/// Legt ein Konto mit Standardkalender und Aufgabenliste an und liefert seine ID.
+/// `is_admin = None`: Administrator wird es nur, wenn es das erste Konto ist (Ersteinrichtung).
+pub(super) async fn create_user(
+    state: &AppState,
+    email: &str,
+    name: &str,
+    password: &str,
+    is_admin: Option<bool>,
+) -> AppResult<String> {
+    let email = normalize_email(email)?;
+    check_password(password)?;
+    let name = match name.trim() {
         "" => email.split('@').next().unwrap_or("").to_string(),
         n => n.chars().take(100).collect(),
     };
@@ -112,7 +139,8 @@ pub async fn register(
         return Err(AppError::Conflict("Diese E-Mail-Adresse ist bereits registriert".into()));
     }
 
-    let hash = hash_password(&input.password)?;
+    let password = password.to_string();
+    let hash = tokio::task::spawn_blocking(move || hash_password(&password)).await.map_err(anyhow::Error::from)??;
     let id = uuid::Uuid::new_v4().to_string();
     let now = time::to_db(time::now());
     let mut tx = state.db.begin().await?;
@@ -120,16 +148,17 @@ pub async fn register(
     // damit zwei gleichzeitige Registrierungen nicht beide Administrator werden.
     sqlx::query(
         "INSERT INTO users (id, email, name, password_hash, created_at, updated_at, is_admin) \
-         VALUES (?, ?, ?, ?, ?, ?, NOT EXISTS (SELECT 1 FROM users))",
+         VALUES (?, ?, ?, ?, ?, ?, COALESCE(?, NOT EXISTS (SELECT 1 FROM users)))",
     )
-        .bind(&id)
-        .bind(&email)
-        .bind(&name)
-        .bind(&hash)
-        .bind(&now)
-        .bind(&now)
-        .execute(&mut *tx)
-        .await?;
+    .bind(&id)
+    .bind(&email)
+    .bind(&name)
+    .bind(&hash)
+    .bind(&now)
+    .bind(&now)
+    .bind(is_admin)
+    .execute(&mut *tx)
+    .await?;
     // Jeder neue Benutzer erhält einen Standardkalender.
     sqlx::query("INSERT INTO calendars (id, user_id, name, color, description, visible, created_at, updated_at) VALUES (?, ?, 'Persönlich', '#6750A4', '', 1, ?, ?)")
         .bind(uuid::Uuid::new_v4().to_string())
@@ -140,9 +169,7 @@ pub async fn register(
         .await?;
     super::tasks::ensure_list(&mut tx, &id).await?;
     tx.commit().await?;
-
-    let user = load_user(&state, &id).await?;
-    Ok((StatusCode::CREATED, respond(&state, user)?))
+    Ok(id)
 }
 
 pub async fn login(State(state): State<AppState>, Json(input): Json<LoginInput>) -> AppResult<Json<AuthResponse>> {
@@ -163,7 +190,12 @@ pub async fn login(State(state): State<AppState>, Json(input): Json<LoginInput>)
         None => false,
     };
     match user {
-        Some(u) if ok => respond(&state, u),
+        // Die Sperre erst nach dem richtigen Passwort verraten
+        Some(u) if ok && u.disabled => Err(AppError::Forbidden("Dieses Konto ist gesperrt".into())),
+        Some(u) if ok => {
+            touch_login(&state, &u.id).await?;
+            respond(&state, u)
+        }
         _ => Err(AppError::Unauthorized("E-Mail-Adresse oder Passwort falsch".into())),
     }
 }

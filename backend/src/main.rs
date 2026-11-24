@@ -11,6 +11,7 @@ mod push;
 mod recurrence;
 mod reminders;
 mod routes;
+mod settings;
 mod time;
 mod vcard;
 
@@ -39,6 +40,10 @@ pub struct AppState {
     pub jwt: Arc<auth::JwtKeys>,
     pub dav_auth: Arc<dav::AuthCache>,
     pub push: Arc<push::WebPush>,
+    /// Einstellungen aus der Verwaltung (Registrierung, Gültigkeit der Anmeldung)
+    pub settings: Arc<settings::SettingsStore>,
+    /// Startzeitpunkt des Servers (für die Übersicht in der Verwaltung)
+    pub started_at: chrono::DateTime<chrono::Utc>,
 }
 
 #[tokio::main]
@@ -75,10 +80,13 @@ async fn main() -> anyhow::Result<()> {
     birthdays::sync_all(&db).await.map_err(|e| anyhow::anyhow!("{e:?}")).context("Geburtstagskalender konnte nicht abgeglichen werden")?;
 
     let push = push::WebPush::load_or_create(&config.data_dir, config.vapid_subject.clone())?;
+    let settings = settings::SettingsStore::load(&db, &config).await.context("Einstellungen können nicht gelesen werden")?;
     let state = AppState {
+        settings: Arc::new(settings),
+        started_at: chrono::Utc::now(),
         db,
         push: Arc::new(push),
-        jwt: Arc::new(auth::JwtKeys::new(&config.jwt_secret, config.token_ttl_days)),
+        jwt: Arc::new(auth::JwtKeys::new(&config.jwt_secret)),
         config: Arc::new(config.clone()),
         dav_auth: Arc::default(),
     };

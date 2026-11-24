@@ -5,10 +5,17 @@ CREATE TABLE users (
     password_hash TEXT NOT NULL,
     -- Standardansicht des Kalenders (month, week, day, list); gilt für Weboberfläche und App
     default_view  TEXT NOT NULL DEFAULT 'month',
-    -- Administrator: das erste registrierte Konto
+    -- Administrator: zunächst das erste registrierte Konto, weitere vergibt die Verwaltung
     is_admin      INTEGER NOT NULL DEFAULT 0,
     created_at    TEXT NOT NULL,
-    updated_at    TEXT NOT NULL
+    updated_at    TEXT NOT NULL,
+    -- Gesperrte Konten können sich weder anmelden noch per CardDAV synchronisieren; ihre Tokens werden abgewiesen.
+    disabled      INTEGER NOT NULL DEFAULT 0,
+    -- Tokens, die vor diesem Zeitpunkt (Unix-Sekunden) ausgestellt wurden, sind ungültig
+    -- („Überall abmelden“, Passwort durch den Administrator zurückgesetzt). NULL = alle gültig.
+    tokens_valid_after INTEGER,
+    -- Letzte Anmeldung oder Token-Erneuerung (Format wie created_at); NULL = noch nie
+    last_login_at TEXT
 );
 
 CREATE TABLE calendars (
@@ -141,6 +148,12 @@ CREATE INDEX idx_push_subscriptions_user ON push_subscriptions(user_id);
 
 -- Kleine Schlüssel-Wert-Ablage für den Serverzustand (z. B. Fortschritt des Erinnerungsdienstes)
 CREATE TABLE server_state (
+    key   TEXT PRIMARY KEY NOT NULL,
+    value TEXT NOT NULL
+);
+
+-- Einstellungen aus der Verwaltung. Fehlt ein Eintrag, gilt der Standard aus der Umgebungsvariablen.
+CREATE TABLE settings (
     key   TEXT PRIMARY KEY NOT NULL,
     value TEXT NOT NULL
 );

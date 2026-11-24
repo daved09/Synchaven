@@ -9,6 +9,9 @@
 //!
 //! Die Termine im Geburtstagskalender werden nicht exportiert: Sie entstehen aus den Kontakten und werden beim
 //! Import neu erzeugt. Der Geburtstagskalender selbst (Farbe, Sichtbarkeit, Erinnerungen) bleibt im Export.
+//!
+//! Push-Abonnements fehlen ebenfalls (`NOT_EXPORTED`): Sie gehören zu einzelnen Browsern und dem VAPID-Schlüssel
+//! im Datenverzeichnis. Die Weboberfläche meldet ein noch eingeschaltetes Abonnement beim nächsten Öffnen neu an.
 
 use std::{collections::BTreeMap, io::Write, path::Path, str::FromStr, time::Duration};
 
@@ -21,6 +24,9 @@ use sqlx::{
 };
 
 const FORMAT: &str = "synchaven-export";
+
+/// Tabellen, die weder exportiert noch importiert werden (auch nicht aus älteren Exporten, die sie enthalten)
+const NOT_EXPORTED: &[&str] = &["push_subscriptions"];
 const FORMAT_VERSION: u32 = 1;
 
 #[derive(Serialize, Deserialize)]
@@ -101,6 +107,9 @@ pub async fn export_db(db: &SqlitePool) -> anyhow::Result<(Export, Vec<String>)>
     let mut tables_out = BTreeMap::new();
     let mut summary = Vec::new();
     for table in tables(&mut tx).await? {
+        if NOT_EXPORTED.contains(&table.as_str()) {
+            continue;
+        }
         let filter = if table == "events" {
             // Geburtstagstermine werden beim Import aus den Kontakten neu erzeugt
             format!(" WHERE calendar_id NOT IN (SELECT id FROM calendars WHERE kind = '{}')", crate::birthdays::KIND)
@@ -300,12 +309,12 @@ async fn import_rows(conn: &mut SqliteConnection, export: &Export, replace: bool
         }
     }
 
-    for table in export.tables.keys().filter(|t| !target_tables.contains(t)) {
+    for table in export.tables.keys().filter(|t| !target_tables.contains(t) && !NOT_EXPORTED.contains(&t.as_str())) {
         warnings.push(format!("Tabelle {table} gibt es nicht mehr – {} Einträge übersprungen", export.tables[table].len()));
     }
 
     let mut summary = Vec::new();
-    for table in &target_tables {
+    for table in target_tables.iter().filter(|t| !NOT_EXPORTED.contains(&t.as_str())) {
         let Some(rows) = export.tables.get(table) else {
             warnings.push(format!("Tabelle {table} fehlt im Export"));
             continue;

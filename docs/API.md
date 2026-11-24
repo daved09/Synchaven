@@ -10,8 +10,9 @@ Alle Endpunkte außer `/info`, `/auth/register` und `/auth/login` benötigen den
 Authorization: Bearer <token>
 ```
 
-Tokens sind JWTs (HS256) und standardmäßig 30 Tage gültig (`TOKEN_TTL_DAYS`). Bei abgelaufenem oder
-ungültigem Token antwortet der Server mit `401` – die App sollte dann zur Anmeldung zurückkehren.
+Tokens sind JWTs (HS256) und standardmäßig 30 Tage gültig (`TOKEN_TTL_DAYS`, in der Verwaltung änderbar). Bei
+abgelaufenem oder ungültigem Token antwortet der Server mit `401` – die App sollte dann zur Anmeldung zurückkehren.
+Das gilt auch, wenn ein Administrator das Konto gesperrt, überall abgemeldet oder sein Passwort zurückgesetzt hat.
 
 ## Fehlerformat
 
@@ -22,8 +23,8 @@ ungültigem Token antwortet der Server mit `401` – die App sollte dann zur Anm
 | HTTP | `error`        | Bedeutung                                  |
 |------|----------------|--------------------------------------------|
 | 400  | `bad_request`  | Ungültige Eingabe (`message` ist anzeigbar) |
-| 401  | `unauthorized` | Nicht angemeldet / falsches Passwort        |
-| 403  | `forbidden`    | z. B. Registrierung deaktiviert             |
+| 401  | `unauthorized` | Nicht angemeldet / falsches Passwort / Konto gesperrt / Anmeldung beendet |
+| 403  | `forbidden`    | z. B. Registrierung deaktiviert, Login eines gesperrten Kontos |
 | 404  | `not_found`    | Nicht vorhanden oder gehört anderem Benutzer|
 | 409  | `conflict`     | E-Mail bereits registriert                  |
 | 500  | `internal`     | Serverfehler                                |
@@ -66,9 +67,11 @@ Antwort (auch bei Login):
 }
 ```
 `default_view` ist die Standardansicht des Kalenders (`month`, `week`, `day` oder `list`). Weboberfläche und App
-speichern dort die zuletzt gewählte Ansicht. `is_admin` ist `true` für den Administrator – das erste registrierte Konto.
-Für neue Konten wird automatisch der Kalender „Persönlich“ angelegt. Bei `ALLOW_REGISTRATION=false` lässt sich nur
-das erste Konto einer leeren Datenbank registrieren (`allow_registration` in `/info` zeigt, ob es gerade geht).
+speichern dort die zuletzt gewählte Ansicht. `is_admin` ist `true` für Administratoren – zunächst das erste registrierte
+Konto, weitere vergibt die Verwaltung. Für neue Konten wird automatisch der Kalender „Persönlich“ angelegt. Ist die
+Registrierung geschlossen (Verwaltung bzw. `ALLOW_REGISTRATION=false`), lässt sich nur das erste Konto einer leeren
+Datenbank registrieren (`allow_registration` in `/info` zeigt, ob es gerade geht). Ein gesperrtes Konto erhält beim
+Login mit richtigem Passwort `403`.
 
 ### `POST /auth/login`
 ```json
@@ -394,9 +397,53 @@ Body `{ "name": "Freunde" }`. Entfernt die Kategorie aus allen Kontakten; die Ko
 
 ## Verwaltung (nur Administrator, sonst `403`)
 
+### `GET /admin/overview`
+```json
+{ "version": "1.0.0", "started_at": "…", "database_size": 303904,
+  "counts": { "users": 2, "disabled_users": 0, "calendars": 2, "events": 120, "addressbooks": 1, "contacts": 35,
+              "tasks": 12, "push_subscriptions": 1 },
+  "config": { "bind": "0.0.0.0:8080", "data_dir": "/data", "cors_origins": ["*"], "vapid_subject": "mailto:…" } }
+```
+`calendars` ohne Geburtstagskalender, `events` ohne Geburtstage, `database_size` in Bytes (inkl. WAL).
+
+### `GET /admin/settings` · `PUT /admin/settings`
+```json
+{ "allow_registration": false, "token_ttl_days": 30, "defaults": { "allow_registration": true, "token_ttl_days": 30 } }
+```
+`PUT` mit `{ "allow_registration": false }` und/oder `{ "token_ttl_days": 7 }` (1–3650, sonst `400`) ändert nur die
+übergebenen Werte und antwortet wie `GET`. Gespeicherte Werte haben Vorrang vor den Umgebungsvariablen (`defaults`).
+Die Gültigkeit gilt für neu ausgestellte Tokens.
+
+### `GET /admin/users`
+Alle Konten, älteste zuerst:
+```json
+[ { "id": "…", "email": "anna@example.com", "name": "Anna", "is_admin": true, "disabled": false,
+    "created_at": "…", "last_login_at": "…", "calendars": 2, "events": 120, "contacts": 35, "tasks": 12, "devices": 1 } ]
+```
+`last_login_at` ist die letzte Anmeldung oder Token-Erneuerung (`null` = noch nie), `devices` die Zahl der Browser mit
+Benachrichtigungen.
+
+### `POST /admin/users` → `201`
+`{ "email": "…", "password": "mind. 8 Zeichen", "name": "…", "is_admin": false }` – legt ein Konto mit Kalender
+„Persönlich“ an, auch wenn die Registrierung geschlossen ist. Antwort wie ein Eintrag aus `GET /admin/users`.
+
+### `PUT /admin/users/{id}`
+Optional `name`, `email`, `password`, `is_admin`, `disabled`; nur übergebene Felder werden geändert. Ein neues Passwort
+macht alle Tokens des Kontos ungültig (außer beim eigenen Konto). Gesperrte Konten (`disabled: true`) können sich weder
+anmelden noch per CardDAV synchronisieren; ihre Tokens werden abgewiesen. Das eigene Konto lässt sich nicht sperren
+oder herabstufen (`400`).
+
+### `POST /admin/users/{id}/logout`
+Macht alle bisher ausgestellten Tokens des Kontos ungültig. CardDAV-Clients melden sich mit dem Passwort an und sind
+davon nicht betroffen. Nicht für das eigene Konto (`400`).
+
+### `DELETE /admin/users/{id}` → `204`
+Löscht das Konto mit allen Kalendern, Terminen, Adressbüchern, Kontakten und Aufgaben. Nicht für das eigene Konto (`400`).
+
 ### `GET /admin/export` → `application/json`
 Die ganze Datenbank (alle Benutzer inkl. Passwort-Hashes) als Datei `synchaven-export-<Datum>.json`. Termine im
-Geburtstagskalender sind nicht enthalten, der Import erzeugt sie aus den Kontakten neu. Gleiches
+Geburtstagskalender sind nicht enthalten, der Import erzeugt sie aus den Kontakten neu. Push-Abonnements fehlen
+ebenfalls; die Weboberfläche meldet einen Browser mit eingeschalteten Benachrichtigungen beim nächsten Öffnen neu an. Gleiches
 Format wie `synchaven export` auf der Kommandozeile:
 ```json
 { "format": "synchaven-export", "format_version": 1, "app_version": "1.0.0", "exported_at": "…", "migration": 1,
@@ -406,7 +453,8 @@ Format wie `synchaven export` auf der Kommandozeile:
 ### `POST /admin/import?replace=true` (Body: Export, `Content-Type: application/json`, max. 512 MB)
 Ersetzt in einer Transaktion **alle** Daten aller Benutzer. Ohne `replace=true` → `409`, solange die Datenbank
 Daten enthält; ungültige Datei oder unstimmige Daten → `400`, die Datenbank bleibt dann unverändert. Tabellen und
-Spalten, die es nicht mehr gibt, werden übersprungen. Tokens bleiben gültig, solange es den Benutzer danach noch gibt.
+Spalten, die es nicht mehr gibt, werden übersprungen, ebenso Push-Abonnements aus älteren Exporten. Vorhandene
+Push-Abonnements werden gelöscht. Tokens bleiben gültig, solange es den Benutzer danach noch gibt.
 ```json
 { "summary": ["users: 2", "calendars: 3", "events: 120", …, "Geburtstage: 35"], "warnings": ["Spalten von users gibt es nicht mehr, …"] }
 ```

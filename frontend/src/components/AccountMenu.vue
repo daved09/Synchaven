@@ -51,6 +51,9 @@ defineExpose({ dialogOpen: computed(() => profileOpen.value || settingsOpen.valu
       <v-list density="compact" bg-color="transparent">
         <v-list-item prepend-icon="mdi-account-outline" title="Profil" @click="profileOpen = true" />
         <v-list-item prepend-icon="mdi-cog-outline" title="Einstellungen" @click="settingsOpen = true" />
+        <v-list-item
+          v-if="auth.user?.is_admin" prepend-icon="mdi-shield-account-outline" title="Verwaltung" :to="{ name: 'admin' }"
+        />
         <v-list-item prepend-icon="mdi-logout" title="Abmelden" @click="logout" />
       </v-list>
     </v-card>

@@ -16,8 +16,10 @@ pub struct UserRow {
     pub password_hash: String,
     pub default_view: String,
     pub created_at: String,
-    /// Darf die ganze Datenbank exportieren und importieren; das erste registrierte Konto
+    /// Darf die Verwaltung öffnen (Benutzer, Einstellungen, Datensicherung); zunächst das erste registrierte Konto
     pub is_admin: bool,
+    /// Gesperrt: keine Anmeldung, keine Synchronisierung
+    pub disabled: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -28,7 +30,7 @@ pub struct User {
     /// Standardansicht des Kalenders: `month`, `week`, `day` oder `list`
     pub default_view: String,
     pub created_at: DateTime<Utc>,
-    /// Darf die ganze Datenbank exportieren und importieren (das erste registrierte Konto)
+    /// Darf die Verwaltung öffnen (zunächst das erste registrierte Konto)
     pub is_admin: bool,
 }
 

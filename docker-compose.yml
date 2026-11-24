@@ -7,7 +7,8 @@ services:
       - "8080:8080"
     environment:
       # Neue Konten erlauben (nach dem Anlegen der eigenen Konten auf "false" setzen).
-      # Das erste registrierte Konto wird Administrator (Export/Import unter Einstellungen → Verwaltung).
+      # Das erste registrierte Konto wird Administrator (Konto → Verwaltung). Dort lässt sich die Registrierung
+      # ebenfalls schalten; ein dort gespeicherter Wert hat Vorrang.
       ALLOW_REGISTRATION: "true"
       # Gültigkeit der Anmelde-Tokens in Tagen
       TOKEN_TTL_DAYS: "30"

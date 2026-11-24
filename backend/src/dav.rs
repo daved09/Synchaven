@@ -95,6 +95,9 @@ async fn authenticate(state: &AppState, headers: &HeaderMap) -> AppResult<Option
     else {
         return Ok(None);
     };
+    if user.disabled {
+        return Ok(None);
+    }
 
     let key = cache_key(&email, password, &user.password_hash);
     let cached = {

@@ -8,6 +8,7 @@ const router = createRouter({
     { path: '/register', name: 'register', component: () => import('./views/AuthView.vue'), meta: { public: true } },
     { path: '/', name: 'calendar', component: () => import('./views/CalendarView.vue') },
     { path: '/contacts', name: 'contacts', component: () => import('./views/ContactsView.vue') },
+    { path: '/admin', name: 'admin', component: () => import('./views/AdminView.vue') },
     { path: '/:pathMatch(.*)*', redirect: '/' },
   ],
 })

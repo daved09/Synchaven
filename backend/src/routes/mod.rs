@@ -51,6 +51,11 @@ pub fn api_router() -> Router<AppState> {
         .route("/push/public-key", get(push::public_key))
         .route("/push/subscriptions", post(push::subscribe).delete(push::unsubscribe))
         .route("/push/test", post(push::test))
+        .route("/admin/overview", get(admin::overview))
+        .route("/admin/settings", get(admin::get_settings).put(admin::update_settings))
+        .route("/admin/users", get(admin::list_users).post(admin::create))
+        .route("/admin/users/{id}", put(admin::update).delete(admin::delete))
+        .route("/admin/users/{id}/logout", post(admin::logout_everywhere))
         .route("/admin/export", get(admin::export))
         // Exporte mit vielen Kontaktfotos sind deutlich größer als das allgemeine Limit
         .route("/admin/import", post(admin::import).layer(DefaultBodyLimit::max(512 * 1024 * 1024)))

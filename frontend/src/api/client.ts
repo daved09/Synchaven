@@ -1,5 +1,5 @@
 import type {
-  AddressBook, AddressBookInput, AuthResponse, CalEvent, Calendar, CalendarInput, Contact, ContactImportResult,
+  AdminOverview, AdminSettings, AdminSettingsValues, AdminUser, AdminUserInput, AddressBook, AddressBookInput, AuthResponse, CalEvent, Calendar, CalendarInput, Contact, ContactImportResult,
   ContactInput, DbImportReport, EventInput, ImportResult, Occurrence, PushSubscriptionInput, ServerInfo, Task, TaskInput,
   TaskList, TaskListInput, User, ViewMode,
 } from './types'
@@ -142,6 +142,17 @@ export const api = {
     request<{ updated: number }>('POST', '/contact-categories/rename', { body: { name, new_name: newName } }),
   deleteContactCategory: (name: string) =>
     request<{ updated: number }>('POST', '/contact-categories/delete', { body: { name } }),
+
+  adminOverview: () => request<AdminOverview>('GET', '/admin/overview'),
+  adminSettings: () => request<AdminSettings>('GET', '/admin/settings'),
+  updateAdminSettings: (data: Partial<AdminSettingsValues>) =>
+    request<AdminSettings>('PUT', '/admin/settings', { body: data }),
+  adminUsers: () => request<AdminUser[]>('GET', '/admin/users'),
+  createAdminUser: (data: { email: string; name: string; password: string; is_admin: boolean }) =>
+    request<AdminUser>('POST', '/admin/users', { body: data }),
+  updateAdminUser: (id: string, data: AdminUserInput) => request<AdminUser>('PUT', `/admin/users/${id}`, { body: data }),
+  logoutAdminUser: (id: string) => request<AdminUser>('POST', `/admin/users/${id}/logout`),
+  deleteAdminUser: (id: string) => request<void>('DELETE', `/admin/users/${id}`),
 
   adminExport: () => request<string>('GET', '/admin/export', { asText: true }),
   adminImport: (json: string) =>

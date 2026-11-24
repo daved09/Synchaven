@@ -14,7 +14,6 @@ use crate::{error::AppError, AppState};
 pub struct JwtKeys {
     encoding: EncodingKey,
     decoding: DecodingKey,
-    ttl_days: i64,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -25,26 +24,27 @@ struct Claims {
 }
 
 impl JwtKeys {
-    pub fn new(secret: &str, ttl_days: i64) -> Self {
+    pub fn new(secret: &str) -> Self {
         Self {
             encoding: EncodingKey::from_secret(secret.as_bytes()),
             decoding: DecodingKey::from_secret(secret.as_bytes()),
-            ttl_days,
         }
     }
 
-    pub fn issue(&self, user_id: &str) -> Result<(String, chrono::DateTime<Utc>), AppError> {
+    /// Stellt ein Token aus, das `ttl_days` Tage gültig ist (Einstellung der Verwaltung).
+    pub fn issue(&self, user_id: &str, ttl_days: i64) -> Result<(String, chrono::DateTime<Utc>), AppError> {
         let now = Utc::now();
-        let exp = now + Duration::days(self.ttl_days);
+        let exp = now + Duration::days(ttl_days);
         let claims = Claims { sub: user_id.to_string(), iat: now.timestamp(), exp: exp.timestamp() };
         let token = encode(&Header::default(), &claims, &self.encoding)
             .map_err(|e| AppError::Internal(e.into()))?;
         Ok((token, exp))
     }
 
-    fn verify(&self, token: &str) -> Result<String, AppError> {
+    /// Benutzer-ID und Ausstellungszeitpunkt (Unix-Sekunden) eines gültigen Tokens
+    fn verify(&self, token: &str) -> Result<(String, i64), AppError> {
         decode::<Claims>(token, &self.decoding, &Validation::default())
-            .map(|d| d.claims.sub)
+            .map(|d| (d.claims.sub, d.claims.iat))
             .map_err(|_| AppError::Unauthorized("Token ungültig oder abgelaufen".into()))
     }
 }
@@ -81,16 +81,22 @@ impl FromRequestParts<AppState> for AuthUser {
             .strip_prefix("Bearer ")
             .or_else(|| header.strip_prefix("bearer "))
             .ok_or_else(|| AppError::Unauthorized("Bearer-Token erwartet".into()))?;
-        let id = state.jwt.verify(token.trim())?;
+        let (id, issued_at) = state.jwt.verify(token.trim())?;
 
-        // Sicherstellen, dass der Benutzer noch existiert (z. B. nach Löschung).
-        let exists: Option<(String,)> = sqlx::query_as("SELECT id FROM users WHERE id = ?")
-            .bind(&id)
-            .fetch_optional(&state.db)
-            .await?;
-        if exists.is_none() {
-            return Err(AppError::Unauthorized("Benutzer existiert nicht mehr".into()));
+        // Sicherstellen, dass der Benutzer noch existiert (z. B. nach Löschung), nicht gesperrt ist
+        // und das Token nicht durch „Überall abmelden“ oder ein zurückgesetztes Passwort widerrufen wurde.
+        let row: Option<(bool, Option<i64>)> =
+            sqlx::query_as("SELECT disabled, tokens_valid_after FROM users WHERE id = ?")
+                .bind(&id)
+                .fetch_optional(&state.db)
+                .await?;
+        match row {
+            None => Err(AppError::Unauthorized("Benutzer existiert nicht mehr".into())),
+            Some((true, _)) => Err(AppError::Unauthorized("Dieses Konto ist gesperrt".into())),
+            Some((false, Some(after))) if issued_at < after => {
+                Err(AppError::Unauthorized("Die Anmeldung wurde beendet, bitte neu anmelden".into()))
+            }
+            Some(_) => Ok(AuthUser { id }),
         }
-        Ok(AuthUser { id })
     }
 }

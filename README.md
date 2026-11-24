@@ -84,19 +84,30 @@ docker run -d --name synchaven -p 8080:8080 -v synchaven-data:/data ghcr.io/dave
 |----------------------|-------------------|--------------|
 | `BIND_ADDR`          | `0.0.0.0:8080`    | Adresse/Port |
 | `DATA_DIR`           | `/data`           | Ablage für `synchaven.db` und `jwt_secret` |
-| `ALLOW_REGISTRATION` | `true`            | Neue Konten erlauben |
-| `TOKEN_TTL_DAYS`     | `30`              | Gültigkeit der Anmeldung |
+| `ALLOW_REGISTRATION` | `true`            | Neue Konten erlauben (Standard; in der Verwaltung änderbar) |
+| `TOKEN_TTL_DAYS`     | `30`              | Gültigkeit der Anmeldung (Standard; in der Verwaltung änderbar) |
 | `JWT_SECRET`         | *(automatisch)*   | Eigenes Secret (≥ 32 Zeichen) |
 | `CORS_ORIGINS`       | `*`               | Erlaubte Browser-Origins, kommagetrennt |
 | `VAPID_SUBJECT`      | `mailto:synchaven@example.org` | Kontaktadresse für Push-Dienste (`mailto:` oder `https:`) |
 | `RUST_LOG`           | `synchaven=info`  | Log-Level |
 | `PUID` / `PGID`      | `10001`           | Benutzer-/Gruppen-ID für Programm und `/data` (nur Docker) |
 
-**Administrator** ist das erste Konto, das registriert wird – es darf die ganze Datenbank exportieren und
-importieren. Das erste Konto lässt sich auch bei `ALLOW_REGISTRATION=false` anlegen.
+**Administrator** ist das erste Konto, das registriert wird. Das erste Konto lässt sich auch bei
+`ALLOW_REGISTRATION=false` anlegen. Administratoren finden unter *Konto → Verwaltung* die Adminseite:
+
+* **Übersicht:** Version, Laufzeit, Größe der Datenbank, Anzahl der Benutzer, Termine, Kontakte usw. und die
+  Serverkonfiguration aus den Umgebungsvariablen
+* **Benutzer:** Konten anlegen (auch bei geschlossener Registrierung), Name/E-Mail ändern, Passwort zurücksetzen,
+  Administratorrechte vergeben, Konten sperren und entsperren, auf allen Geräten abmelden und löschen. Ein gesperrtes
+  Konto kann sich weder anmelden noch per CardDAV synchronisieren. Das eigene Konto lässt sich nicht sperren, löschen
+  oder herabstufen – so bleibt immer ein Administrator übrig.
+* **Einstellungen:** Registrierung öffnen/schließen und Gültigkeit der Anmeldung. Gespeicherte Werte haben Vorrang vor
+  `ALLOW_REGISTRATION` und `TOKEN_TTL_DAYS`; solange nichts gespeichert ist, gelten die Umgebungsvariablen.
+* **Datensicherung:** Export und Import der ganzen Datenbank (siehe unten)
 
 **Hinweis:** Für den Betrieb im Internet einen Reverse-Proxy mit HTTPS (z. B. Caddy, Traefik, nginx)
-vorschalten und nach dem Anlegen der eigenen Konten `ALLOW_REGISTRATION=false` setzen.
+vorschalten und nach dem Anlegen der eigenen Konten die Registrierung schließen (Verwaltung oder
+`ALLOW_REGISTRATION=false`).
 
 ### Benachrichtigungen im Browser
 
@@ -130,13 +141,14 @@ docker run --rm -v synchaven-data:/data -v "$PWD":/backup debian:bookworm-slim \
 
 #### Export und Import als JSON
 
-Zusätzlich lässt sich die gesamte Datenbank (alle Benutzer, Kalender, Termine, Adressbücher, Kontakte,
-Push-Abonnements) als JSON exportieren – gedacht vor allem als Rückfallebene vor einem Update, falls eine
+Zusätzlich lässt sich die gesamte Datenbank (alle Benutzer, Kalender, Termine, Adressbücher, Kontakte, Aufgaben,
+Einstellungen der Verwaltung) als JSON exportieren – gedacht vor allem als Rückfallebene vor einem Update, falls eine
 Migration fehlschlägt. Die Termine im Geburtstagskalender fehlen darin; sie werden beim Import aus den Kontakten neu
-erzeugt.
+erzeugt. Auch die Push-Abonnements der Browser fehlen: Ein Browser mit eingeschalteten Benachrichtigungen meldet sich
+beim nächsten Öffnen der Weboberfläche wieder an.
 
-**In der Weboberfläche:** Als Administrator (das erste registrierte Konto) gibt es unter
-*Konto → Einstellungen → Verwaltung* die Knöpfe *Datenbank exportieren* und *Datenbank importieren*. Der Import
+**In der Weboberfläche:** Als Administrator gibt es unter
+*Konto → Verwaltung → Datensicherung* die Knöpfe *Datenbank exportieren* und *Datenbank importieren*. Der Import
 ersetzt alle Daten aller Benutzer. Nach einer fehlgeschlagenen Migration: alte Datenbank zur Seite legen (siehe
 unten), Server starten, ein Konto registrieren (das erste Konto wird Administrator und geht auch bei
 `ALLOW_REGISTRATION=false`) und den Export importieren – das vorläufige Konto wird dabei durch die Konten aus dem
@@ -163,7 +175,7 @@ docker compose up -d
 
 Enthält die Datenbank schon Daten, bricht der Import ab; `import --replace …` löscht sie vorher. JWT-Secret und
 VAPID-Schlüssel liegen als Dateien in `/data` und sind nicht im Export – bleiben sie erhalten, bleiben auch
-Anmeldungen und Push-Abonnements gültig. Ohne Docker: `DATA_DIR=./data synchaven export datei.json` bzw.
+Anmeldungen gültig und Browser können Benachrichtigungen ohne erneute Freigabe wieder anmelden. Ohne Docker: `DATA_DIR=./data synchaven export datei.json` bzw.
 `synchaven import datei.json`.
 
 ## REST API

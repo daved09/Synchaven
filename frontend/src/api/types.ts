@@ -7,8 +7,62 @@ export interface User {
   /** Standardansicht des Kalenders */
   default_view: ViewMode
   created_at: string
-  /** Darf die ganze Datenbank exportieren und importieren (das erste registrierte Konto) */
+  /** Darf die Verwaltung öffnen (zunächst das erste registrierte Konto) */
   is_admin: boolean
+}
+
+/** Konto in der Benutzerliste der Verwaltung */
+export interface AdminUser {
+  id: string
+  email: string
+  name: string
+  is_admin: boolean
+  /** Gesperrt: keine Anmeldung, keine Synchronisierung */
+  disabled: boolean
+  created_at: string
+  last_login_at: string | null
+  calendars: number
+  events: number
+  contacts: number
+  tasks: number
+  /** Browser mit eingeschalteten Benachrichtigungen */
+  devices: number
+}
+
+export interface AdminUserInput {
+  name?: string
+  email?: string
+  password?: string
+  is_admin?: boolean
+  disabled?: boolean
+}
+
+export interface AdminSettingsValues {
+  allow_registration: boolean
+  token_ttl_days: number
+}
+
+/** Einstellungen der Verwaltung; `defaults` stammen aus den Umgebungsvariablen */
+export interface AdminSettings extends AdminSettingsValues {
+  defaults: AdminSettingsValues
+}
+
+export interface AdminOverview {
+  version: string
+  started_at: string
+  /** Größe der Datenbank in Bytes */
+  database_size: number
+  counts: {
+    users: number
+    disabled_users: number
+    calendars: number
+    events: number
+    addressbooks: number
+    contacts: number
+    tasks: number
+    push_subscriptions: number
+  }
+  config: { bind: string; data_dir: string; cors_origins: string[]; vapid_subject: string }
 }
 
 /** Ergebnis von POST /api/admin/import */

@@ -289,7 +289,12 @@
     "register": "Register",
     "haveAccount": "Already registered?",
     "noAccount": "No account yet?",
-    "languageHint": "Your calendar, task list and address book are created in this language."
+    "languageHint": "Your calendar, task list and address book are created in this language.",
+    "twoFactor": "Two-factor authentication",
+    "twoFactorSubtitle": "Enter the code from your authenticator app",
+    "code": "Code",
+    "codeHint": "Or one of your recovery codes",
+    "verify": "Verify"
   },
   "nav": {
     "calendar": "Calendar",
@@ -349,7 +354,11 @@
     "step4": "Confirm the account name (preferably the email address) and tap {create}.",
     "step4Create": "Create account",
     "step5": "Enable the address books you want in the {tab} tab.",
-    "otherClients": "Thunderbird and iOS find the address books automatically with the same address (iOS: Settings → Contacts → Accounts → Other → CardDAV account)."
+    "otherClients": "Thunderbird and iOS find the address books automatically with the same address (iOS: Settings → Contacts → Accounts → Other → CardDAV account).",
+    "appPassword": "An app password",
+    "appPasswords": "App passwords",
+    "appPasswordRequired": "With two-factor authentication on, CardDAV only accepts app passwords.",
+    "appPasswordHint": "Instead of your password you can use an app password, which you can revoke at any time."
   },
   "backup": {
     "replaceTitle": "Replace database?",
@@ -434,7 +443,9 @@
     "admin": "Administrator",
     "ownRights": "You cannot revoke your own rights",
     "adminHint": "Administrators may open this administration: edit accounts, change settings and export and replace the whole database.",
-    "languageHint": "The account’s calendar, task list and address book are created in this language."
+    "languageHint": "The account’s calendar, task list and address book are created in this language.",
+    "resetTotp": "Turn off two-factor authentication",
+    "resetTotpHint": "E.g. if the phone with the authenticator app is lost. The account can then sign in with the password alone and set it up again."
   },
   "users": {
     "calendars": "{n} calendar | {n} calendars",
@@ -448,7 +459,7 @@
     "enabled": "Account enabled",
     "disabled": "Account disabled",
     "signOutTitle": "Sign out everywhere?",
-    "signOutText": "{name} has to sign in again in the web UI and the app. CardDAV clients such as DAVx⁵ use the password and stay connected – change the password for that.",
+    "signOutText": "{name} has to sign in again in the web UI and the app. CardDAV clients such as DAVx⁵ use the password or an app password and stay connected – for that, change the password or revoke the app password in the account’s security settings.",
     "signedOut": "{name} was signed out everywhere",
     "deleteTitle": "Delete account?",
     "deleteText": "{name} ({email}) is deleted with all calendars, events, contacts and tasks ({stats}). This cannot be undone.",
@@ -462,7 +473,8 @@
     "devices": "notifications in {n} browser | notifications in {n} browsers",
     "actions": "Actions",
     "signOutEverywhere": "Sign out everywhere",
-    "none": "No users found"
+    "none": "No users found",
+    "totpChip": "2FA"
   },
   "calendarView": {
     "deleteOccurrence": "Only the event on {date} is removed from the series.",
@@ -529,5 +541,50 @@
     "dropTarget": "Import into “{name}”",
     "renameCategory": "Rename category",
     "renameHint": "Applies to all contacts. If the new name already exists, both categories are merged."
+  },
+  "security": {
+    "title": "Security",
+    "twoFactor": "Two-factor authentication",
+    "on": "On",
+    "off": "Off",
+    "twoFactorIntro": "Signing in then also needs a code from an authenticator app on your phone (e.g. Aegis, Google Authenticator, 2FAS).",
+    "recoveryCodesLeft": "No recovery codes left – please create new ones. | {n} recovery code left. | {n} recovery codes left.",
+    "setup": "Set up",
+    "setupTitle": "Set up two-factor authentication",
+    "setupIntro": "Please confirm with your password.",
+    "scan": "Scan the QR code with your authenticator app.",
+    "qrAlt": "QR code for the authenticator app",
+    "manualEntry": "Or enter this key in the app:",
+    "openInApp": "Open in authenticator app",
+    "confirmHint": "Enter the code the app shows to finish the setup.",
+    "activate": "Turn on",
+    "enabled": "Two-factor authentication is on",
+    "disabled": "Two-factor authentication is off",
+    "recoveryCodes": "Recovery codes",
+    "recoveryCodesWarning": "Keep these codes in a safe place. Each one signs you in once without the app – e.g. if your phone is lost. They are shown only now.",
+    "recoveryFileHeader": "Synchaven recovery codes for {email} – each code works once",
+    "regenerate": "New recovery codes",
+    "regenerateTitle": "New recovery codes",
+    "regenerateText": "Your previous recovery codes stop working. Please confirm with your password and a code from the app.",
+    "disable": "Turn off",
+    "disableTitle": "Turn off two-factor authentication?",
+    "disableText": "Signing in then only needs your password again. Please confirm with your password and a code from the app.",
+    "appPasswords": "App passwords",
+    "appPasswordsIntro": "For sync apps like DAVx⁵ or Thunderbird: they sign in with an app password instead of your password, and you can revoke it per device.",
+    "appPasswordsIntroTotp": "For sync apps like DAVx⁵ or Thunderbird: with two-factor authentication on, CardDAV only accepts app passwords.",
+    "noAppPasswords": "No app passwords yet.",
+    "createdOn": "Created {date}",
+    "lastUsed": "last used {date}",
+    "neverUsed": "never used",
+    "newAppPassword": "New app password",
+    "newAppPasswordIntro": "Give it a name that tells you where it is used. Please confirm with your password.",
+    "appPasswordNamePlaceholder": "e.g. DAVx⁵ on my phone",
+    "appPasswordCreated": "Enter this password as the password in “{name}”:",
+    "appPasswordOnce": "The password is shown only now. If you lose it, simply create a new one.",
+    "revoke": "Revoke",
+    "revokeTitle": "Revoke app password?",
+    "revokeText": "Apps that use “{name}” can no longer sync.",
+    "revoked": "App password revoked",
+    "twoFactorIntroOn": "Signing in needs a code from your authenticator app in addition to your password."
   }
 }

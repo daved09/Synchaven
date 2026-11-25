@@ -15,6 +15,7 @@ mod reminders;
 mod routes;
 mod settings;
 mod time;
+mod totp;
 mod vcard;
 
 use std::{str::FromStr, sync::Arc, time::Duration};

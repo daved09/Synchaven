@@ -312,6 +312,8 @@
     <string name="login_password_hint">At least 8 characters</string>
     <string name="login_show_password">Show password</string>
     <string name="login_hide_password">Hide password</string>
+    <string name="login_code">Code from the authenticator app</string>
+    <string name="login_code_hint">Two-factor authentication is on. A recovery code works as well.</string>
     <string name="login_create_account">Create account</string>
     <string name="login_cleartext_note">Use unencrypted connections (http://) only on your home network.</string>
     <string name="login_or">or</string>

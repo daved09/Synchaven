@@ -2,7 +2,7 @@
 import { LANGUAGE_OPTIONS, language, t, type Language } from '@/i18n'
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { api } from '@/api/client'
+import { api, ApiError } from '@/api/client'
 import { useAuthStore } from '@/stores/auth'
 import { useSettingsStore } from '@/stores/settings'
 
@@ -16,6 +16,9 @@ const email = ref('')
 const password = ref('')
 const name = ref('')
 const showPassword = ref(false)
+/** Second step of the sign-in: the account has two-factor authentication on */
+const needsCode = ref(false)
+const code = ref('')
 const loading = ref(false)
 const error = ref('')
 const formRef = ref()
@@ -53,14 +56,26 @@ async function submit() {
   error.value = ''
   try {
     if (isRegister.value) await auth.register(email.value, password.value, name.value, language)
-    else await auth.login(email.value, password.value)
+    else await auth.login(email.value, password.value, needsCode.value ? code.value : undefined)
     router.replace((route.query.redirect as string) || '/')
   } catch (e) {
+    if (e instanceof ApiError && e.code === 'totp_required') {
+      needsCode.value = true
+      return
+    }
+    if (e instanceof ApiError && e.code === 'totp_invalid') code.value = ''
     error.value = e instanceof Error ? e.message : t('auth.loginFailed')
   } finally {
     loading.value = false
   }
 }
+function backToPassword() {
+  needsCode.value = false
+  code.value = ''
+  password.value = ''
+  error.value = ''
+}
+
 const rules = {
   email: (v: string) => /.+@.+\..+/.test(v) || t('auth.invalidEmail'),
   password: (v: string) => !isRegister.value || v.length >= 8 || t('common.minPassword'),
@@ -76,13 +91,29 @@ const rules = {
           <v-avatar color="primary-container" size="64" class="mb-4">
             <v-icon icon="mdi-calendar-month" size="34" color="on-primary-container" />
           </v-avatar>
-          <div class="text-headline-small">{{ isRegister ? $t('auth.createAccount') : $t('auth.signIn') }}</div>
-          <div class="text-body-medium text-medium-emphasis mt-1">
-            {{ isRegister ? $t('auth.registerSubtitle') : $t('auth.signInSubtitle') }}
-          </div>
+          <template v-if="needsCode">
+            <div class="text-headline-small">{{ $t('auth.twoFactor') }}</div>
+            <div class="text-body-medium text-medium-emphasis mt-1">{{ $t('auth.twoFactorSubtitle') }}</div>
+          </template>
+          <template v-else>
+            <div class="text-headline-small">{{ isRegister ? $t('auth.createAccount') : $t('auth.signIn') }}</div>
+            <div class="text-body-medium text-medium-emphasis mt-1">
+              {{ isRegister ? $t('auth.registerSubtitle') : $t('auth.signInSubtitle') }}
+            </div>
+          </template>
         </v-card-item>
         <v-card-text>
-          <v-form ref="formRef" @submit.prevent="submit">
+          <v-form v-if="needsCode" ref="formRef" @submit.prevent="submit">
+            <v-text-field
+              v-model="code" :label="$t('auth.code')" autocomplete="one-time-code" inputmode="numeric"
+              prepend-inner-icon="mdi-shield-key-outline" :rules="[rules.required]" :hint="$t('auth.codeHint')" persistent-hint
+              autofocus class="mb-4"
+            />
+            <v-alert v-if="error" type="error" variant="tonal" density="compact" class="mb-4">{{ error }}</v-alert>
+            <v-btn type="submit" color="primary" size="large" block :loading="loading">{{ $t('auth.verify') }}</v-btn>
+            <v-btn variant="text" block class="mt-2" @click="backToPassword">{{ $t('common.back') }}</v-btn>
+          </v-form>
+          <v-form v-else ref="formRef" @submit.prevent="submit">
             <v-select
               v-if="isRegister" :model-value="language" :items="LANGUAGE_OPTIONS" :label="$t('settings.language')"
               prepend-inner-icon="mdi-translate" :hint="$t('auth.languageHint')" persistent-hint class="mb-6"
@@ -105,7 +136,7 @@ const rules = {
             </v-btn>
           </v-form>
         </v-card-text>
-        <v-card-actions v-if="allowRegistration || isRegister" class="justify-center pb-4">
+        <v-card-actions v-if="!needsCode && (allowRegistration || isRegister)" class="justify-center pb-4">
           <span class="text-body-medium text-medium-emphasis">{{ isRegister ? $t('auth.haveAccount') : $t('auth.noAccount') }}</span>
           <v-btn :to="isRegister ? '/login' : '/register'" variant="text" color="primary">
             {{ isRegister ? $t('auth.signIn') : $t('auth.register') }}

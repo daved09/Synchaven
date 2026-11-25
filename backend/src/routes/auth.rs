@@ -24,6 +24,9 @@ pub struct RegisterInput {
 pub struct LoginInput {
     email: String,
     password: String,
+    /// Code of the authenticator app or a recovery code – only for accounts with two-factor authentication.
+    /// Without it, such an account gets the error `totp_required` after a correct password.
+    code: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -212,6 +215,12 @@ pub async fn login(State(state): State<AppState>, Json(input): Json<LoginInput>)
             Err(AppError::Forbidden(tr!("auth.account_disabled")))
         }
         Some(u) if ok => {
+            if let Some(secret) = &u.totp_secret {
+                match input.code.as_deref().map(str::trim).filter(|c| !c.is_empty()) {
+                    None => return Err(AppError::TotpRequired(tr!("auth.totp_required"))),
+                    Some(code) => crate::totp::verify_second_factor(&state, &u.id, secret, code).await?,
+                }
+            }
             touch_login(&state, &u.id).await?;
             tracing::info!("Sign-in: account {}", u.id);
             respond(&state, u)

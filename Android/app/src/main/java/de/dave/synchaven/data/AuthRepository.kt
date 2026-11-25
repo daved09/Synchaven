@@ -20,6 +20,12 @@ import de.dave.synchaven.sync.SyncController
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
+/** Error code of a sign-in with the correct password to an account with two-factor authentication (see docs/API.md) */
+const val TOTP_REQUIRED = "totp_required"
+
+/** Error code of a wrong or already used code of the second factor */
+const val TOTP_INVALID = "totp_invalid"
+
 /** Sign-in, registration and user account. */
 class AuthRepository(
     private val api: SyncHavenApi,
@@ -44,12 +50,17 @@ class AuthRepository(
 
     suspend fun currentServerInfo(): ServerInfo = apiCall { api.currentInfo() }
 
-    /** Signs in and stores the session; the navigation reacts to the new session state. */
-    suspend fun login(server: String, email: String, password: String) {
+    /**
+     * Signs in and stores the session; the navigation reacts to the new session state.
+     * Accounts with two-factor authentication need [code]; without it the server answers with [TOTP_REQUIRED].
+     */
+    suspend fun login(server: String, email: String, password: String, code: String? = null) {
         val url = normalizeServerUrl(server)
-        val res = apiCall { api.login(url, LoginRequest(email.trim(), password)) }
+        val res = apiCall { api.login(url, LoginRequest(email.trim(), password, code?.trim()?.ifEmpty { null })) }
+        // With two-factor authentication the password alone can't sign in again: the sync only renews its token
+        val syncPassword = password.takeUnless { res.user.totpEnabled }
         // Sign-in should not fail because of this; sync can be set up later
-        runCatching { setupSyncAccount(url, password, res) }
+        runCatching { setupSyncAccount(url, syncPassword, res) }
         sessionStore.save(url, res.token, res.user)
     }
 
@@ -96,11 +107,19 @@ class AuthRepository(
      */
     suspend fun setupSync(password: String) {
         val session = sessionStore.current ?: throw NoServerConfiguredException()
-        val res = apiCall { api.login(session.serverUrl, LoginRequest(session.email, password)) }
-        setupSyncAccount(session.serverUrl, password, res)
+        try {
+            val res = apiCall { api.login(session.serverUrl, LoginRequest(session.email, password)) }
+            setupSyncAccount(session.serverUrl, password, res)
+        } catch (e: ApiException) {
+            if (e.code != TOTP_REQUIRED) throw e
+            // The password is correct, but the account has two-factor authentication: the sync gets its own token
+            // from the session instead and renews it itself, without a password
+            val res = apiCall { api.refreshToken() }
+            setupSyncAccount(session.serverUrl, null, res)
+        }
     }
 
-    private suspend fun setupSyncAccount(server: String, password: String, res: AuthResponse) {
+    private suspend fun setupSyncAccount(server: String, password: String?, res: AuthResponse) {
         withContext(Dispatchers.IO) {
             sync.setupAccount(server, res.user.id, res.user.email, password, res.token, res.expiresAt)
         }

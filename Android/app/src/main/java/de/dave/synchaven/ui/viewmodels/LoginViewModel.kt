@@ -4,6 +4,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import de.dave.synchaven.UiText
 import de.dave.synchaven.data.AuthRepository
+import de.dave.synchaven.data.TOTP_INVALID
+import de.dave.synchaven.data.TOTP_REQUIRED
+import de.dave.synchaven.data.api.ApiException
 import de.dave.synchaven.data.model.ServerInfo
 import de.dave.synchaven.data.store.SessionStore
 import de.dave.synchaven.data.userMessage
@@ -21,6 +24,10 @@ data class LoginUiState(
     val password: String = "",
     val name: String = "",
     val register: Boolean = false,
+    /** The account has two-factor authentication: the sign-in also needs [code] */
+    val needsCode: Boolean = false,
+    /** Code of the authenticator app or a recovery code */
+    val code: String = "",
     /** Response of `/api/info` for the entered server, `null` as long as unknown */
     val serverInfo: ServerInfo? = null,
     val serverError: UiText? = null,
@@ -30,7 +37,7 @@ data class LoginUiState(
 ) {
     val canSubmit: Boolean
         get() = !loading && server.isNotBlank() && email.isNotBlank() &&
-            password.length >= (if (register) 8 else 1)
+            password.length >= (if (register) 8 else 1) && (!needsCode || code.isNotBlank())
 }
 
 class LoginViewModel(
@@ -54,10 +61,12 @@ class LoginViewModel(
         checkServer()
     }
 
-    fun onEmailChange(v: String) = _state.update { it.copy(email = v, error = null) }
-    fun onPasswordChange(v: String) = _state.update { it.copy(password = v, error = null) }
+    // A different account or password: the code step starts over
+    fun onEmailChange(v: String) = _state.update { it.copy(email = v, error = null, needsCode = false, code = "") }
+    fun onPasswordChange(v: String) = _state.update { it.copy(password = v, error = null, needsCode = false, code = "") }
+    fun onCodeChange(v: String) = _state.update { it.copy(code = v, error = null) }
     fun onNameChange(v: String) = _state.update { it.copy(name = v, error = null) }
-    fun onRegisterChange(v: Boolean) = _state.update { it.copy(register = v, error = null) }
+    fun onRegisterChange(v: Boolean) = _state.update { it.copy(register = v, error = null, needsCode = false, code = "") }
 
     /** Queries `/api/info` as soon as the input pauses briefly – shows the server name and whether registration is possible. */
     fun checkServer(immediately: Boolean = false) {
@@ -98,8 +107,18 @@ class LoginViewModel(
         viewModelScope.launch {
             runCatching {
                 if (s.register) auth.register(s.server, s.email, s.password, s.name)
-                else auth.login(s.server, s.email, s.password)
-            }.onFailure { e -> _state.update { it.copy(loading = false, error = e.userMessage()) } }
+                else auth.login(s.server, s.email, s.password, s.code.takeIf { s.needsCode })
+            }.onFailure { e ->
+                val code = (e as? ApiException)?.code
+                _state.update {
+                    when (code) {
+                        // Correct password: now ask for the code, no error message
+                        TOTP_REQUIRED -> it.copy(loading = false, needsCode = true, code = "")
+                        TOTP_INVALID -> it.copy(loading = false, code = "", error = e.userMessage())
+                        else -> it.copy(loading = false, error = e.userMessage())
+                    }
+                }
+            }
         }
     }
 }

@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { t } from '@/i18n'
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useNotifyStore } from '@/stores/notify'
+import SecurityDialog from '@/components/SecurityDialog.vue'
 
 const open = defineModel<boolean>({ required: true })
 const auth = useAuthStore()
 const notify = useNotifyStore()
+const securityOpen = ref(false)
 
 const url = computed(() => `${window.location.origin}/dav/`)
 const insecure = window.location.protocol !== 'https:' && !['localhost', '127.0.0.1'].includes(window.location.hostname)
@@ -39,7 +41,16 @@ async function copy(text: string) {
             <v-btn icon="mdi-content-copy" size="small" variant="text" :title="$t('dav.copy')" @click="copy(auth.user?.email ?? '')" />
           </template>
         </v-text-field>
-        <v-text-field :model-value="$t('dav.yourPassword')" :label="$t('common.password')" readonly variant="outlined" disabled />
+        <v-text-field
+          :model-value="auth.user?.totp_enabled ? $t('dav.appPassword') : $t('dav.yourPassword')" :label="$t('common.password')"
+          readonly variant="outlined" disabled class="mb-1"
+        />
+        <div class="d-flex align-center ga-2 mb-4">
+          <span class="text-body-small text-medium-emphasis flex-grow-1">
+            {{ auth.user?.totp_enabled ? $t('dav.appPasswordRequired') : $t('dav.appPasswordHint') }}
+          </span>
+          <v-btn variant="tonal" size="small" prepend-icon="mdi-key-outline" @click="securityOpen = true">{{ $t('dav.appPasswords') }}</v-btn>
+        </div>
 
         <v-alert v-if="insecure" type="warning" variant="tonal" density="compact" class="mb-4">
           {{ $t('dav.insecure') }}
@@ -63,6 +74,7 @@ async function copy(text: string) {
       </template>
     </v-card>
   </v-dialog>
+  <SecurityDialog v-model="securityOpen" />
 </template>
 
 <style scoped>

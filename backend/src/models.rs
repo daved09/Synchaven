@@ -22,6 +22,8 @@ pub struct UserRow {
     pub is_admin: bool,
     /// Disabled: no sign-in, no sync
     pub disabled: bool,
+    /// Base32 secret of the authenticator app; `None` = two-factor authentication off
+    pub totp_secret: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -36,6 +38,8 @@ pub struct User {
     pub created_at: DateTime<Utc>,
     /// May open the admin page (initially the first registered account)
     pub is_admin: bool,
+    /// Sign-in needs a code of an authenticator app (TOTP)
+    pub totp_enabled: bool,
 }
 
 impl From<UserRow> for User {
@@ -48,6 +52,7 @@ impl From<UserRow> for User {
             language: r.language,
             created_at: from_db(&r.created_at),
             is_admin: r.is_admin,
+            totp_enabled: r.totp_secret.is_some(),
         }
     }
 }

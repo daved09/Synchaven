@@ -5,22 +5,25 @@ import { api } from '@/api/client'
 import type { AdminOverview } from '@/api/types'
 import { LOCALE } from '@/utils/date'
 import { useNotifyStore } from '@/stores/notify'
+import { checkForUpdate, type ReleaseInfo } from '@/utils/updates'
 
 const notify = useNotifyStore()
 const data = ref<AdminOverview | null>(null)
 const loading = ref(false)
+const update = ref<ReleaseInfo | null>(null)
 
-async function load() {
+async function load(force = false) {
   loading.value = true
   try {
     data.value = await api.adminOverview()
+    checkForUpdate(data.value.version, force).then((r) => (update.value = r))
   } catch (e) {
     notify.fail(e)
   } finally {
     loading.value = false
   }
 }
-onMounted(load)
+onMounted(() => load())
 defineExpose({ load })
 
 const nf = new Intl.NumberFormat(LOCALE)
@@ -73,9 +76,18 @@ const tiles = computed(() => {
           {{ $t('overview.database', { size: formatBytes(data.database_size) }) }}
         </v-card-subtitle>
         <template #append>
-          <v-btn icon="mdi-refresh" variant="text" :title="$t('common.refresh')" :loading="loading" @click="load" />
+          <v-btn icon="mdi-refresh" variant="text" :title="$t('common.refresh')" :loading="loading" @click="load(true)" />
         </template>
       </v-card-item>
+      <v-alert v-if="update" type="info" variant="tonal" density="compact" icon="mdi-update" class="ma-2">
+        {{ $t('overview.updateAvailable', { version: update.version }) }}
+        <template #append>
+          <v-btn
+            :href="update.url" target="_blank" rel="noopener" variant="text" size="small"
+            append-icon="mdi-open-in-new" :text="$t('overview.releaseNotes')"
+          />
+        </template>
+      </v-alert>
     </v-card>
 
     <div class="tiles mt-4">

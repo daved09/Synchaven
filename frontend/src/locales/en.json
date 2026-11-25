@@ -411,7 +411,9 @@
     "dataDir": "Data directory",
     "corsOrigins": "Allowed origins",
     "vapidSubject": "Contact for push services",
-    "vapidHint": "Some push services require a real contact address in {variable}."
+    "vapidHint": "Some push services require a real contact address in {variable}.",
+    "updateAvailable": "Synchaven {version} is available.",
+    "releaseNotes": "Release notes"
   },
   "adminSettings": {
     "saved": "Setting saved",

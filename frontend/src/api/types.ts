@@ -65,6 +65,19 @@ export interface AdminOverview {
   config: { bind: string; data_dir: string; cors_origins: string[]; vapid_subject: string }
 }
 
+export type LogLevel = 'ERROR' | 'WARN' | 'INFO' | 'DEBUG' | 'TRACE'
+
+/** Entry from GET /api/admin/logs */
+export interface LogEntry {
+  /** Increasing number, for fetching only newer entries */
+  id: number
+  time: string
+  level: LogLevel
+  /** Module, e.g. "synchaven::routes::admin" */
+  target: string
+  message: string
+}
+
 /** Result of POST /api/admin/import */
 export interface DbImportReport {
   /** Imported entries per table, e.g. "events: 12" */

@@ -133,6 +133,33 @@ pub async fn overview(State(state): State<AppState>, auth: AuthUser) -> AppResul
     })))
 }
 
+// ---------- Log ----------
+
+#[derive(Deserialize)]
+pub struct LogsQuery {
+    /// Only entries with a greater `id` (for polling)
+    #[serde(default)]
+    after: u64,
+}
+
+/// `GET /api/admin/logs?after=<id>` – recent log output since the server start, oldest first
+pub async fn logs(State(state): State<AppState>, auth: AuthUser, Query(q): Query<LogsQuery>) -> AppResult<Json<Value>> {
+    require_admin(&state, &auth).await?;
+    Ok(Json(json!({
+        "entries": state.logs.since(q.after),
+        // Changes with a restart; ids then start again at 1
+        "started_at": state.started_at,
+        "capacity": crate::logs::CAPACITY,
+    })))
+}
+
+/// `DELETE /api/admin/logs` – empty the log buffer (the console output is unaffected)
+pub async fn clear_logs(State(state): State<AppState>, auth: AuthUser) -> AppResult<StatusCode> {
+    require_admin(&state, &auth).await?;
+    state.logs.clear();
+    Ok(StatusCode::NO_CONTENT)
+}
+
 // ---------- Settings ----------
 
 #[derive(Serialize)]

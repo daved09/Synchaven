@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useDisplay } from 'vuetify'
 import AccountMenu from '@/components/AccountMenu.vue'
 import AdminBackup from '@/components/admin/AdminBackup.vue'
+import AdminLogs from '@/components/admin/AdminLogs.vue'
 import AdminOverview from '@/components/admin/AdminOverview.vue'
 import AdminSettings from '@/components/admin/AdminSettings.vue'
 import AdminUsers from '@/components/admin/AdminUsers.vue'
@@ -21,6 +22,7 @@ const tabs = [
   { value: 'users', title: 'Benutzer', icon: 'mdi-account-multiple-outline' },
   { value: 'settings', title: 'Einstellungen', icon: 'mdi-tune-variant' },
   { value: 'backup', title: 'Datensicherung', icon: 'mdi-database-outline' },
+  { value: 'logs', title: 'Protokoll', icon: 'mdi-text-box-search-outline' },
 ] as const
 type Tab = (typeof tabs)[number]['value']
 
@@ -72,6 +74,7 @@ function back() {
       <AdminUsers v-else-if="tab === 'users'" />
       <AdminSettings v-else-if="tab === 'settings'" />
       <AdminBackup v-else-if="tab === 'backup'" />
+      <AdminLogs v-else-if="tab === 'logs'" />
     </div>
     <div v-else class="d-flex justify-center pa-8"><v-progress-circular indeterminate color="primary" /></div>
   </v-main>

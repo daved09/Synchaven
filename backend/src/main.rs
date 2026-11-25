@@ -6,6 +6,7 @@ mod contacts;
 mod dav;
 mod error;
 mod ical;
+mod logs;
 mod models;
 mod push;
 mod recurrence;
@@ -44,6 +45,8 @@ pub struct AppState {
     pub settings: Arc<settings::SettingsStore>,
     /// Server start time (for the overview in the admin page)
     pub started_at: chrono::DateTime<chrono::Utc>,
+    /// Recent log output (for the admin page)
+    pub logs: &'static logs::LogBuffer,
 }
 
 #[tokio::main]
@@ -57,12 +60,18 @@ async fn main() -> anyhow::Result<()> {
             return result;
         }
     }
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "synchaven=info,tower_http=warn".into()),
-        )
-        .init();
+    let logs: &'static logs::LogBuffer = Box::leak(Box::default());
+    {
+        use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+        tracing_subscriber::registry()
+            .with(
+                tracing_subscriber::EnvFilter::try_from_default_env()
+                    .unwrap_or_else(|_| "synchaven=info,tower_http=warn".into()),
+            )
+            .with(tracing_subscriber::fmt::layer())
+            .with(logs)
+            .init();
+    }
 
     let config = Config::from_env()?;
 
@@ -84,6 +93,7 @@ async fn main() -> anyhow::Result<()> {
     let state = AppState {
         settings: Arc::new(settings),
         started_at: chrono::Utc::now(),
+        logs,
         db,
         push: Arc::new(push),
         jwt: Arc::new(auth::JwtKeys::new(&config.jwt_secret)),

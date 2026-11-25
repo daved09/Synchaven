@@ -104,6 +104,8 @@ The **administrator** is the first account to be registered. The first account c
 * **Settings:** open/close registration and session lifetime. Stored values take precedence over
   `ALLOW_REGISTRATION` and `TOKEN_TTL_DAYS`; as long as nothing is stored, the environment variables apply.
 * **Backup:** export and import of the whole database (see below)
+* **Log:** the last 2000 log messages since the server start, live, with level filter, search and
+  download. Which messages appear is set with `RUST_LOG`, as for the console.
 
 **Note:** When running on the internet, put a reverse proxy with HTTPS in front (e.g. Caddy, Traefik, nginx)
 and close registration after creating your own accounts (admin page or

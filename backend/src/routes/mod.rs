@@ -56,6 +56,7 @@ pub fn api_router() -> Router<AppState> {
         .route("/admin/users", get(admin::list_users).post(admin::create))
         .route("/admin/users/{id}", put(admin::update).delete(admin::delete))
         .route("/admin/users/{id}/logout", post(admin::logout_everywhere))
+        .route("/admin/logs", get(admin::logs).delete(admin::clear_logs))
         .route("/admin/export", get(admin::export))
         // Exports with many contact photos are considerably larger than the general limit
         .route("/admin/import", post(admin::import).layer(DefaultBodyLimit::max(512 * 1024 * 1024)))

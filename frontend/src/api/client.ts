@@ -1,6 +1,6 @@
 import type {
   AdminOverview, AdminSettings, AdminSettingsValues, AdminUser, AdminUserInput, AddressBook, AddressBookInput, AuthResponse, CalEvent, Calendar, CalendarInput, Contact, ContactImportResult,
-  ContactInput, DbImportReport, EventInput, ImportResult, Occurrence, PushSubscriptionInput, ServerInfo, Task, TaskInput,
+  ContactInput, DbImportReport, EventInput, ImportResult, LogEntry, Occurrence, PushSubscriptionInput, ServerInfo, Task, TaskInput,
   TaskList, TaskListInput, User, ViewMode,
 } from './types'
 
@@ -153,6 +153,10 @@ export const api = {
   updateAdminUser: (id: string, data: AdminUserInput) => request<AdminUser>('PUT', `/admin/users/${id}`, { body: data }),
   logoutAdminUser: (id: string) => request<AdminUser>('POST', `/admin/users/${id}/logout`),
   deleteAdminUser: (id: string) => request<void>('DELETE', `/admin/users/${id}`),
+
+  adminLogs: (after = 0) =>
+    request<{ entries: LogEntry[]; started_at: string; capacity: number }>('GET', '/admin/logs', { query: { after: String(after) } }),
+  clearAdminLogs: () => request<void>('DELETE', '/admin/logs'),
 
   adminExport: () => request<string>('GET', '/admin/export', { asText: true }),
   adminImport: (json: string) =>

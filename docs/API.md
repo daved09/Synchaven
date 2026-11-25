@@ -442,6 +442,17 @@ not affected. Not for your own account (`400`).
 ### `DELETE /admin/users/{id}` → `204`
 Deletes the account with all calendars, events, address books, contacts and tasks. Not for your own account (`400`).
 
+### `GET /admin/logs?after=<id>` · `DELETE /admin/logs` → `204`
+The last 2000 log messages since the server start (same filter as the console, `RUST_LOG`), oldest first. Kept
+in memory only. With `after` only entries with a greater `id`, for polling; `started_at` changes with a restart,
+after which the ids start again at 1. `DELETE` empties the buffer (the console output is unaffected).
+```json
+{ "entries": [ { "id": 41, "time": "…", "level": "INFO", "target": "synchaven::routes::admin",
+                 "message": "Konto anna@example.com von der Verwaltung angelegt" } ],
+  "started_at": "…", "capacity": 2000 }
+```
+`level` is one of `ERROR`, `WARN`, `INFO`, `DEBUG`, `TRACE`; further fields of an entry are appended to `message` as `key=value`.
+
 ### `GET /admin/export` → `application/json`
 The whole database (all users incl. password hashes) as the file `synchaven-export-<date>.json`. Events in the
 birthday calendar are not included, the import regenerates them from the contacts. Push subscriptions are missing

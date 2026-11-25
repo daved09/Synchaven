@@ -211,6 +211,11 @@ pub(super) async fn create_user(
 
 pub async fn login(State(state): State<AppState>, Json(input): Json<LoginInput>) -> AppResult<Json<AuthResponse>> {
     let email = input.email.trim().to_lowercase();
+    // Before anything else – also for unknown addresses, so the answer doesn't reveal whether an account exists
+    if let Err(wait) = state.login_throttle.check(&email) {
+        tracing::warn!("Sign-in refused: too many failed attempts for this email address");
+        return Err(AppError::TooManyRequests(tr!("auth.too_many_attempts", minutes = crate::throttle::minutes(wait))));
+    }
     let user = sqlx::query_as::<_, UserRow>("SELECT * FROM users WHERE email = ?")
         .bind(&email)
         .fetch_optional(&state.db)
@@ -226,6 +231,11 @@ pub async fn login(State(state): State<AppState>, Json(input): Json<LoginInput>)
         }
         None => false,
     };
+    if ok {
+        state.login_throttle.success(&email);
+    } else {
+        state.login_throttle.failure(&email);
+    }
     match user {
         // Only reveal that the account is disabled after the correct password
         Some(u) if ok && u.disabled => {
@@ -327,6 +337,8 @@ pub async fn update_me(
     if wants_password {
         // The browsers of the ended sessions must not keep receiving reminders; this one re-subscribes itself
         super::push::remove_all(&mut *tx, &user.id).await?;
+        // Sync clients with an app password lose access as well (e.g. on a lost device)
+        super::security::revoke_app_passwords(&mut *tx, &user.id).await?;
     }
     if language_changed {
         // Birthday events carry texts in the user's language ("Born on …")
@@ -347,7 +359,7 @@ pub async fn update_me(
     }
     let user = load_user(&state, &auth.id).await?;
     let (token, expires_at) = if wants_password {
-        tracing::info!("Account {}: password changed, all other sessions ended", user.id);
+        tracing::info!("Account {}: password changed, all other sessions and app passwords ended", user.id);
         let (token, exp) = state.jwt.issue(&user.id, state.settings.get().token_ttl_days)?;
         (Some(token), Some(exp))
     } else {

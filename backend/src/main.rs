@@ -6,6 +6,7 @@ mod contacts;
 mod crypto;
 mod dav;
 mod error;
+mod export_crypto;
 mod i18n;
 mod ical;
 mod logs;
@@ -16,6 +17,7 @@ mod reminders;
 mod routes;
 mod settings;
 mod setup;
+mod throttle;
 mod time;
 mod totp;
 mod vcard;
@@ -47,6 +49,8 @@ pub struct AppState {
     pub config: Arc<Config>,
     pub jwt: Arc<auth::JwtKeys>,
     pub dav_auth: Arc<dav::AuthCache>,
+    /// Failed sign-ins per email address (web UI, app, CardDAV)
+    pub login_throttle: Arc<throttle::Throttle>,
     pub push: Arc<push::WebPush>,
     /// Settings from the admin page (registration, session lifetime)
     pub settings: Arc<settings::SettingsStore>,
@@ -121,6 +125,7 @@ async fn main() -> anyhow::Result<()> {
         jwt: Arc::new(auth::JwtKeys::new(&config.jwt_secret)),
         config: Arc::new(config.clone()),
         dav_auth: Arc::default(),
+        login_throttle: Arc::default(),
         secrets: Arc::new(secrets),
         setup: Arc::new(setup),
     };

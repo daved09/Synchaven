@@ -342,6 +342,7 @@
     <string name="settings_version">Version %1$s</string>
     <string name="profile_title">Profil bearbeiten</string>
     <string name="profile_new_password">Neues Passwort (optional)</string>
+    <string name="profile_new_password_hint">Meldet dich auf allen anderen Geräten ab und widerruft alle App-Passwörter</string>
     <string name="profile_current_password">Aktuelles Passwort</string>
     <string name="profile_current_password_hint">Nötig für neue E-Mail-Adresse oder neues Passwort</string>
     <string name="dialog_logout_title">Abmelden?</string>

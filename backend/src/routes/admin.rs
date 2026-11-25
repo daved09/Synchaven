@@ -8,6 +8,7 @@ use axum::{
     response::IntoResponse,
     Json,
 };
+use base64::Engine;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -38,6 +39,8 @@ pub struct ExportInput {
     current_password: Option<String>,
     /// Code of the second factor – only if the administrator has two-factor authentication on
     code: Option<String>,
+    /// Encrypts the file with this passphrase (see [crate::export_crypto]); without it the file is plaintext JSON
+    passphrase: Option<String>,
 }
 
 /// `POST /api/admin/export` – the whole database as a JSON file. It contains every account's password hash and
@@ -52,9 +55,21 @@ pub async fn export(
     let user = super::auth::load_user(&state, &auth.id).await?;
     super::security::require_password_and_code(&state, &user, input.current_password.as_deref(), input.code.as_deref())
         .await?;
+    let passphrase = input.passphrase.filter(|p| !p.is_empty());
+    if let Some(p) = &passphrase {
+        crate::export_crypto::check_passphrase(p).map_err(AppError::BadRequest)?;
+    }
     let (export, _) = backup::export_db(&state.db, Some(&state.secrets)).await?;
-    tracing::info!("Database exported by administrator {}", auth.id);
-    let json = serde_json::to_vec_pretty(&export).map_err(anyhow::Error::from)?;
+    let mut json = serde_json::to_vec_pretty(&export).map_err(anyhow::Error::from)?;
+    if let Some(p) = passphrase {
+        // Argon2id is deliberately compute-intensive
+        json = tokio::task::spawn_blocking(move || crate::export_crypto::encrypt(&json, &p))
+            .await
+            .map_err(anyhow::Error::from)??;
+        tracing::info!("Database exported (encrypted) by administrator {}", auth.id);
+    } else {
+        tracing::warn!("Database exported without encryption by administrator {}", auth.id);
+    }
     let stamp = chrono::Local::now().format("%Y-%m-%d");
     Ok((
         [
@@ -72,13 +87,33 @@ pub struct ImportQuery {
 }
 
 /// `POST /api/admin/import?replace=true` – replaces all data of all users with the export in the body
+/// Header with the passphrase of an encrypted export, Base64 of its UTF-8 bytes (headers are ASCII only)
+const PASSPHRASE_HEADER: &str = "x-export-passphrase";
+
 pub async fn import(
     State(state): State<AppState>,
     auth: AuthUser,
     Query(q): Query<ImportQuery>,
+    headers: axum::http::HeaderMap,
     body: Bytes,
 ) -> AppResult<Json<ImportReport>> {
     require_admin(&state, &auth).await?;
+    let body = if crate::export_crypto::is_encrypted(&body) {
+        let passphrase = headers
+            .get(PASSPHRASE_HEADER)
+            .and_then(|v| v.to_str().ok())
+            .and_then(|v| base64::engine::general_purpose::STANDARD.decode(v.trim()).ok())
+            .and_then(|b| String::from_utf8(b).ok())
+            .filter(|p| !p.is_empty())
+            .ok_or_else(|| AppError::BadRequest(tr!("backup.passphrase_required")))?;
+        tokio::task::spawn_blocking(move || crate::export_crypto::decrypt(&body, &passphrase))
+            .await
+            .map_err(anyhow::Error::from)?
+            .map_err(map_err)?
+            .into()
+    } else {
+        body
+    };
     let export = backup::parse(&body).map_err(map_err)?;
     // Separate task: if the browser aborts the request, the import still finishes cleanly
     // (otherwise the transaction would stay open on the pooled connection).
@@ -419,6 +454,13 @@ pub async fn update(
     let disabling = input.disabled == Some(true) && !user.disabled;
     if revoke || disabling {
         super::push::remove_all(&state.db, &id).await?;
+    }
+    // A new password also ends the app passwords (CardDAV clients) – the reset is for a compromised account
+    if new_hash.is_some() {
+        let n = super::security::revoke_app_passwords(&state.db, &id).await?;
+        if n > 0 {
+            tracing::info!("Account {id}: {n} app password(s) revoked with the new password");
+        }
     }
     if input.reset_totp && user.totp_secret.is_some() {
         super::security::disable_for(&state, &id).await?;

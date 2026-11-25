@@ -195,14 +195,19 @@ temporary account is replaced by the accounts from the export. If the export doe
 administrator yet (older versions), the oldest account becomes one.
 
 **On the command line** – the export also works while the server is running. The file contains all password hashes
-and the two-factor secrets in plaintext, so create it readable only for yourself (`umask 077`) and keep it as safe as
-the database itself:
+and the two-factor secrets, so encrypt it with a passphrase (at least 12 characters) and create it readable only for
+yourself. `-e EXPORT_PASSPHRASE` passes the variable from your environment into the container:
 
 ```bash
-(umask 077 && docker exec synchaven synchaven export > synchaven-export.json)
+export EXPORT_PASSPHRASE='…'   # e.g. from your password manager or backup tool
+(umask 077 && docker exec -e EXPORT_PASSPHRASE synchaven synchaven export > synchaven-export.json)
 ```
 
-In the web UI the export asks for your password (and a two-factor code, if enabled) first.
+Instead of the variable, `--passphrase-file FILE` reads it from a file. Without a passphrase the export is plaintext
+JSON. In the web UI the export asks for your password (and a two-factor code, if enabled) and always encrypts the file
+with a passphrase you choose. The import recognizes an encrypted export and needs the same passphrase – in the web UI
+it asks for it, on the command line it comes from `EXPORT_PASSPHRASE` or `--passphrase-file` again. Encryption:
+Argon2id (64 MiB, 3 passes) and AES-256-GCM.
 
 The import creates an empty database with the schema of the current version and loads the data. Columns or
 tables that no longer exist are skipped with a warning, new columns get their default value.
@@ -213,7 +218,7 @@ docker compose stop
 # Set the old database aside (synchaven.db, synchaven.db-wal, synchaven.db-shm)
 docker compose run --rm --no-deps --entrypoint sh Synchaven \
   -c 'mkdir -p /data/alt && mv /data/synchaven.db* /data/alt/'
-docker compose run --rm --no-deps -v "$PWD":/backup Synchaven import /backup/synchaven-export.json
+docker compose run --rm --no-deps -v "$PWD":/backup -e EXPORT_PASSPHRASE Synchaven import /backup/synchaven-export.json
 docker compose up -d
 ```
 

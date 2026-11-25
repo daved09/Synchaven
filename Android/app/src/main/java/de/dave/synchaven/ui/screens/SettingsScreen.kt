@@ -246,6 +246,9 @@ fun SettingsScreen(onBack: () -> Unit) {
                     OutlinedTextField(
                         form.newPassword, { v -> vm.editProfile { it.copy(newPassword = v) } },
                         label = { Text(stringResource(R.string.profile_new_password)) }, singleLine = true,
+                        supportingText = if (form.newPassword.isNotEmpty()) {
+                            { Text(stringResource(R.string.profile_new_password_hint)) }
+                        } else null,
                         visualTransformation = PasswordVisualTransformation(),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                     )

@@ -92,7 +92,7 @@ async function save() {
             v-model="password" :label="isNew ? $t('common.password') : $t('profile.newPassword')"
             :type="showPassword ? 'text' : 'password'" autocomplete="new-password" prepend-inner-icon="mdi-lock-outline"
             :rules="[rules.password]" persistent-hint
-            :hint="isNew ? $t('userDialog.passwordHintNew') : isOwn ? '' : $t('userDialog.passwordHintChange')"
+            :hint="isNew ? $t('userDialog.passwordHintNew') : isOwn ? $t('userDialog.passwordHintOwn') : $t('userDialog.passwordHintChange')"
           >
             <template #append-inner>
               <v-icon

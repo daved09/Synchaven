@@ -259,6 +259,7 @@
     "saved": "Profile saved",
     "title": "Profile",
     "newPassword": "New password (optional)",
+    "newPasswordHint": "Signs you out on all other devices and revokes all app passwords",
     "currentPassword": "Current password",
     "currentPasswordHint": "Required to change email or password",
     "currentPasswordRequired": "Please enter your current password"
@@ -373,12 +374,19 @@
     "intro": "Back up the whole database with all users, password hashes and settings (without push subscriptions) as JSON, e.g. before an update. The import replaces all existing data.",
     "export": "Export database",
     "exportConfirmTitle": "Export database",
-    "exportConfirmText": "The export contains all data of all users, their password hashes and the two-factor secrets in plaintext. Confirm it with your password and keep the file as safe as the database itself.",
+    "exportConfirmText": "The export contains all data of all users, their password hashes and the two-factor secrets. Confirm it with your password; the file is encrypted with a passphrase of your choice.",
+    "passphrase": "Passphrase",
+    "passphraseRepeat": "Repeat passphrase",
+    "passphraseHint": "Needed for the import – without it the file cannot be restored",
+    "passphraseTooShort": "At least {min} characters",
+    "passphraseMismatch": "The passphrases don’t match",
+    "importPassphraseTitle": "Encrypted export",
+    "importPassphraseText": "This export is encrypted. Enter the passphrase that was chosen when exporting it.",
     "import": "Import database",
     "done": "Import finished: {summary}",
     "reload": "Reload",
     "cliTitle": "On the command line",
-    "cliHint": "The export also works while the server is running, e.g. for regular backups:"
+    "cliHint": "The export also works while the server is running, e.g. for regular backups. With EXPORT_PASSPHRASE set in your environment (at least 12 characters) the file is encrypted:"
   },
   "logs": {
     "levels": {
@@ -445,7 +453,8 @@
     "edit": "Edit account",
     "nameHint": "If empty, the part before the {'@'}",
     "passwordHintNew": "Pass it on to the user; they can change it in their profile.",
-    "passwordHintChange": "Signs the account out on all devices. CardDAV clients need the new password afterwards.",
+    "passwordHintChange": "Signs the account out on all devices and revokes its app passwords. CardDAV clients need the new password or a new app password afterwards.",
+    "passwordHintOwn": "Revokes your app passwords – CardDAV clients need a new one afterwards.",
     "hide": "Hide",
     "show": "Show",
     "generate": "Generate password",
@@ -468,7 +477,7 @@
     "enabled": "Account enabled",
     "disabled": "Account disabled",
     "signOutTitle": "Sign out everywhere?",
-    "signOutText": "{name} has to sign in again in the web UI and the app. CardDAV clients such as DAVx⁵ use the password or an app password and stay connected – for that, change the password or revoke the app password in the account’s security settings.",
+    "signOutText": "{name} has to sign in again in the web UI and the app. CardDAV clients such as DAVx⁵ use the password or an app password and stay connected – for that, change the password (this also revokes all app passwords) or revoke a single app password in the account’s security settings.",
     "signedOut": "{name} was signed out everywhere",
     "deleteTitle": "Delete account?",
     "deleteText": "{name} ({email}) is deleted with all calendars, events, contacts and tasks ({stats}). This cannot be undone.",

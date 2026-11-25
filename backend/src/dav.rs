@@ -90,47 +90,62 @@ struct DavUser {
     name: String,
 }
 
-async fn authenticate(state: &AppState, headers: &HeaderMap) -> AppResult<Option<DavUser>> {
+/// Result of the Basic authentication of a request
+enum DavAuth {
+    User(DavUser),
+    /// Missing or wrong credentials
+    Denied,
+    /// Too many failed attempts for this address: try again after the waiting time
+    Throttled(std::time::Duration),
+}
+
+async fn authenticate(state: &AppState, headers: &HeaderMap) -> AppResult<DavAuth> {
     let Some(value) = headers.get(header::AUTHORIZATION).and_then(|v| v.to_str().ok()) else {
-        return Ok(None);
+        return Ok(DavAuth::Denied);
     };
     let Some(b64) = value.strip_prefix("Basic ").or_else(|| value.strip_prefix("basic ")) else {
-        return Ok(None);
+        return Ok(DavAuth::Denied);
     };
     let Some(decoded) = base64::engine::general_purpose::STANDARD
         .decode(b64.trim())
         .ok()
         .and_then(|b| String::from_utf8(b).ok())
     else {
-        return Ok(None);
+        return Ok(DavAuth::Denied);
     };
-    let Some((email, password)) = decoded.split_once(':') else { return Ok(None) };
+    let Some((email, password)) = decoded.split_once(':') else { return Ok(DavAuth::Denied) };
     let email = email.trim().to_lowercase();
     let Some(user) = sqlx::query_as::<_, UserRow>("SELECT * FROM users WHERE email = ?")
         .bind(&email)
         .fetch_optional(&state.db)
         .await?
     else {
+        // Counted like a wrong password, so the answer doesn't reveal whether the account exists
+        if let Err(wait) = state.login_throttle.check(&email) {
+            return Ok(DavAuth::Throttled(wait));
+        }
+        state.login_throttle.failure(&email);
         tracing::warn!("CardDAV: rejected sign-in with unknown email address");
-        return Ok(None);
+        return Ok(DavAuth::Denied);
     };
     if user.disabled {
         tracing::warn!("CardDAV: rejected sign-in to disabled account {}", user.id);
-        return Ok(None);
+        return Ok(DavAuth::Denied);
     }
 
     // App passwords are long random strings: a SHA-256 lookup is enough, no cache needed – a deleted one
-    // stops working immediately.
+    // stops working immediately. They can't be guessed, so they are not throttled: someone guessing the account
+    // password doesn't stop sync clients that use one.
     if let Some(app_id) = app_password(state, &user.id, password).await? {
         tracing::debug!("CardDAV: account {} signed in with app password {app_id}", user.id);
-        return Ok(Some(DavUser { id: user.id, name: user.name }));
+        return Ok(DavAuth::User(DavUser { id: user.id, name: user.name }));
     }
     if user.totp_secret.is_some() {
         tracing::warn!(
             "CardDAV: rejected sign-in for account {}: two-factor authentication is on, an app password is needed",
             user.id
         );
-        return Ok(None);
+        return Ok(DavAuth::Denied);
     }
 
     let key = state.dav_auth.key_for(&email, password, &user.password_hash);
@@ -138,13 +153,20 @@ async fn authenticate(state: &AppState, headers: &HeaderMap) -> AppResult<Option
         let map = state.dav_auth.entries.lock().unwrap();
         map.get(&key).is_some_and(|exp| *exp > Instant::now())
     };
+    // A cached sign-in was confirmed with the correct password recently: it is not throttled either
     if !cached {
+        if let Err(wait) = state.login_throttle.check(&email) {
+            tracing::warn!("CardDAV: sign-in for account {} refused: too many failed attempts", user.id);
+            return Ok(DavAuth::Throttled(wait));
+        }
         let (password, hash) = (password.to_string(), user.password_hash.clone());
         let ok = tokio::task::spawn_blocking(move || verify_password(&password, &hash)).await.unwrap_or(false);
         if !ok {
+            state.login_throttle.failure(&email);
             tracing::warn!("CardDAV: failed sign-in for account {}: wrong password", user.id);
-            return Ok(None);
+            return Ok(DavAuth::Denied);
         }
+        state.login_throttle.success(&email);
         tracing::debug!("CardDAV: account {} signed in", user.id);
         let mut map = state.dav_auth.entries.lock().unwrap();
         let now = Instant::now();
@@ -153,7 +175,7 @@ async fn authenticate(state: &AppState, headers: &HeaderMap) -> AppResult<Option
         }
         map.insert(key, now + AUTH_TTL);
     }
-    Ok(Some(DavUser { id: user.id, name: user.name }))
+    Ok(DavAuth::User(DavUser { id: user.id, name: user.name }))
 }
 
 /// ID of the account's app password `password`, if it is one; records its use (at most once per hour).
@@ -180,6 +202,15 @@ fn unauthorized() -> Response {
         StatusCode::UNAUTHORIZED,
         [(header::WWW_AUTHENTICATE, "Basic realm=\"Synchaven\", charset=\"UTF-8\"")],
         tr!("auth.required"),
+    )
+        .into_response()
+}
+
+fn too_many_attempts(wait: std::time::Duration) -> Response {
+    (
+        StatusCode::TOO_MANY_REQUESTS,
+        [(header::RETRY_AFTER, wait.as_secs().max(1).to_string())],
+        tr!("auth.too_many_attempts", minutes = crate::throttle::minutes(wait)),
     )
         .into_response()
 }
@@ -604,8 +635,10 @@ async fn handle_inner(state: AppState, req: Request) -> AppResult<Response> {
     if method == "OPTIONS" {
         return Ok(options());
     }
-    let Some(user) = authenticate(&state, &parts.headers).await? else {
-        return Ok(unauthorized());
+    let user = match authenticate(&state, &parts.headers).await? {
+        DavAuth::User(user) => user,
+        DavAuth::Denied => return Ok(unauthorized()),
+        DavAuth::Throttled(wait) => return Ok(too_many_attempts(wait)),
     };
     let body = axum::body::to_bytes(body, MAX_BODY)
         .await

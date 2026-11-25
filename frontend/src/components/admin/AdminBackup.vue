@@ -14,17 +14,29 @@ const fileInput = ref<HTMLInputElement>()
 const busy = ref<'export' | 'import' | null>(null)
 const report = ref<DbImportReport | null>(null)
 
-/** The export contains every password hash and two-factor secret: it needs the password (and code) again */
+/** Same minimum as on the server (export_crypto::MIN_PASSPHRASE_CHARS) */
+const MIN_PASSPHRASE = 12
+
+/**
+ * The export contains every password hash and two-factor secret: it needs the password (and code) again and is
+ * encrypted with a passphrase, so the downloaded file is safe to keep with other backups.
+ */
 const exportOpen = ref(false)
 const exportPassword = ref('')
 const exportCode = ref('')
+const passphrase = ref('')
+const passphraseRepeat = ref('')
 const exportError = ref('')
 const exportForm = ref()
 const required = (v: string) => !!v.trim() || t('common.required')
+const passphraseRule = (v: string) => [...v].length >= MIN_PASSPHRASE || t('backup.passphraseTooShort', { min: MIN_PASSPHRASE })
+const repeatRule = (v: string) => v === passphrase.value || t('backup.passphraseMismatch')
 
 function askExport() {
   exportPassword.value = ''
   exportCode.value = ''
+  passphrase.value = ''
+  passphraseRepeat.value = ''
   exportError.value = ''
   exportOpen.value = true
 }
@@ -34,7 +46,9 @@ async function exportDb() {
   busy.value = 'export'
   exportError.value = ''
   try {
-    const json = await api.adminExport(exportPassword.value, auth.user?.totp_enabled ? exportCode.value.trim() : undefined)
+    const json = await api.adminExport(
+      exportPassword.value, passphrase.value, auth.user?.totp_enabled ? exportCode.value.trim() : undefined,
+    )
     exportOpen.value = false
     const url = URL.createObjectURL(new Blob([json], { type: 'application/json' }))
     const a = document.createElement('a')
@@ -56,6 +70,12 @@ function pickFile() {
   fileInput.value!.click()
 }
 
+/** Encrypted export: asked for its passphrase before the import */
+const importOpen = ref(false)
+const importText = ref('')
+const importPassphrase = ref('')
+const importError = ref('')
+
 async function onFile(e: Event) {
   const file = (e.target as HTMLInputElement).files?.[0]
   if (!file) return
@@ -65,14 +85,37 @@ async function onFile(e: Event) {
     t('backup.replace'),
   )
   if (!ok) return
+  const text = await file.text()
+  // The server recognizes it the same way: by the format at the beginning of the file
+  if (text.slice(0, 256).includes('"synchaven-export-encrypted"')) {
+    importText.value = text
+    importPassphrase.value = ''
+    importError.value = ''
+    importOpen.value = true
+    return
+  }
+  await runImport(text)
+}
+
+async function runImport(text: string, pass?: string) {
   busy.value = 'import'
+  importError.value = ''
   try {
-    report.value = await api.adminImport(await file.text())
+    report.value = await api.adminImport(text, pass)
+    importOpen.value = false
+    importText.value = ''
   } catch (err) {
-    notify.fail(err)
+    // Wrong passphrase: let it be corrected in the dialog
+    if (importOpen.value && err instanceof ApiError && err.status === 400) importError.value = err.message
+    else notify.fail(err)
   } finally {
     busy.value = null
   }
+}
+
+function importEncrypted() {
+  if (!importPassphrase.value) return
+  runImport(importText.value, importPassphrase.value)
 }
 
 /** All loaded data is outdated – simplest to reload the app */
@@ -118,7 +161,7 @@ function reload() {
       <v-card-subtitle class="text-wrap">{{ $t('backup.cliHint') }}</v-card-subtitle>
     </v-card-item>
     <v-card-text>
-      <code class="cli">(umask 077 &amp;&amp; docker exec synchaven synchaven export &gt; synchaven-export.json)</code>
+      <code class="cli">(umask 077 &amp;&amp; docker exec -e EXPORT_PASSPHRASE synchaven synchaven export &gt; synchaven-export.json)</code>
     </v-card-text>
   </v-card>
 
@@ -134,7 +177,16 @@ function reload() {
           <v-text-field
             v-if="auth.user?.totp_enabled"
             v-model="exportCode" :label="$t('auth.code')" autocomplete="one-time-code" prepend-inner-icon="mdi-shield-key-outline"
-            :rules="[required]" :hint="$t('auth.codeHint')" persistent-hint
+            :rules="[required]" :hint="$t('auth.codeHint')" persistent-hint class="mb-2"
+          />
+          <v-text-field
+            v-model="passphrase" :label="$t('backup.passphrase')" type="password" autocomplete="new-password"
+            prepend-inner-icon="mdi-key-outline" :rules="[passphraseRule]"
+            :hint="$t('backup.passphraseHint')" persistent-hint class="mb-2"
+          />
+          <v-text-field
+            v-model="passphraseRepeat" :label="$t('backup.passphraseRepeat')" type="password" autocomplete="new-password"
+            prepend-inner-icon="mdi-key-outline" :rules="[repeatRule]"
           />
           <v-alert v-if="exportError" type="error" variant="tonal" density="compact" class="mt-2">{{ exportError }}</v-alert>
           <button type="submit" hidden />
@@ -144,6 +196,31 @@ function reload() {
         <v-spacer />
         <v-btn :disabled="busy === 'export'" @click="exportOpen = false">{{ $t('common.cancel') }}</v-btn>
         <v-btn color="primary" :loading="busy === 'export'" @click="exportDb">{{ $t('backup.export') }}</v-btn>
+      </template>
+    </v-card>
+  </v-dialog>
+
+  <v-dialog v-model="importOpen" max-width="420" :persistent="busy === 'import'">
+    <v-card :title="$t('backup.importPassphraseTitle')" color="surface-container-high">
+      <v-card-text>
+        <p class="text-body-medium mb-4">{{ $t('backup.importPassphraseText') }}</p>
+        <v-form @submit.prevent="importEncrypted">
+          <v-text-field
+            v-model="importPassphrase" :label="$t('backup.passphrase')" type="password" autocomplete="off"
+            prepend-inner-icon="mdi-key-outline" autofocus
+          />
+          <v-alert v-if="importError" type="error" variant="tonal" density="compact" class="mt-2">{{ importError }}</v-alert>
+          <button type="submit" hidden />
+        </v-form>
+      </v-card-text>
+      <template #actions>
+        <v-spacer />
+        <v-btn :disabled="busy === 'import'" @click="importOpen = false">{{ $t('common.cancel') }}</v-btn>
+        <v-btn
+          color="error" :loading="busy === 'import'" :disabled="!importPassphrase" @click="importEncrypted"
+        >
+          {{ $t('backup.replace') }}
+        </v-btn>
       </template>
     </v-card>
   </v-dialog>

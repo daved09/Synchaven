@@ -259,6 +259,7 @@
     "saved": "Profil gespeichert",
     "title": "Profil",
     "newPassword": "Neues Passwort (optional)",
+    "newPasswordHint": "Meldet dich auf allen anderen Geräten ab und widerruft alle App-Passwörter",
     "currentPassword": "Aktuelles Passwort",
     "currentPasswordHint": "Erforderlich zum Ändern von E-Mail oder Passwort",
     "currentPasswordRequired": "Bitte aktuelles Passwort eingeben"
@@ -373,12 +374,19 @@
     "intro": "Die ganze Datenbank mit allen Benutzern, Passwort-Hashes und Einstellungen (ohne Push-Abonnements) als JSON sichern, z. B. vor einem Update. Der Import ersetzt alle vorhandenen Daten.",
     "export": "Datenbank exportieren",
     "exportConfirmTitle": "Datenbank exportieren",
-    "exportConfirmText": "Der Export enthält alle Daten aller Benutzer, ihre Passwort-Hashes und die Schlüssel der Zwei-Faktor-Anmeldung im Klartext. Bestätige ihn mit deinem Passwort und bewahre die Datei so sicher auf wie die Datenbank selbst.",
+    "exportConfirmText": "Der Export enthält alle Daten aller Benutzer, ihre Passwort-Hashes und die Schlüssel der Zwei-Faktor-Anmeldung. Bestätige ihn mit deinem Passwort; die Datei wird mit einer Passphrase deiner Wahl verschlüsselt.",
+    "passphrase": "Passphrase",
+    "passphraseRepeat": "Passphrase wiederholen",
+    "passphraseHint": "Wird für den Import gebraucht – ohne sie lässt sich die Datei nicht wiederherstellen",
+    "passphraseTooShort": "Mindestens {min} Zeichen",
+    "passphraseMismatch": "Die Passphrasen stimmen nicht überein",
+    "importPassphraseTitle": "Verschlüsselter Export",
+    "importPassphraseText": "Dieser Export ist verschlüsselt. Gib die Passphrase ein, die beim Export gewählt wurde.",
     "import": "Datenbank importieren",
     "done": "Import abgeschlossen: {summary}",
     "reload": "Neu laden",
     "cliTitle": "Auf der Kommandozeile",
-    "cliHint": "Der Export geht auch bei laufendem Server, z. B. für eine regelmäßige Sicherung:"
+    "cliHint": "Der Export geht auch bei laufendem Server, z. B. für eine regelmäßige Sicherung. Ist EXPORT_PASSPHRASE in deiner Umgebung gesetzt (mindestens 12 Zeichen), wird die Datei verschlüsselt:"
   },
   "logs": {
     "levels": {
@@ -445,7 +453,8 @@
     "edit": "Konto bearbeiten",
     "nameHint": "Ohne Angabe der Teil vor dem {'@'}",
     "passwordHintNew": "Gib es dem Benutzer weiter; ändern kann er es im Profil.",
-    "passwordHintChange": "Meldet das Konto auf allen Geräten ab. CardDAV-Clients brauchen danach das neue Passwort.",
+    "passwordHintChange": "Meldet das Konto auf allen Geräten ab und widerruft seine App-Passwörter. CardDAV-Clients brauchen danach das neue Passwort oder ein neues App-Passwort.",
+    "passwordHintOwn": "Widerruft deine App-Passwörter – CardDAV-Clients brauchen danach ein neues.",
     "hide": "Verbergen",
     "show": "Anzeigen",
     "generate": "Passwort erzeugen",
@@ -468,7 +477,7 @@
     "enabled": "Konto entsperrt",
     "disabled": "Konto gesperrt",
     "signOutTitle": "Überall abmelden?",
-    "signOutText": "{name} muss sich in der Weboberfläche und der App neu anmelden. CardDAV-Clients wie DAVx⁵ nutzen das Passwort oder ein App-Passwort und bleiben verbunden – dafür das Passwort ändern bzw. das App-Passwort in den Sicherheitseinstellungen des Kontos widerrufen.",
+    "signOutText": "{name} muss sich in der Weboberfläche und der App neu anmelden. CardDAV-Clients wie DAVx⁵ nutzen das Passwort oder ein App-Passwort und bleiben verbunden – dafür das Passwort ändern (widerruft auch alle App-Passwörter) oder ein einzelnes App-Passwort in den Sicherheitseinstellungen des Kontos widerrufen.",
     "signedOut": "{name} wurde überall abgemeldet",
     "deleteTitle": "Konto löschen?",
     "deleteText": "{name} ({email}) wird mit allen Kalendern, Terminen, Kontakten und Aufgaben gelöscht ({stats}). Das lässt sich nicht rückgängig machen.",

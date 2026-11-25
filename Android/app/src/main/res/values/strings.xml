@@ -347,6 +347,7 @@
     <string name="settings_version">Version %1$s</string>
     <string name="profile_title">Edit profile</string>
     <string name="profile_new_password">New password (optional)</string>
+    <string name="profile_new_password_hint">Signs you out on all other devices and revokes all app passwords</string>
     <string name="profile_current_password">Current password</string>
     <string name="profile_current_password_hint">Required for a new email address or password</string>
     <string name="dialog_logout_title">Sign out?</string>

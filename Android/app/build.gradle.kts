@@ -4,6 +4,24 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
 }
 
+// The app version comes from version.properties in the project root (like backend and Docker image).
+// versionCode is derived from it: 1.2.3 → 10203, so every higher version installs as an update.
+val appVersion: String = rootProject.file("../version.properties").readLines()
+    .firstNotNullOfOrNull { Regex("""^\s*version\s*[=:]\s*(.*?)\s*$""").find(it)?.groupValues?.get(1) }
+    ?.takeIf { it.isNotEmpty() }
+    ?: error("No 'version=…' entry in version.properties")
+val appVersionCode: Int = run {
+    val parts = Regex("""^(\d+)\.(\d+)\.(\d+)""").find(appVersion)?.destructured?.toList()
+        ?.map { it.toInt() }
+        ?: error("Version '$appVersion' must start with MAJOR.MINOR.PATCH")
+    require(parts[1] < 100 && parts[2] < 100) { "MINOR and PATCH must be below 100 (version $appVersion)" }
+    parts[0] * 10000 + parts[1] * 100 + parts[2]
+}
+
+// Release signing from environment variables (used by the GitHub release workflow). If they are not set,
+// the release build stays unsigned as before, e.g. for signing in Android Studio.
+val releaseKeystore: String? = providers.environmentVariable("ANDROID_KEYSTORE_FILE").orNull
+
 android {
     namespace = "de.dave.synchaven"
     compileSdk {
@@ -14,12 +32,26 @@ android {
         applicationId = "de.dave.synchaven"
         minSdk = 29
         targetSdk = 37
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = appVersionCode
+        versionName = appVersion
+    }
+
+    signingConfigs {
+        if (releaseKeystore != null) {
+            create("release") {
+                storeFile = file(releaseKeystore)
+                storePassword = providers.environmentVariable("ANDROID_KEYSTORE_PASSWORD").get()
+                keyAlias = providers.environmentVariable("ANDROID_KEY_ALIAS").get()
+                keyPassword = providers.environmentVariable("ANDROID_KEY_PASSWORD").get()
+            }
+        }
     }
 
     buildTypes {
         release {
+            if (releaseKeystore != null) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             optimization {
                 enable = true
                 packageScope = setOf("androidx.**", "kotlin.**", "kotlinx.**")

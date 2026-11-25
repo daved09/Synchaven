@@ -278,6 +278,25 @@ cd Android
 ./gradlew testDebugUnitTest        # unit tests for date, recurrence, contact, sync, offline and file format logic
 ```
 
+The app takes its version from `version.properties` as well: `versionName` is the version itself, `versionCode`
+is derived from it (`1.2.3` → `10203`, so MINOR and PATCH must stay below 100).
+
+`assembleRelease` signs the APK when these environment variables are set, otherwise it stays unsigned:
+`ANDROID_KEYSTORE_FILE` (path to the keystore), `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`.
+
+### Releases
+
+Pushing a tag `v<version>` (matching `version.properties`) builds and publishes everything at once:
+the Docker image to `ghcr.io/daved09/synchaven` and the signed `SyncHaven.apk` as a download on the GitHub release.
+
+```bash
+git tag v1.0.1 && git push origin v1.0.1
+```
+
+The Android workflow needs the repository secrets `ANDROID_KEYSTORE_BASE64` (the keystore as `base64 -w0`),
+`ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` and `ANDROID_KEY_PASSWORD`. Always use the same keystore –
+Android only installs an update if it is signed with the same key as the installed app.
+
 Structure: `data/` (Retrofit API, repositories, DataStore for session and settings), `data/offline/` (local
 cache per account, queue of changes made offline, sync with the server), `data/local/` (local mode
 without a server: LocalApi, iCalendar, vCard, birthdays), `ui/<area>/`

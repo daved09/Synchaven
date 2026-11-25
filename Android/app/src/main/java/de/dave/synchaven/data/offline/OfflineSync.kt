@@ -378,7 +378,7 @@ class OfflineSync(
             f
         }
         is PendingOp.SetDefaultView -> {
-            val user = apiCall { api.updateMe(UpdateMeRequest(defaultView = op.view)) }
+            val user = apiCall { api.updateMe(UpdateMeRequest(defaultView = op.view)) }.user
             sessionStore.updateUser(user)
             val f: (OfflineData) -> OfflineData = { it }
             f

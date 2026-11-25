@@ -112,6 +112,11 @@ class SyncController(context: Context) {
         accounts.account()?.let { accounts.setPassword(it, password) }
     }
 
+    /** New token after a password change: the sync's old one was revoked along with all other sessions */
+    fun updateToken(token: String, expiresAt: String) {
+        accounts.account()?.takeUnless(accounts::isLocal)?.let { accounts.setToken(it, token, expiresAt) }
+    }
+
     fun updateEmail(email: String) {
         accounts.account()?.let { accounts.setEmail(it, email) }
     }

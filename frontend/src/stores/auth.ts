@@ -25,7 +25,12 @@ export const useAuthStore = defineStore('auth', () => {
     user.value = await api.me()
   }
   async function update(data: Parameters<typeof api.updateMe>[0]) {
-    user.value = await api.updateMe(data)
+    const { token: newToken, expires_at: _, ...u } = await api.updateMe(data)
+    if (newToken) {
+      setToken(newToken)
+      token.value = newToken
+    }
+    user.value = u
   }
   function logout() {
     setToken(null)

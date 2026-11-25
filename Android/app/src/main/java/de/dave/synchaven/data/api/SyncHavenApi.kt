@@ -23,6 +23,7 @@ import de.dave.synchaven.data.model.TaskInput
 import de.dave.synchaven.data.model.TaskList
 import de.dave.synchaven.data.model.TaskListInput
 import de.dave.synchaven.data.model.UpdateMeRequest
+import de.dave.synchaven.data.model.UpdateMeResponse
 import de.dave.synchaven.data.model.User
 import okhttp3.RequestBody
 import okhttp3.ResponseBody
@@ -61,7 +62,7 @@ interface SyncHavenApi {
     suspend fun refreshToken(): AuthResponse
 
     @PUT("auth/me")
-    suspend fun updateMe(@Body body: UpdateMeRequest): User
+    suspend fun updateMe(@Body body: UpdateMeRequest): UpdateMeResponse
 
     // ---------- Calendars ----------
 

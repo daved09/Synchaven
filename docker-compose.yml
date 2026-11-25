@@ -5,7 +5,9 @@ services:
     container_name: synchaven
     restart: unless-stopped
     ports:
-      - "8080:8080"
+      # Only reachable from this machine – put a reverse proxy with HTTPS in front (Caddy, Traefik, nginx).
+      # To reach the server directly from other devices (e.g. on the home network), use "8080:8080" instead.
+      - "127.0.0.1:8080:8080"
     environment:
       # Initial setup: the first account becomes administrator and needs the setup token that the server
       # prints at startup (`docker logs synchaven`, also in /data/setup_token).

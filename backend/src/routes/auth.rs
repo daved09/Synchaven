@@ -78,6 +78,18 @@ pub(super) async fn load_user(state: &AppState, id: &str) -> AppResult<UserRow> 
         .await?)
 }
 
+/// Response of `PUT /auth/me`. After a password change all other sessions end; the client continues with the
+/// new token included here.
+#[derive(Serialize)]
+pub struct UpdateMeResponse {
+    #[serde(flatten)]
+    user: User,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    token: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    expires_at: Option<DateTime<Utc>>,
+}
+
 fn respond(state: &AppState, user: UserRow) -> AppResult<Json<AuthResponse>> {
     let (token, expires_at) = state.jwt.issue(&user.id, state.settings.get().token_ttl_days)?;
     Ok(Json(AuthResponse { token, token_type: "Bearer", expires_at, user: user.into() }))
@@ -250,7 +262,7 @@ pub async fn update_me(
     State(state): State<AppState>,
     auth: AuthUser,
     Json(input): Json<UpdateMeInput>,
-) -> AppResult<Json<User>> {
+) -> AppResult<Json<UpdateMeResponse>> {
     let user = load_user(&state, &auth.id).await?;
     let mut name = user.name.clone();
     let mut email = user.email.clone();
@@ -297,7 +309,8 @@ pub async fn update_me(
     let language_changed = language.is_some_and(|l| l.code() != user.language);
     let mut tx = state.db.begin().await?;
     sqlx::query(
-        "UPDATE users SET name = ?, email = ?, password_hash = ?, default_view = ?, language = ?, updated_at = ? WHERE id = ?",
+        "UPDATE users SET name = ?, email = ?, password_hash = ?, default_view = ?, language = ?, updated_at = ?, \
+         tokens_valid_after = CASE WHEN ? THEN ? ELSE tokens_valid_after END WHERE id = ?",
     )
     .bind(&name)
     .bind(&email)
@@ -305,6 +318,9 @@ pub async fn update_me(
     .bind(&default_view)
     .bind(language.map_or(user.language.as_str(), |l| l.code()))
     .bind(time::to_db(time::now()))
+    // A new password ends all sessions – e.g. on a device that someone else got hold of
+    .bind(wants_password)
+    .bind(chrono::Utc::now().timestamp())
     .bind(&user.id)
     .execute(&mut *tx)
     .await?;
@@ -325,8 +341,13 @@ pub async fn update_me(
     if wants_email {
         tracing::info!("Account {}: email address changed", user.id);
     }
-    if wants_password {
-        tracing::info!("Account {}: password changed", user.id);
-    }
-    Ok(Json(load_user(&state, &auth.id).await?.into()))
+    let user = load_user(&state, &auth.id).await?;
+    let (token, expires_at) = if wants_password {
+        tracing::info!("Account {}: password changed, all other sessions ended", user.id);
+        let (token, exp) = state.jwt.issue(&user.id, state.settings.get().token_ttl_days)?;
+        (Some(token), Some(exp))
+    } else {
+        (None, None)
+    };
+    Ok(Json(UpdateMeResponse { user: user.into(), token, expires_at }))
 }

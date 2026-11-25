@@ -108,7 +108,9 @@ to renew the token of its sync without storing the password.
 ### `GET /auth/me` → `User`
 
 ### `PUT /auth/me` → `User`
-All fields optional. `current_password` is required for changing `email` or `new_password`.
+All fields optional. `current_password` is required for changing `email` or `new_password`. A new password ends all
+sessions of the account (all tokens issued until now become invalid, other devices get `401`); the response then
+additionally contains `token` and `expires_at` – the client continues with this new token.
 ```json
 { "name": "Anna B.", "email": "new@example.com", "current_password": "…", "new_password": "…", "default_view": "week", "language": "en" }
 ```

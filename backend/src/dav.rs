@@ -29,7 +29,9 @@ use axum::{
 };
 use base64::Engine;
 use quick_xml::{events::Event, name::ResolveResult, NsReader};
-use sha2::{Digest, Sha256};
+use hmac::{Hmac, KeyInit, Mac};
+use rand::RngCore;
+use sha2::Sha256;
 use sqlx::FromRow;
 
 use crate::{
@@ -51,13 +53,33 @@ const MAX_VCARD: usize = 5 * 1024 * 1024;
 
 /// Cache of successful sign-ins: sync clients send the password with every
 /// request, but Argon2 is deliberately slow.
-#[derive(Default)]
-pub struct AuthCache(Mutex<HashMap<String, Instant>>);
+///
+/// Entries are keyed by an HMAC under a random key that only lives in this process, so a leaked
+/// memory image does not allow a fast offline guess of the password.
+pub struct AuthCache {
+    entries: Mutex<HashMap<String, Instant>>,
+    key: [u8; 32],
+}
+
+impl Default for AuthCache {
+    fn default() -> Self {
+        let mut key = [0u8; 32];
+        rand::rngs::OsRng.fill_bytes(&mut key);
+        Self { entries: Mutex::default(), key }
+    }
+}
 
 impl AuthCache {
     /// Discard all cached sign-ins (e.g. after a database import)
     pub fn clear(&self) {
-        self.0.lock().unwrap_or_else(|e| e.into_inner()).clear();
+        self.entries.lock().unwrap_or_else(|e| e.into_inner()).clear();
+    }
+
+    fn key_for(&self, email: &str, password: &str, hash: &str) -> String {
+        // The stored hash is part of the key: after a password change the entry no longer matches.
+        let mut mac = Hmac::<Sha256>::new_from_slice(&self.key).expect("HMAC accepts keys of any length");
+        mac.update(format!("{email}\0{password}\0{hash}").as_bytes());
+        mac.finalize().into_bytes().iter().map(|b| format!("{b:02x}")).collect()
     }
 }
 
@@ -66,12 +88,6 @@ const AUTH_TTL: Duration = Duration::from_secs(15 * 60);
 struct DavUser {
     id: String,
     name: String,
-}
-
-fn cache_key(email: &str, password: &str, hash: &str) -> String {
-    // The stored hash is part of the key: after a password change the entry no longer matches.
-    let digest = Sha256::digest(format!("{email}\0{password}\0{hash}").as_bytes());
-    digest.iter().map(|b| format!("{b:02x}")).collect()
 }
 
 async fn authenticate(state: &AppState, headers: &HeaderMap) -> AppResult<Option<DavUser>> {
@@ -117,9 +133,9 @@ async fn authenticate(state: &AppState, headers: &HeaderMap) -> AppResult<Option
         return Ok(None);
     }
 
-    let key = cache_key(&email, password, &user.password_hash);
+    let key = state.dav_auth.key_for(&email, password, &user.password_hash);
     let cached = {
-        let map = state.dav_auth.0.lock().unwrap();
+        let map = state.dav_auth.entries.lock().unwrap();
         map.get(&key).is_some_and(|exp| *exp > Instant::now())
     };
     if !cached {
@@ -130,7 +146,7 @@ async fn authenticate(state: &AppState, headers: &HeaderMap) -> AppResult<Option
             return Ok(None);
         }
         tracing::debug!("CardDAV: account {} signed in", user.id);
-        let mut map = state.dav_auth.0.lock().unwrap();
+        let mut map = state.dav_auth.entries.lock().unwrap();
         let now = Instant::now();
         if map.len() > 1000 {
             map.retain(|_, exp| *exp > now);

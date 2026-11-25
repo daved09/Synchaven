@@ -35,6 +35,11 @@ interface Options {
   asText?: boolean
 }
 
+/** Requests whose 401 means a wrong password – not an ended session */
+function checksCredentials(method: string, path: string) {
+  return path.startsWith('/auth/login') || (method === 'PUT' && path === '/auth/me')
+}
+
 async function request<T>(method: string, path: string, opts: Options = {}): Promise<T> {
   let url = BASE + path
   if (opts.query) {
@@ -69,7 +74,7 @@ async function request<T>(method: string, path: string, opts: Options = {}): Pro
       code = data.error ?? code
       message = data.message ?? message
     } catch { /* no JSON */ }
-    if (res.status === 401 && token && !path.startsWith('/auth/login')) onUnauthorized()
+    if (res.status === 401 && token && !checksCredentials(method, path)) onUnauthorized()
     throw new ApiError(res.status, code, message)
   }
   if (res.status === 204) return undefined as T

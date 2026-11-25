@@ -3,6 +3,7 @@ mod backup;
 mod birthdays;
 mod config;
 mod contacts;
+mod crypto;
 mod dav;
 mod error;
 mod i18n;
@@ -14,6 +15,7 @@ mod recurrence;
 mod reminders;
 mod routes;
 mod settings;
+mod setup;
 mod time;
 mod totp;
 mod vcard;
@@ -52,6 +54,10 @@ pub struct AppState {
     pub started_at: chrono::DateTime<chrono::Utc>,
     /// Recent log output (for the admin page)
     pub logs: &'static logs::LogBuffer,
+    /// Key for the TOTP secrets in the database
+    pub secrets: Arc<crypto::SecretBox>,
+    /// One-time token for creating the first account
+    pub setup: Arc<setup::Setup>,
 }
 
 #[tokio::main]
@@ -99,6 +105,13 @@ async fn main() -> anyhow::Result<()> {
 
     let push = push::WebPush::load_or_create(&config.data_dir, config.vapid_subject.clone())?;
     let settings = settings::SettingsStore::load(&db, &config).await.context("Cannot read settings")?;
+    let secrets = crypto::SecretBox::load_or_create(&config.data_dir)?;
+    let encrypted = crypto::encrypt_plaintext(&db, &secrets).await.context("Cannot encrypt two-factor secrets")?;
+    if encrypted > 0 {
+        tracing::info!("Encrypted the two-factor secrets of {encrypted} account(s)");
+    }
+    let setup = setup::Setup::new(&config.data_dir);
+    setup.prepare(&db).await.context("Cannot prepare the initial setup")?;
     let state = AppState {
         settings: Arc::new(settings),
         started_at: chrono::Utc::now(),
@@ -108,15 +121,27 @@ async fn main() -> anyhow::Result<()> {
         jwt: Arc::new(auth::JwtKeys::new(&config.jwt_secret)),
         config: Arc::new(config.clone()),
         dav_auth: Arc::default(),
+        secrets: Arc::new(secrets),
+        setup: Arc::new(setup),
     };
 
     reminders::spawn(state.clone());
 
-    let cors = if config.cors_origins.iter().any(|o| o == "*") {
-        CorsLayer::new().allow_origin(Any).allow_methods(Any).allow_headers(Any)
+    // Without CORS_ORIGINS no CORS headers are sent: browsers then only allow the web UI of the same origin.
+    // Apps and CardDAV clients are not affected by CORS.
+    let cors = if config.cors_origins.is_empty() {
+        None
+    } else if config.cors_origins.iter().any(|o| o == "*") {
+        tracing::warn!("CORS_ORIGINS=*: web pages of any origin may call the API");
+        Some(CorsLayer::new().allow_origin(Any).allow_methods(Any).allow_headers(Any))
     } else {
         let origins: Vec<HeaderValue> = config.cors_origins.iter().filter_map(|o| o.parse().ok()).collect();
-        CorsLayer::new().allow_origin(origins).allow_methods(Any).allow_headers(Any)
+        Some(CorsLayer::new().allow_origin(origins).allow_methods(Any).allow_headers(Any))
+    };
+
+    let api = match cors {
+        Some(cors) => routes::api_router().layer(cors),
+        None => routes::api_router(),
     };
 
     // Single-page app: unknown paths serve index.html.
@@ -124,7 +149,7 @@ async fn main() -> anyhow::Result<()> {
     let spa = ServeDir::new(&config.static_dir).fallback(ServeFile::new(index));
 
     let app = Router::new()
-        .nest("/api", routes::api_router().layer(cors))
+        .nest("/api", api)
         // CardDAV (DAVx⁵ and others)
         .route("/.well-known/carddav", any(dav::well_known))
         .route("/dav", any(dav::handle))

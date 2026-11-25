@@ -315,7 +315,10 @@
     <string name="login_code">Code from the authenticator app</string>
     <string name="login_code_hint">Two-factor authentication is on. A recovery code works as well.</string>
     <string name="login_create_account">Create account</string>
-    <string name="login_cleartext_note">Use unencrypted connections (http://) only on your home network.</string>
+    <string name="login_cleartext_title">Unencrypted connection</string>
+    <string name="login_cleartext_text">With http:// your password, the sign-in token and all calendars and contacts are transferred unencrypted and can be read by others on the network. Only use it on your own home network – otherwise enter the address with https://.</string>
+    <string name="login_cleartext_confirm">Connect unencrypted anyway</string>
+    <string name="login_server_setup_required">Not set up yet – create the administrator account in the web interface first</string>
     <string name="login_or">or</string>
     <string name="login_local">Use without a server</string>
     <string name="login_local_hint">Store calendars and contacts only on this device. The web interface is not needed for this.</string>

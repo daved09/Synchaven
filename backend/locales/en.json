@@ -17,6 +17,7 @@
   "auth.password_too_long": "The password is too long",
   "auth.password_too_short": "The password must be at least 8 characters long",
   "auth.registration_disabled": "Registration is disabled",
+  "auth.setup_token_invalid": "Missing or wrong setup token – it is in the server log and in the file setup_token in the data directory",
   "auth.required": "Authentication required",
   "auth.session_ended": "The session has ended, please sign in again",
   "auth.token_invalid": "Token is invalid or has expired",

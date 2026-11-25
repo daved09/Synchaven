@@ -18,6 +18,8 @@ pub struct RegisterInput {
     name: String,
     /// Language for the initial data (`de`, `en`); default: the request's language
     language: Option<String>,
+    /// One-time token from the server log – only for the first account (initial setup)
+    setup_token: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -81,15 +83,10 @@ fn respond(state: &AppState, user: UserRow) -> AppResult<Json<AuthResponse>> {
     Ok(Json(AuthResponse { token, token_type: "Bearer", expires_at, user: user.into() }))
 }
 
-/// Is registration allowed (admin setting, otherwise `ALLOW_REGISTRATION`)? The first account (the
-/// administrator) can always be created – otherwise, after starting over with an empty database (e.g. to
-/// load an export), you could no longer get in with registration closed.
+/// May new accounts register themselves (admin setting, otherwise `ALLOW_REGISTRATION`)? Not during the initial
+/// setup: the first account – the administrator – needs the setup token (see [crate::setup]).
 pub async fn registration_open(state: &AppState) -> AppResult<bool> {
-    if state.settings.get().allow_registration {
-        return Ok(true);
-    }
-    let any: Option<(i64,)> = sqlx::query_as("SELECT 1 FROM users LIMIT 1").fetch_optional(&state.db).await?;
-    Ok(any.is_none())
+    Ok(state.settings.get().allow_registration && !crate::setup::pending(&state.db).await?)
 }
 
 /// New token for the signed-in session – so clients such as the Android sync stay signed in
@@ -113,11 +110,20 @@ pub async fn register(
     State(state): State<AppState>,
     Json(input): Json<RegisterInput>,
 ) -> AppResult<(StatusCode, Json<AuthResponse>)> {
-    if !registration_open(&state).await? {
+    let initial_setup = crate::setup::pending(&state.db).await?;
+    if initial_setup {
+        if !state.setup.check(input.setup_token.as_deref()).await? {
+            tracing::warn!("Rejected registration of the first account: missing or wrong setup token");
+            return Err(AppError::Forbidden(tr!("auth.setup_token_invalid")));
+        }
+    } else if !registration_open(&state).await? {
         return Err(AppError::Forbidden(tr!("auth.registration_disabled")));
     }
     let lang = crate::i18n::parse_choice(input.language.as_deref())?.unwrap_or_else(crate::i18n::current);
     let id = create_user(&state, &input.email, &input.name, &input.password, None, lang).await?;
+    if initial_setup {
+        state.setup.finish().await;
+    }
     touch_login(&state, &id).await?;
     let user = load_user(&state, &id).await?;
     if user.is_admin {

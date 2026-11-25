@@ -204,11 +204,15 @@ fn record_attempt(user_id: &str, success: bool) {
     entry.0 += 1;
 }
 
-/// Checks the second factor of an account with two-factor authentication on: a TOTP code of `secret`
-/// or an unused recovery code (which is then used up). Each code is accepted only once.
-pub async fn verify_second_factor(state: &AppState, user_id: &str, secret: &str, code: &str) -> AppResult<()> {
+/// Checks the second factor of an account with two-factor authentication on: a TOTP code of `stored_secret`
+/// (as stored, i.e. encrypted) or an unused recovery code (which is then used up). Each code is accepted only once.
+pub async fn verify_second_factor(state: &AppState, user_id: &str, stored_secret: &str, code: &str) -> AppResult<()> {
     check_attempts(user_id)?;
     let ok = if as_totp(code).is_some() {
+        let secret = &state.secrets.decrypt(user_id, stored_secret).map_err(|e| {
+            tracing::error!("Account {user_id}: {e:#}");
+            AppError::Internal(e)
+        })?;
         let last: Option<(Option<i64>,)> =
             sqlx::query_as("SELECT totp_last_step FROM users WHERE id = ?").bind(user_id).fetch_optional(&state.db).await?;
         let last = last.and_then(|(l,)| l);

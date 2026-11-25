@@ -274,6 +274,8 @@ export interface ServerInfo {
   version: string
   api_version: number
   allow_registration: boolean
+  /** No account exists yet: the first one (the administrator) needs the setup token from the server log */
+  setup_required?: boolean
 }
 
 /** A browser's subscription as returned by `PushSubscription.toJSON()`, plus time zone */

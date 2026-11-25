@@ -17,6 +17,8 @@ data class ServerInfo(
     val version: String = "",
     @SerialName("api_version") val apiVersion: Int = 1,
     @SerialName("allow_registration") val allowRegistration: Boolean = false,
+    /** No account exists yet: the administrator is created in the web interface with the setup token */
+    @SerialName("setup_required") val setupRequired: Boolean = false,
 )
 
 @Serializable

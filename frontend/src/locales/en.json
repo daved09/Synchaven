@@ -295,7 +295,11 @@
     "twoFactorSubtitle": "Enter the code from your authenticator app",
     "code": "Code",
     "codeHint": "Or one of your recovery codes",
-    "verify": "Verify"
+    "verify": "Verify",
+    "setupTitle": "Initial setup",
+    "setupSubtitle": "Create the administrator account",
+    "setupToken": "Setup token",
+    "setupTokenHint": "Shown in the server log at startup and stored in the file setup_token in the data directory"
   },
   "nav": {
     "calendar": "Calendar",

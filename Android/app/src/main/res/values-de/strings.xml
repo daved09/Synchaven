@@ -310,7 +310,10 @@
     <string name="login_code">Code aus der Authenticator-App</string>
     <string name="login_code_hint">Die Zwei-Faktor-Authentifizierung ist aktiv. Ein Wiederherstellungscode geht auch.</string>
     <string name="login_create_account">Konto anlegen</string>
-    <string name="login_cleartext_note">Unverschlüsselte Verbindungen (http://) nur im Heimnetz verwenden.</string>
+    <string name="login_cleartext_title">Unverschlüsselte Verbindung</string>
+    <string name="login_cleartext_text">Mit http:// werden dein Passwort, das Anmelde-Token und alle Kalender und Kontakte unverschlüsselt übertragen und können im Netzwerk mitgelesen werden. Nur im eigenen Heimnetz verwenden – sonst die Adresse mit https:// eingeben.</string>
+    <string name="login_cleartext_confirm">Trotzdem unverschlüsselt verbinden</string>
+    <string name="login_server_setup_required">Noch nicht eingerichtet – lege zuerst in der Weboberfläche das Administratorkonto an</string>
     <string name="login_or">oder</string>
     <string name="login_local">Ohne Server verwenden</string>
     <string name="login_local_hint">Kalender und Kontakte nur auf diesem Gerät speichern. Die Weboberfläche wird dafür nicht gebraucht.</string>

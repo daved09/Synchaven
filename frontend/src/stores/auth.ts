@@ -17,8 +17,8 @@ export const useAuthStore = defineStore('auth', () => {
     const r = await api.login(email, password, code)
     apply(r.token, r.user)
   }
-  async function register(email: string, password: string, name: string, lang: 'de' | 'en') {
-    const r = await api.register(email, password, name, lang)
+  async function register(email: string, password: string, name: string, lang: 'de' | 'en', setupToken?: string) {
+    const r = await api.register(email, password, name, lang, setupToken)
     apply(r.token, r.user)
   }
   async function fetchMe() {

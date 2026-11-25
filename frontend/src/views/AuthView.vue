@@ -12,6 +12,9 @@ const auth = useAuthStore()
 
 const isRegister = computed(() => route.name === 'register')
 const allowRegistration = ref(true)
+/** Initial setup: no account exists yet, the first one needs the setup token from the server log */
+const setupRequired = ref(false)
+const setupToken = ref('')
 const email = ref('')
 const password = ref('')
 const name = ref('')
@@ -45,7 +48,10 @@ onMounted(async () => {
     } catch { /* ignore */ }
   }
   try {
-    allowRegistration.value = (await api.info()).allow_registration
+    const info = await api.info()
+    allowRegistration.value = info.allow_registration
+    setupRequired.value = !!info.setup_required
+    if (setupRequired.value && !isRegister.value) router.replace({ name: 'register', query: route.query })
   } catch { /* server may be unreachable – the error shows up on submit */ }
 })
 
@@ -55,7 +61,7 @@ async function submit() {
   loading.value = true
   error.value = ''
   try {
-    if (isRegister.value) await auth.register(email.value, password.value, name.value, language)
+    if (isRegister.value) await auth.register(email.value, password.value, name.value, language, setupRequired.value ? setupToken.value : undefined)
     else await auth.login(email.value, password.value, needsCode.value ? code.value : undefined)
     router.replace((route.query.redirect as string) || '/')
   } catch (e) {
@@ -96,10 +102,16 @@ const rules = {
             <div class="text-body-medium text-medium-emphasis mt-1">{{ $t('auth.twoFactorSubtitle') }}</div>
           </template>
           <template v-else>
-            <div class="text-headline-small">{{ isRegister ? $t('auth.createAccount') : $t('auth.signIn') }}</div>
-            <div class="text-body-medium text-medium-emphasis mt-1">
-              {{ isRegister ? $t('auth.registerSubtitle') : $t('auth.signInSubtitle') }}
-            </div>
+            <template v-if="setupRequired && isRegister">
+              <div class="text-headline-small">{{ $t('auth.setupTitle') }}</div>
+              <div class="text-body-medium text-medium-emphasis mt-1">{{ $t('auth.setupSubtitle') }}</div>
+            </template>
+            <template v-else>
+              <div class="text-headline-small">{{ isRegister ? $t('auth.createAccount') : $t('auth.signIn') }}</div>
+              <div class="text-body-medium text-medium-emphasis mt-1">
+                {{ isRegister ? $t('auth.registerSubtitle') : $t('auth.signInSubtitle') }}
+              </div>
+            </template>
           </template>
         </v-card-item>
         <v-card-text>
@@ -119,6 +131,11 @@ const rules = {
               prepend-inner-icon="mdi-translate" :hint="$t('auth.languageHint')" persistent-hint class="mb-6"
               @update:model-value="chooseLanguage"
             />
+            <v-text-field
+              v-if="setupRequired && isRegister" v-model="setupToken" :label="$t('auth.setupToken')" autocomplete="off"
+              prepend-inner-icon="mdi-key-outline" :rules="[rules.required]" :hint="$t('auth.setupTokenHint')" persistent-hint
+              class="mb-4"
+            />
             <v-text-field v-if="isRegister" v-model="name" :label="$t('common.name')" autocomplete="name" prepend-inner-icon="mdi-account-outline" />
             <v-text-field
               v-model="email" :label="$t('common.email')" type="email" autocomplete="email" prepend-inner-icon="mdi-email-outline"
@@ -136,7 +153,7 @@ const rules = {
             </v-btn>
           </v-form>
         </v-card-text>
-        <v-card-actions v-if="!needsCode && (allowRegistration || isRegister)" class="justify-center pb-4">
+        <v-card-actions v-if="!needsCode && !setupRequired && (allowRegistration || isRegister)" class="justify-center pb-4">
           <span class="text-body-medium text-medium-emphasis">{{ isRegister ? $t('auth.haveAccount') : $t('auth.noAccount') }}</span>
           <v-btn :to="isRegister ? '/login' : '/register'" variant="text" color="primary">
             {{ isRegister ? $t('auth.signIn') : $t('auth.register') }}

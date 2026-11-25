@@ -97,7 +97,7 @@ pub async fn setup(
     require_password(&user, input.current_password.as_deref()).await?;
     let secret = totp::generate_secret();
     sqlx::query("UPDATE users SET totp_pending_secret = ? WHERE id = ?")
-        .bind(&secret)
+        .bind(state.secrets.encrypt(&user.id, &secret))
         .bind(&user.id)
         .execute(&state.db)
         .await?;
@@ -132,7 +132,8 @@ pub async fn enable(
     if active.is_some() {
         return Err(AppError::Conflict(tr!("auth.totp_already_enabled")));
     }
-    let Some(secret) = pending else { return Err(AppError::BadRequest(tr!("auth.totp_no_setup"))) };
+    let Some(stored) = pending else { return Err(AppError::BadRequest(tr!("auth.totp_no_setup"))) };
+    let secret = state.secrets.decrypt(&auth.id, &stored)?;
     let Some(step) = totp::matching_step(&secret, &input.code, totp::current_step(), None) else {
         return Err(AppError::TotpInvalid(tr!("auth.totp_invalid")));
     };
@@ -145,7 +146,7 @@ pub async fn enable(
     .bind(&hashes)
     .bind(time::to_db(time::now()))
     .bind(&auth.id)
-    .bind(&secret)
+    .bind(&stored)
     .execute(&state.db)
     .await?;
     if res.rows_affected() == 0 {

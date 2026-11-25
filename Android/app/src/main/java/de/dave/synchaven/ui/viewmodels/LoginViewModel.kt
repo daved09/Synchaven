@@ -7,6 +7,8 @@ import de.dave.synchaven.data.AuthRepository
 import de.dave.synchaven.data.TOTP_INVALID
 import de.dave.synchaven.data.TOTP_REQUIRED
 import de.dave.synchaven.data.api.ApiException
+import de.dave.synchaven.data.api.isCleartextUrl
+import de.dave.synchaven.data.api.normalizeServerUrl
 import de.dave.synchaven.data.model.ServerInfo
 import de.dave.synchaven.data.store.SessionStore
 import de.dave.synchaven.data.userMessage
@@ -34,10 +36,17 @@ data class LoginUiState(
     val checkingServer: Boolean = false,
     val loading: Boolean = false,
     val error: UiText? = null,
+    /** The user confirmed the unencrypted connection to an http:// server */
+    val cleartextConfirmed: Boolean = false,
 ) {
+    /** The entered address is unencrypted (explicitly http://) */
+    val cleartext: Boolean
+        get() = server.isNotBlank() && isCleartextUrl(normalizeServerUrl(server))
+
     val canSubmit: Boolean
         get() = !loading && server.isNotBlank() && email.isNotBlank() &&
-            password.length >= (if (register) 8 else 1) && (!needsCode || code.isNotBlank())
+            password.length >= (if (register) 8 else 1) && (!needsCode || code.isNotBlank()) &&
+            (!cleartext || cleartextConfirmed)
 }
 
 class LoginViewModel(
@@ -57,7 +66,7 @@ class LoginViewModel(
     }
 
     fun onServerChange(v: String) {
-        _state.update { it.copy(server = v, error = null, serverInfo = null, serverError = null) }
+        _state.update { it.copy(server = v, error = null, serverInfo = null, serverError = null, cleartextConfirmed = false) }
         checkServer()
     }
 
@@ -66,6 +75,7 @@ class LoginViewModel(
     fun onPasswordChange(v: String) = _state.update { it.copy(password = v, error = null, needsCode = false, code = "") }
     fun onCodeChange(v: String) = _state.update { it.copy(code = v, error = null) }
     fun onNameChange(v: String) = _state.update { it.copy(name = v, error = null) }
+    fun onCleartextConfirmedChange(v: Boolean) = _state.update { it.copy(cleartextConfirmed = v, error = null) }
     fun onRegisterChange(v: Boolean) = _state.update { it.copy(register = v, error = null, needsCode = false, code = "") }
 
     /** Queries `/api/info` as soon as the input pauses briefly – shows the server name and whether registration is possible. */

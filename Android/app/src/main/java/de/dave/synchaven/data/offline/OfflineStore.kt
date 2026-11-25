@@ -156,7 +156,7 @@ class OfflineStore(context: Context, private val scope: CoroutineScope) {
             AppJson.decodeFromString<OfflineData>(f.readFully().decodeToString())
         } catch (e: Exception) {
             // Unreadable (e.g. after an incompatible update): reload from the server
-            Log.w(TAG, "Offline-Cache unlesbar, wird verworfen", e)
+            Log.w(TAG, "Offline cache unreadable, discarding it", e)
             OfflineData()
         }
     }
@@ -165,7 +165,7 @@ class OfflineStore(context: Context, private val scope: CoroutineScope) {
         // Deleted after signing out – don't create it again
         if (d != dir) return
         runCatching { writeAtomic(AtomicFile(File(d.apply { mkdirs() }, DATA_FILE)), AppJson.encodeToString(OfflineData.serializer(), data)) }
-            .onFailure { Log.w(TAG, "Offline-Cache konnte nicht geschrieben werden", it) }
+            .onFailure { Log.w(TAG, "Could not write offline cache", it) }
     }
 
     private fun writeAtomic(f: AtomicFile, text: String) {

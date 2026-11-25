@@ -84,7 +84,7 @@ fun Task.isOverdue(now: LocalDateTime = LocalDateTime.now(), zone: ZoneId = devi
     return if (allDay) d.toLocalDate() < now.toLocalDate() else d < now
 }
 
-/** Short due date for lists: "Heute", "Morgen", "Gestern" or "Mo., 24. Nov.", with the time if set */
+/** Short due date for lists: "Today", "Tomorrow", "Yesterday" or "Tue, Nov 24", with the time if set */
 fun Task.dueText(today: LocalDate = LocalDate.now(), zone: ZoneId = deviceZone()): UiText? {
     val d = dueLocal(zone) ?: return null
     val day = d.toLocalDate()

@@ -232,7 +232,7 @@ class OfflineSync(
                     markReachable()
                 } catch (e: Throwable) {
                     if (e is CancellationException) throw e
-                    if (e.isOfflineError()) markOffline(e) else Log.w(TAG, "Neu laden fehlgeschlagen", e)
+                    if (e.isOfflineError()) markOffline(e) else Log.w(TAG, "Reload failed", e)
                 }
             }
             if (sent.events) onEventsChanged()
@@ -268,7 +268,7 @@ class OfflineSync(
                     return result
                 }
                 // Rejected by the server (e.g. deleted in the meantime or invalid): discard, otherwise it blocks everything
-                Log.w(TAG, "Änderung verworfen: $op", e)
+                Log.w(TAG, "Change discarded: $op", e)
                 rejected.value = e.userMessage()
                 val keepAsIs: (OfflineData) -> OfflineData = { it }
                 keepAsIs
@@ -449,7 +449,7 @@ class OfflineSync(
 
 /**
  * Task lists and all tasks from the server; `null` for an older server without tasks (404).
- * Lists first: `GET /task-lists` creates "Meine Aufgaben" if needed.
+ * Lists first: `GET /task-lists` creates the default list ("My tasks") if needed.
  */
 suspend fun fetchTasks(api: SyncHavenApi): Pair<List<TaskList>, List<Task>>? = try {
     val lists = apiCall { api.taskLists() }

@@ -117,7 +117,7 @@ interface SyncHavenApi {
 
     // ---------- Tasks ----------
 
-    /** Creates the list "Meine Aufgaben" if needed */
+    /** Creates the default list ("My tasks") if needed */
     @GET("task-lists")
     suspend fun taskLists(): List<TaskList>
 

@@ -20,6 +20,7 @@ import de.dave.synchaven.SyncHavenApp
 import de.dave.synchaven.data.offline.OfflineData
 import de.dave.synchaven.di.AppContainer
 import de.dave.synchaven.ui.theme.parseHexColor
+import de.dave.synchaven.util.FMT_TASK_DAY
 import de.dave.synchaven.util.FMT_TIME
 import de.dave.synchaven.util.Reminders
 import de.dave.synchaven.util.dueLocal
@@ -30,7 +31,6 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
-import java.util.Locale
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
@@ -73,7 +73,7 @@ object ReminderNotifier {
             combine(container.offlineStore.data, container.settingsStore.settings) { d, s -> listOf(d.events, d.calendars, d.tasks, d.taskLists, s.reminders) }
                 .distinctUntilChanged()
                 .debounce(1_000)
-                .collect { runCatching { check(app, container, alarm = false) }.onFailure { Log.w(TAG, "Prüfung fehlgeschlagen", it) } }
+                .collect { runCatching { check(app, container, alarm = false) }.onFailure { Log.w(TAG, "Check failed", it) } }
         }
     }
 
@@ -170,7 +170,7 @@ object ReminderNotifier {
         try {
             NotificationManagerCompat.from(context).notify(d.key, 1, builder.build())
         } catch (e: SecurityException) {
-            Log.w(TAG, "Keine Berechtigung für Benachrichtigungen", e)
+            Log.w(TAG, "No permission for notifications", e)
         }
     }
 
@@ -208,11 +208,11 @@ object ReminderNotifier {
         try {
             NotificationManagerCompat.from(context).notify(d.key, 1, builder.build())
         } catch (e: SecurityException) {
-            Log.w(TAG, "Keine Berechtigung für Benachrichtigungen", e)
+            Log.w(TAG, "No permission for notifications", e)
         }
     }
 
-    /** "Heute, 14:00–15:00", "Morgen (ganztägig)", "Fr., 28. Nov., 09:00–10:00" */
+    /** "Today, 14:00–15:00", "Tomorrow (all day)", "Fri, Nov 28, 09:00–10:00" */
     private fun describeTime(context: Context, d: Reminders.Due): String {
         val zone = ZoneId.systemDefault()
         val today = LocalDate.now(zone)
@@ -230,7 +230,7 @@ object ReminderNotifier {
         else "${day(s.toLocalDate())}, ${s.format(FMT_TIME)} – ${day(e.toLocalDate())}, ${e.format(FMT_TIME)}"
     }
 
-    private val FMT_NOTIFICATION_DAY: DateTimeFormatter = DateTimeFormatter.ofPattern("EEE, d. MMM", Locale.GERMANY)
+    private val FMT_NOTIFICATION_DAY: DateTimeFormatter get() = FMT_TASK_DAY
 
     private fun alarmIntent(context: Context) = PendingIntent.getBroadcast(
         context, 1,
@@ -263,7 +263,7 @@ class ReminderReceiver : BroadcastReceiver() {
             try {
                 ReminderNotifier.check(context.applicationContext, container, alarm = intent.action == ReminderNotifier.ACTION_ALARM)
             } catch (e: Exception) {
-                Log.w("ReminderReceiver", "Erinnerungen konnten nicht geprüft werden", e)
+                Log.w("ReminderReceiver", "Could not check reminders", e)
             } finally {
                 pending.finish()
             }

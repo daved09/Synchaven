@@ -1,14 +1,19 @@
 package de.dave.synchaven.util
 
+import de.dave.synchaven.LocaleRule
 import de.dave.synchaven.R
 import de.dave.synchaven.UiText
 import java.time.DayOfWeek
 import java.time.LocalDate
+import java.util.Locale
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Rule
 import org.junit.Test
 
 class RecurrenceTest {
+    @get:Rule val locale = LocaleRule(Locale.GERMANY)
+
     private val monday = LocalDate.of(2026, 11, 23)
 
     @Test

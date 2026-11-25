@@ -59,6 +59,7 @@ import de.dave.synchaven.ui.common.LoadingBox
 import de.dave.synchaven.ui.common.TimePickerModal
 import de.dave.synchaven.ui.common.appViewModel
 import de.dave.synchaven.ui.theme.parseHexColor
+import de.dave.synchaven.util.FMT_TASK_DAY_YEAR
 import de.dave.synchaven.util.FMT_TIME
 import de.dave.synchaven.util.deviceZone
 import de.dave.synchaven.ui.event.RecurrenceEditor
@@ -68,9 +69,8 @@ import de.dave.synchaven.ui.viewmodels.EventEditViewModel
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
-import java.util.Locale
 
-private val FMT_EDIT_DATE: DateTimeFormatter = DateTimeFormatter.ofPattern("EEE, d. MMM yyyy", Locale.GERMANY)
+private val FMT_EDIT_DATE: DateTimeFormatter get() = FMT_TASK_DAY_YEAR
 
 /** Which date/time picker is currently open */
 private enum class Picker { START_DATE, START_TIME, END_DATE, END_TIME }

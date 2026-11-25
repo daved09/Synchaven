@@ -28,6 +28,7 @@ import android.provider.ContactsContract.RawContacts
 import android.util.Base64
 import android.util.Log
 import androidx.core.graphics.scale
+import de.dave.synchaven.R
 import de.dave.synchaven.data.api.ApiException
 import de.dave.synchaven.data.api.SyncHavenApi
 import de.dave.synchaven.data.api.apiCall
@@ -217,7 +218,7 @@ class ContactsSyncer(
             put(Groups.SHOULD_SYNC, 1)
         }
         val id = provider.insert(groupsUri, values)?.let(ContentUris::parseId)
-            ?: throw IllegalStateException("Gruppe „$category“ konnte nicht angelegt werden")
+            ?: throw IllegalStateException(resources.getString(R.string.sync_error_group, category))
         groups[id] = LocalGroup(id, category, dirty = false, deleted = false)
         return id
     }
@@ -557,7 +558,7 @@ class ContactsSyncer(
             block()
         } catch (e: ApiException) {
             if (e.status == 401 || e.status >= 500) throw e
-            Log.w(TAG, "Kontakt übersprungen: ${e.message}")
+            Log.w(TAG, "Contact skipped: ${e.message}")
             result.stats.numSkippedEntries++
             if (firstItemError == null) firstItemError = e
         }

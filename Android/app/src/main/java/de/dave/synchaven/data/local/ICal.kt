@@ -294,7 +294,7 @@ object ICal {
         var recurrenceId: Instant? = null
         var cancelled = false
 
-        fun finish(): ParsedEvent? {
+        fun finish(untitled: String): ParsedEvent? {
             if (cancelled) return null
             val (from, allDay, zone) = start ?: return null
             val e = end?.instant
@@ -307,19 +307,20 @@ object ICal {
             }
             if (allDay && endAt <= from) endAt = from + Duration.ofDays(1)
             return ParsedEvent(
-                uid = uid, title = title.ifBlank { "(Ohne Titel)" }, description = description, location = location,
+                uid = uid, title = title.ifBlank { untitled }, description = description, location = location,
                 start = from, end = endAt, allDay = allDay, timezone = if (zone.normalized() == ZoneOffset.UTC) "UTC" else zone.id,
                 rrule = rrule, exdates = exdates.toList(), recurrenceId = recurrenceId,
             )
         }
     }
 
-    /** Reads all VEVENTs; [IllegalArgumentException] if it is not an iCalendar file. */
-    fun parse(text: String, defaultZone: ZoneId): List<ParsedEvent> {
+    /**
+     * Reads all VEVENTs; [IllegalArgumentException] if it is not an iCalendar file.
+     * Events without a title get [untitled] (e.g. "(Untitled)" in the device language).
+     */
+    fun parse(text: String, defaultZone: ZoneId, untitled: String): List<ParsedEvent> {
         val lines = unfold(text.removePrefix("\uFEFF"))
-        require(lines.any { it.trim().equals("BEGIN:VCALENDAR", ignoreCase = true) }) {
-            "Keine gültige iCalendar-Datei (BEGIN:VCALENDAR fehlt)"
-        }
+        require(lines.any { it.trim().equals("BEGIN:VCALENDAR", ignoreCase = true) }) { "BEGIN:VCALENDAR missing" }
         val events = mutableListOf<ParsedEvent>()
         var current: Builder? = null
         var nested = 0 // e.g. VALARM inside a VEVENT
@@ -335,7 +336,7 @@ object ICal {
                 prop.name == "BEGIN" -> nested++
                 prop.name == "END" && nested > 0 -> nested--
                 prop.name == "END" && upper == "VEVENT" -> {
-                    b.finish()?.let { events += it }
+                    b.finish(untitled)?.let { events += it }
                     current = null
                 }
                 nested == 0 -> when (prop.name) {

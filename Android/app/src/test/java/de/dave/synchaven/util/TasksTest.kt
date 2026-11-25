@@ -1,5 +1,6 @@
 package de.dave.synchaven.util
 
+import de.dave.synchaven.LocaleRule
 import de.dave.synchaven.R
 import de.dave.synchaven.UiText
 import de.dave.synchaven.data.model.Task
@@ -8,14 +9,18 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
+import java.util.Locale
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Rule
 import org.junit.Test
 
 /** Tasks in the calendar views and the task list */
 class TasksTest {
+    @get:Rule val locale = LocaleRule(Locale.GERMANY)
+
     private val berlin = ZoneId.of("Europe/Berlin")
 
     @Test

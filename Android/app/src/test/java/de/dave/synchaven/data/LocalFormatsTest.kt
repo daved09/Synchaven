@@ -1,5 +1,6 @@
 package de.dave.synchaven.data
 
+import de.dave.synchaven.XmlStrings
 import de.dave.synchaven.data.local.Birthdays
 import de.dave.synchaven.data.local.ICal
 import de.dave.synchaven.data.local.LocalApi.Companion.normalizedInput
@@ -21,6 +22,8 @@ import org.junit.Test
 
 /** iCalendar, vCard and birthdays of the local mode – the same cases as the tests in the backend. */
 class LocalFormatsTest {
+    private val de = XmlStrings("de")
+    private val en = XmlStrings("en")
 
     // ---------- iCalendar ----------
 
@@ -31,7 +34,7 @@ class LocalFormatsTest {
             "RRULE:FREQ=WEEKLY;COUNT=3\r\nEXDATE;TZID=Europe/Berlin:20261129T100000\r\nBEGIN:VALARM\r\nACTION:DISPLAY\r\n" +
             "DESCRIPTION:Alarm\r\nEND:VALARM\r\nEND:VEVENT\r\nBEGIN:VEVENT\r\nDTSTART;VALUE=DATE:20261224\r\n" +
             "SUMMARY:Heiligabend\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"
-        val evs = ICal.parse(ics, ZoneOffset.UTC)
+        val evs = ICal.parse(ics, ZoneOffset.UTC, UNTITLED)
         assertEquals(2, evs.size)
         val e = evs[0]
         assertEquals("Team, Meeting", e.title)
@@ -44,7 +47,7 @@ class LocalFormatsTest {
         val h = evs[1]
         assertTrue(h.allDay)
         assertEquals(Duration.ofDays(1), Duration.between(h.start, h.end))
-        assertEquals("(Ohne Titel)", ICal.parse("BEGIN:VCALENDAR\nBEGIN:VEVENT\nDTSTART:20260101T100000Z\nEND:VEVENT\n", ZoneOffset.UTC)[0].title)
+        assertEquals(UNTITLED, ICal.parse("BEGIN:VCALENDAR\nBEGIN:VEVENT\nDTSTART:20260101T100000Z\nEND:VEVENT\n", ZoneOffset.UTC, UNTITLED)[0].title)
     }
 
     @Test
@@ -57,7 +60,7 @@ class LocalFormatsTest {
         val ics = ICal.export("Test", listOf(ev))
         assertTrue(ics.split("\r\n").all { it.toByteArray().size <= 76 })
         assertTrue(ics.contains("DTSTART;TZID=Europe/Berlin:20261122T100000"))
-        val back = ICal.parse(ics, ZoneOffset.UTC).single()
+        val back = ICal.parse(ics, ZoneOffset.UTC, UNTITLED).single()
         assertEquals(ev.title, back.title)
         assertEquals(Instant.parse(ev.start), back.start)
         assertEquals("a\nb", back.description)
@@ -79,7 +82,7 @@ class LocalFormatsTest {
 
     @Test
     fun icsRejectsOtherFiles() {
-        val e = runCatching { ICal.parse("BEGIN:VCARD\nEND:VCARD", ZoneOffset.UTC) }.exceptionOrNull()
+        val e = runCatching { ICal.parse("BEGIN:VCARD\nEND:VCARD", ZoneOffset.UTC, UNTITLED) }.exceptionOrNull()
         assertTrue(e is IllegalArgumentException)
     }
 
@@ -203,13 +206,15 @@ class LocalFormatsTest {
             events = listOf(own),
             contacts = listOf(Contact(id = "k1", fullName = "Erika", birthday = "1964-08-12"), Contact(id = "k2", fullName = "Ohne")),
         )
-        val d = Birthdays.sync(start, newId, "2026-01-01T00:00:00Z")
+        val d = Birthdays.sync(start, newId, "2026-01-01T00:00:00Z", de)
         val cal = d.calendars!!.single { it.isBirthdays }
         val ev = d.events!!.single { it.contactId == "k1" }
         assertEquals(cal.id, ev.calendarId)
         assertEquals("🎂 Erika", ev.title)
         assertEquals("1964-08-12T00:00:00Z", ev.start)
         assertTrue(ev.readOnly && ev.allDay)
+        assertEquals("Geburtstage", cal.name)
+        assertEquals("Wird automatisch aus den Kontakten erstellt", cal.description)
         assertEquals("Geboren am 12.08.1964", ev.description)
         assertTrue(own in d.events!!)
         // Age in the title of the occurrence
@@ -217,13 +222,28 @@ class LocalFormatsTest {
         assertEquals("🎂 Erika (62)", occ.single().title)
 
         // Birthday removed: event gone, calendar stays; the ID stays stable across changes
-        val changed = Birthdays.sync(d.copy(contacts = listOf(Contact(id = "k1", fullName = "Erika M.", birthday = "1964-08-13"))), newId, "x")
+        val changed = Birthdays.sync(d.copy(contacts = listOf(Contact(id = "k1", fullName = "Erika M.", birthday = "1964-08-13"))), newId, "x", de)
         assertEquals(ev.id, changed.events!!.single { it.contactId == "k1" }.id)
-        val removed = Birthdays.sync(d.copy(contacts = listOf(Contact(id = "k1", fullName = "Erika"))), newId, "x")
+        val removed = Birthdays.sync(d.copy(contacts = listOf(Contact(id = "k1", fullName = "Erika"))), newId, "x", de)
         assertTrue(removed.events!!.none { it.contactId != null })
         assertTrue(removed.calendars!!.any { it.isBirthdays })
 
         // Without birthdays no calendar is created
-        assertEquals(start.copy(contacts = emptyList()), Birthdays.sync(start.copy(contacts = emptyList()), newId, "x"))
+        assertEquals(start.copy(contacts = emptyList()), Birthdays.sync(start.copy(contacts = emptyList()), newId, "x", de))
+    }
+
+    @Test
+    fun birthdayCalendarInEnglish() {
+        val start = OfflineData(contacts = listOf(Contact(id = "k1", fullName = "Erika", birthday = "1964-08-12")))
+        val d = Birthdays.sync(start, { "id" }, "2026-01-01T00:00:00Z", en)
+        val cal = d.calendars!!.single { it.isBirthdays }
+        // Same texts as the server (backend/locales/en.json)
+        assertEquals("Birthdays", cal.name)
+        assertEquals("Generated automatically from contacts", cal.description)
+        assertEquals("Born on August 12, 1964", d.events!!.single().description)
+    }
+
+    private companion object {
+        const val UNTITLED = "(Untitled)"
     }
 }

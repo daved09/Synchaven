@@ -1,5 +1,7 @@
 package de.dave.synchaven.util
 
+import de.dave.synchaven.LocaleRule
+import de.dave.synchaven.withLocale
 import de.dave.synchaven.R
 import de.dave.synchaven.UiText
 import de.dave.synchaven.data.model.Occurrence
@@ -7,12 +9,16 @@ import de.dave.synchaven.data.store.ViewMode
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.util.Locale
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Rule
 import org.junit.Test
 
 class LayoutAndDatesTest {
+    @get:Rule val locale = LocaleRule(Locale.GERMANY)
+
     private fun ev(id: String, start: LocalDateTime, end: LocalDateTime, allDay: Boolean = false) = ViewEvent(
         Occurrence(id = id, eventId = id, calendarId = "c", title = id, start = "", end = "", allDay = allDay),
         start, end, "#6750A4",
@@ -42,6 +48,24 @@ class LayoutAndDatesTest {
             UiText.Res(R.string.span_same_day, listOf("Mo., 30. Nov. 2026", "09:00", "10:00")),
             describeSpan(start, start.plusHours(1), allDay = false),
         )
+    }
+
+    @Test
+    fun datesFollowTheLanguage() {
+        val date = LocalDate.of(2026, 11, 30)
+        val start = date.atTime(14, 30)
+        withLocale(Locale.US) {
+            assertEquals(UiText.Plain("November 2026"), viewTitle(ViewMode.MONTH, date, viewRange(ViewMode.MONTH, date, DayOfWeek.SUNDAY)))
+            assertEquals(
+                UiText.Res(R.string.span_same_day, listOf("Mon, Nov 30, 2026", "2:30 PM", "3:30 PM")),
+                describeSpan(start, start.plusHours(1), allDay = false),
+            )
+            assertEquals("12/31/2026", LocalDate.of(2026, 12, 31).format(FMT_DATE_SHORT))
+            assertEquals("9 AM", hourLabel(9))
+        }
+        assertEquals("31.12.2026", LocalDate.of(2026, 12, 31).format(FMT_DATE_SHORT))
+        assertEquals("09:00", hourLabel(9))
+        assertEquals(listOf("Mo", "Di", "Mi"), weekdayNames(DayOfWeek.MONDAY).take(3))
     }
 
     @Test

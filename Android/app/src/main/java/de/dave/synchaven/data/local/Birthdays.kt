@@ -1,5 +1,6 @@
 package de.dave.synchaven.data.local
 
+import de.dave.synchaven.R
 import de.dave.synchaven.data.model.CalEvent
 import de.dave.synchaven.data.model.Calendar
 import de.dave.synchaven.data.offline.OfflineData
@@ -7,20 +8,18 @@ import de.dave.synchaven.util.displayName
 import java.time.LocalDate
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 /**
  * Birthday calendar in local mode – like `backend/src/birthdays.rs`: for each contact with a birthday there is
- * a yearly, all-day, read-only event in the "Geburtstage" calendar. [OfflineData.occurrences] adds the age
+ * a yearly, all-day, read-only event in the birthday calendar. [OfflineData.occurrences] adds the age
  * to the title from the contact's birth year.
  */
 object Birthdays {
     const val KIND = "birthdays"
-    private const val NAME = "Geburtstage"
     private const val COLOR = "#D81B60"
-    private const val DESCRIPTION = "Wird automatisch aus den Kontakten erstellt"
     /** Year for birthdays without a year (a leap year, so Feb 29 is valid too) */
     private const val NO_YEAR = 2000
-    private val GERMAN_DATE = DateTimeFormatter.ofPattern("dd.MM.yyyy")
 
     /** Birthday from `YYYY-MM-DD` or `--MM-DD`: date of the first event and birth year, if known */
     fun parse(birthday: String): Pair<LocalDate, Int?>? {
@@ -38,19 +37,24 @@ object Birthdays {
 
     /**
      * Syncs the birthday events with the contacts: create, update, remove. The calendar is created
-     * with the first birthday and stays afterwards (it can be hidden but not deleted).
+     * with the first birthday and stays afterwards (it can be hidden but not deleted). Name and descriptions come
+     * from [texts], like the server's in the same language; an existing calendar keeps its name.
      */
-    fun sync(data: OfflineData, newId: () -> String, now: String): OfflineData {
+    fun sync(data: OfflineData, newId: () -> String, now: String, texts: LocalTexts): OfflineData {
         val wanted = data.contacts.orEmpty().mapNotNull { c -> parse(c.birthday)?.let { c to it } }
         var calendars = data.calendars.orEmpty()
         var calendar = calendars.firstOrNull { it.kind == KIND }
         if (calendar == null) {
             if (wanted.isEmpty()) return data
             calendar = Calendar(
-                id = newId(), name = NAME, color = COLOR, description = DESCRIPTION, kind = KIND, createdAt = now, updatedAt = now,
+                id = newId(), name = texts.get(R.string.api_birthdays_calendar_name), color = COLOR,
+                description = texts.get(R.string.api_birthdays_calendar_description), kind = KIND, createdAt = now, updatedAt = now,
             )
             calendars = calendars + calendar
         }
+        val dateFormat = DateTimeFormatter.ofPattern(
+            texts.get(R.string.api_birthdays_date_pattern), Locale.forLanguageTag(texts.get(R.string.api_language)),
+        )
         val existing = data.events.orEmpty().filter { it.contactId != null }.associateBy { it.contactId }
         val birthdays = wanted.map { (c, b) ->
             val (date, year) = b
@@ -60,7 +64,7 @@ object Birthdays {
                 calendarId = calendar.id,
                 uid = "birthday-${c.id}@synchaven",
                 title = "🎂 ${c.displayName()}",
-                description = if (year != null) "Geboren am ${date.format(GERMAN_DATE)}" else "",
+                description = if (year != null) texts.get(R.string.api_birthdays_born_on, date.format(dateFormat)) else "",
                 start = start.toString(),
                 end = start.plusSeconds(86_400).toString(),
                 allDay = true,

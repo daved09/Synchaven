@@ -141,7 +141,7 @@ class SyncController(context: Context) {
         try {
             removeLocalData(account, kind)
         } catch (e: SecurityException) {
-            Log.w("SyncController", "Lokale Daten konnten nicht entfernt werden", e)
+            Log.w("SyncController", "Could not remove local data", e)
         }
         refresh()
     }

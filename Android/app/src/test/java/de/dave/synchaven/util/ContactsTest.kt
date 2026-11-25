@@ -1,17 +1,22 @@
 package de.dave.synchaven.util
 
+import de.dave.synchaven.LocaleRule
 import de.dave.synchaven.R
 import de.dave.synchaven.UiText
 import de.dave.synchaven.data.model.Contact
 import de.dave.synchaven.data.model.TypedValue
 import java.time.LocalDate
+import java.util.Locale
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Rule
 import org.junit.Test
 
 class ContactsTest {
+    @get:Rule val locale = LocaleRule(Locale.GERMANY)
+
     @Test
     fun birthdayParsing() {
         assertEquals("1990-05-12", birthdayFromInput("12.5.1990"))

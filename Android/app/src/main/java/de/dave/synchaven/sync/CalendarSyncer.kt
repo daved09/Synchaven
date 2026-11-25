@@ -358,7 +358,7 @@ class CalendarSyncer(
             block()
         } catch (e: ApiException) {
             if (e.status == 401 || e.status >= 500) throw e
-            Log.w(TAG, "Termin übersprungen: ${e.message}")
+            Log.w(TAG, "Event skipped: ${e.message}")
             result.stats.numSkippedEntries++
             if (firstItemError == null) firstItemError = e
         }

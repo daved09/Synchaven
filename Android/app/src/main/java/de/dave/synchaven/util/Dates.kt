@@ -1,5 +1,6 @@
 package de.dave.synchaven.util
 
+import android.text.format.DateFormat
 import de.dave.synchaven.R
 import de.dave.synchaven.UiText
 import de.dave.synchaven.data.store.ViewMode
@@ -9,6 +10,7 @@ import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.LocalTime
 import java.time.OffsetDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -16,11 +18,15 @@ import java.time.format.TextStyle
 import java.time.temporal.IsoFields
 import java.time.temporal.TemporalAdjusters
 import java.util.Locale
+import java.util.concurrent.ConcurrentHashMap
 
-// Date helpers – always displayed in the device's time zone.
-// The date patterns (order, abbreviations) deliberately follow the web UI's German format.
+// Date helpers – always displayed in the device's time zone and language.
 
-val LOCALE: Locale = Locale.GERMANY
+/**
+ * Locale for dates, sorting and case conversion: the app's current language (device language or the
+ * language chosen for the app in the Android settings). Read on every use, since it can change while the app runs.
+ */
+val LOCALE: Locale get() = Locale.getDefault()
 
 /** Number of days of the event list from the selected date */
 const val LIST_DAYS = 60L
@@ -50,22 +56,70 @@ fun startOfWeek(d: LocalDate, weekStart: DayOfWeek): LocalDate =
 
 fun isoWeek(d: LocalDate): Int = d.get(IsoFields.WEEK_OF_WEEK_BASED_YEAR)
 
-private fun fmt(pattern: String): DateTimeFormatter = DateTimeFormatter.ofPattern(pattern, LOCALE)
+/**
+ * Formatter for a CLDR skeleton (which fields, not their order), e.g. `yMMMEd` → "Mon, Nov 23, 2026" in English
+ * and "Mo., 23. Nov. 2026" in German. The pattern comes from Android's locale data; cached per locale.
+ */
+fun dateFormat(skeleton: String, locale: Locale = LOCALE): DateTimeFormatter =
+    formatters.getOrPut(locale to skeleton) {
+        runCatching { DateTimeFormatter.ofPattern(datePattern(skeleton, locale), locale) }
+            .getOrElse { DateTimeFormatter.ofPattern(FallbackPatterns.of(locale, skeleton), locale) }
+    }
 
-val FMT_TIME: DateTimeFormatter = fmt("HH:mm")
-val FMT_DATE_SHORT: DateTimeFormatter = fmt("dd.MM.yyyy")
-val FMT_DATE_LONG: DateTimeFormatter = fmt("d. MMMM yyyy")
-val FMT_DAY_MONTH: DateTimeFormatter = fmt("d. MMMM")
-val FMT_MONTH_YEAR: DateTimeFormatter = fmt("LLLL yyyy")
-val FMT_WEEKDAY_LONG: DateTimeFormatter = fmt("EEEE, d. MMMM")
-val FMT_WEEKDAY_DATE: DateTimeFormatter = fmt("EEEE, d. MMMM yyyy")
-val FMT_TASK_DAY: DateTimeFormatter = fmt("EEE, d. MMM")
-val FMT_TASK_DAY_YEAR: DateTimeFormatter = fmt("EEE, d. MMM yyyy")
-val FMT_DATE_TIME_LONG: DateTimeFormatter = fmt("d. MMMM yyyy, HH:mm")
-private val FMT_SPAN_DAY: DateTimeFormatter = fmt("EEE, d. MMM yyyy")
-private val FMT_MONTH_SHORT: DateTimeFormatter = fmt("MMM")
-private val FMT_MONTH_SHORT_YEAR: DateTimeFormatter = fmt("MMM yyyy")
-private val FMT_DAY_TITLE: DateTimeFormatter = fmt("EEE, d. MMMM yyyy")
+/** Best pattern for [skeleton] in [locale]; on the JVM (unit tests) there is no Android locale data. */
+private fun datePattern(skeleton: String, locale: Locale): String =
+    runCatching { DateFormat.getBestDateTimePattern(locale, skeleton) }.getOrNull()
+        ?: FallbackPatterns.of(locale, skeleton)
+
+private val formatters = ConcurrentHashMap<Pair<Locale, String>, DateTimeFormatter>()
+
+/**
+ * Patterns without Android's locale data (JVM unit tests) – German for German, otherwise English (US),
+ * the same as Android returns for these locales.
+ */
+private object FallbackPatterns {
+    private val GERMAN = mapOf(
+        "jm" to "HH:mm", "j" to "HH 'Uhr'", "yMMdd" to "dd.MM.yyyy", "yMMMMd" to "d. MMMM yyyy", "MMMMd" to "d. MMMM",
+        "yMMMM" to "MMMM yyyy", "MMMMEEEEd" to "EEEE, d. MMMM", "yMMMMEEEEd" to "EEEE, d. MMMM yyyy", "MMMEd" to "EEE, d. MMM",
+        "yMMMEd" to "EEE, d. MMM yyyy", "yMMMMdjm" to "d. MMMM yyyy, HH:mm", "MMM" to "MMM", "yMMM" to "MMM yyyy",
+        "yMMMMEd" to "EEE, d. MMMM yyyy",
+    )
+    private val ENGLISH = mapOf(
+        "jm" to "h:mm a", "j" to "h a", "yMMdd" to "MM/dd/yyyy", "yMMMMd" to "MMMM d, yyyy", "MMMMd" to "MMMM d",
+        "yMMMM" to "MMMM yyyy", "MMMMEEEEd" to "EEEE, MMMM d", "yMMMMEEEEd" to "EEEE, MMMM d, yyyy", "MMMEd" to "EEE, MMM d",
+        "yMMMEd" to "EEE, MMM d, yyyy", "yMMMMdjm" to "MMMM d, yyyy, h:mm a", "MMM" to "MMM", "yMMM" to "MMM yyyy",
+        "yMMMMEd" to "EEE, MMMM d, yyyy",
+    )
+
+    fun of(locale: Locale, skeleton: String): String =
+        (if (locale.language == "de") GERMAN else ENGLISH)[skeleton] ?: error("No fallback pattern for $skeleton")
+}
+
+/** Time of day, e.g. "14:30" or "2:30 PM" */
+val FMT_TIME: DateTimeFormatter get() = dateFormat("jm")
+/** Numeric date, e.g. "31.12.2026" or "12/31/2026" */
+val FMT_DATE_SHORT: DateTimeFormatter get() = dateFormat("yMMdd")
+val FMT_DATE_LONG: DateTimeFormatter get() = dateFormat("yMMMMd")
+val FMT_DAY_MONTH: DateTimeFormatter get() = dateFormat("MMMMd")
+val FMT_MONTH_YEAR: DateTimeFormatter get() = dateFormat("yMMMM")
+val FMT_WEEKDAY_LONG: DateTimeFormatter get() = dateFormat("MMMMEEEEd")
+val FMT_WEEKDAY_DATE: DateTimeFormatter get() = dateFormat("yMMMMEEEEd")
+/** Short day without year, e.g. "Fr., 4. Dez." or "Fri, Dec 4" */
+val FMT_TASK_DAY: DateTimeFormatter get() = dateFormat("MMMEd")
+val FMT_TASK_DAY_YEAR: DateTimeFormatter get() = dateFormat("yMMMEd")
+val FMT_DATE_TIME_LONG: DateTimeFormatter get() = dateFormat("yMMMMdjm")
+private val FMT_SPAN_DAY: DateTimeFormatter get() = FMT_TASK_DAY_YEAR
+private val FMT_MONTH_SHORT: DateTimeFormatter get() = dateFormat("MMM")
+private val FMT_MONTH_SHORT_YEAR: DateTimeFormatter get() = dateFormat("yMMM")
+private val FMT_DAY_TITLE: DateTimeFormatter get() = dateFormat("yMMMMEd")
+
+/** Label of an hour in the time grid: "09:00" with a 24-hour clock, "9 AM" with a 12-hour clock */
+fun hourLabel(hour: Int): String {
+    val time = LocalTime.of(hour, 0)
+    return if (uses24HourClock()) time.format(FMT_TIME) else time.format(dateFormat("j"))
+}
+
+fun uses24HourClock(locale: Locale = LOCALE): Boolean = datePattern("jm", locale).let { 'H' in it || 'k' in it }
 
 /** Weekday names from [weekStart], e.g. "Mo", "Di", … */
 fun weekdayNames(weekStart: DayOfWeek, style: TextStyle = TextStyle.SHORT): List<String> =

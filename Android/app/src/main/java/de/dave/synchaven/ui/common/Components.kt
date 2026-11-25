@@ -47,6 +47,7 @@ import de.dave.synchaven.R
 import de.dave.synchaven.UiText
 import de.dave.synchaven.ui.theme.onColor
 import de.dave.synchaven.ui.theme.parseHexColor
+import de.dave.synchaven.util.uses24HourClock
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
@@ -75,7 +76,7 @@ fun ErrorBox(message: UiText, onRetry: (() -> Unit)?, modifier: Modifier = Modif
     }
 }
 
-/** Confirmation dialog; [destructive] colors the confirmation red. Without [confirmLabel]: "Löschen". */
+/** Confirmation dialog; [destructive] colors the confirmation red. Without [confirmLabel]: "Delete". */
 @Composable
 fun ConfirmDialog(
     title: String,
@@ -150,7 +151,7 @@ fun DatePickerModal(initial: LocalDate, onPick: (LocalDate) -> Unit, onDismiss: 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TimePickerModal(initial: LocalTime, onPick: (LocalTime) -> Unit, onDismiss: () -> Unit) {
-    val state = rememberTimePickerState(initialHour = initial.hour, initialMinute = initial.minute, is24Hour = true)
+    val state = rememberTimePickerState(initialHour = initial.hour, initialMinute = initial.minute, is24Hour = uses24HourClock())
     AlertDialog(
         onDismissRequest = onDismiss,
         confirmButton = {

@@ -57,6 +57,7 @@ import de.dave.synchaven.R
 import de.dave.synchaven.ui.theme.onColor
 import de.dave.synchaven.ui.theme.parseHexColor
 import de.dave.synchaven.util.FMT_TIME
+import de.dave.synchaven.util.hourLabel
 import de.dave.synchaven.util.ViewEvent
 import de.dave.synchaven.util.layoutDay
 import de.dave.synchaven.util.layoutRow
@@ -172,7 +173,7 @@ fun TimeGridView(
                     Box(Modifier.height(HOUR_HEIGHT).fillMaxWidth()) {
                         if (h > 0) {
                             Text(
-                                stringResource(R.string.calendar_hour, h),
+                                hourLabel(h),
                                 Modifier.offset(y = (-7).dp).align(Alignment.TopCenter),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = colors.onSurfaceVariant,

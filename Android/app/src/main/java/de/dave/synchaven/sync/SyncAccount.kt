@@ -6,6 +6,7 @@ import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
 import androidx.core.content.ContextCompat
+import de.dave.synchaven.R
 import de.dave.synchaven.data.store.LOCAL_USER
 import android.provider.CalendarContract
 import android.provider.ContactsContract
@@ -41,7 +42,7 @@ fun Context.hasPermissions(kind: SyncKind) =
  * (`/auth/refresh`), so the sync keeps running without the app being open. If a password was entered at
  * sign-in, it is stored there as well – as a fallback in case the token has expired after all.
  */
-class SyncAccounts(context: Context) {
+class SyncAccounts(private val context: Context) {
     private val am = AccountManager.get(context)
 
     private object Keys {
@@ -126,7 +127,7 @@ class SyncAccounts(context: Context) {
             putString(Keys.EMAIL, email)
             putString(Keys.INTERVAL, DEFAULT_INTERVAL_MINUTES.toString())
         }
-        check(am.addAccountExplicitly(account, password, data)) { "Konto konnte nicht angelegt werden" }
+        check(am.addAccountExplicitly(account, password, data)) { context.getString(R.string.sync_error_account) }
         setToken(account, token, expiresAt)
         return account
     }

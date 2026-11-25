@@ -13,7 +13,7 @@ import kotlinx.serialization.SerializationException
 fun Throwable.userMessage(): UiText = when {
     this is ApiException -> when {
         status >= 500 -> uiText(R.string.error_server, status)
-        // Messages from the server are already displayable (German, see docs/API.md)
+        // Messages from the server are already displayable, in the language from Accept-Language (see docs/API.md)
         serverMessage.isNotBlank() -> serverMessage.toUiText()
         else -> uiText(R.string.error_http, status)
     }

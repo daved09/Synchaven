@@ -111,12 +111,12 @@ fun buildRRule(form: RecurrenceForm, start: LocalDate): String? {
     return r.joinToString(";")
 }
 
-/** "letzten" or "2." for BYDAY=-1MO / 2MO */
+/** "last" or "2." for BYDAY=-1MO / 2MO */
 fun ordinalText(n: Int): UiText = if (n == -1) uiText(R.string.ordinal_last) else uiText(R.string.ordinal_n, n)
 
 private fun longName(d: DayOfWeek) = d.getDisplayName(TextStyle.FULL, LOCALE)
 
-/** Short German description, e.g. "Alle 2 Wochen am Mo, Mi bis 31.12.2026" */
+/** Short description, e.g. "Every 2 weeks on Mon, Wed until 12/31/2026" */
 fun describeRRule(rule: String?, start: LocalDate): UiText {
     if (rule.isNullOrBlank()) return UiText.Plain("")
     val p = parts(rule)

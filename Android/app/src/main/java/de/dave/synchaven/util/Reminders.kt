@@ -9,6 +9,7 @@ import de.dave.synchaven.data.model.Task
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDateTime
+import java.time.LocalTime
 import java.time.ZoneId
 import java.time.ZoneOffset
 import kotlinx.serialization.KSerializer
@@ -58,7 +59,7 @@ object Reminders {
     fun describe(res: Resources, minutes: Int, allDay: Boolean): String {
         if (allDay) {
             val (days, hour, minute) = splitAllDay(minutes)
-            val time = "%02d:%02d".format(hour, minute)
+            val time = LocalTime.of(hour, minute).format(FMT_TIME)
             return when {
                 days == 0 -> res.getString(R.string.reminder_all_day_same, time)
                 days == 1 -> res.getString(R.string.reminder_all_day_before, time)
@@ -76,16 +77,17 @@ object Reminders {
         }
     }
 
-    /** Like the server's validation; throws [IllegalArgumentException] with an understandable message. */
+    /** Like the server's validation; throws [InvalidRemindersException] (local mode turns it into the server's message). */
     fun validate(list: List<Int>, allDay: Boolean): List<Int> {
         val l = sorted(list)
-        require(l.size <= MAX_COUNT) { "Höchstens $MAX_COUNT Erinnerungen pro Termin" }
-        require(l.all { isValid(it, allDay) }) {
-            if (allDay) "Erinnerungen an ganztägige Termine: höchstens 4 Wochen vorher, spätestens 23:59 am Tag selbst"
-            else "Erinnerungen: höchstens 4 Wochen und frühestens zum Beginn des Termins"
-        }
+        if (l.size > MAX_COUNT) throw InvalidRemindersException(tooMany = true, allDay)
+        if (!l.all { isValid(it, allDay) }) throw InvalidRemindersException(tooMany = false, allDay)
         return l
     }
+
+    /** [tooMany]: more than [MAX_COUNT] reminders, otherwise one is out of range */
+    class InvalidRemindersException(val tooMany: Boolean, val allDay: Boolean) :
+        IllegalArgumentException(if (tooMany) "too many reminders" else "reminder out of range (allDay=$allDay)")
 
     /** A due reminder for an occurrence */
     data class Due(

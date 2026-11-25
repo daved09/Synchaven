@@ -1,5 +1,7 @@
 package de.dave.synchaven.data.local
 
+import androidx.annotation.StringRes
+import de.dave.synchaven.R
 import de.dave.synchaven.data.api.ApiException
 import de.dave.synchaven.util.Reminders
 import de.dave.synchaven.util.applyReminders
@@ -60,22 +62,18 @@ import okio.Buffer
 /** Key of the [OfflineStore] for the local mode's data */
 const val LOCAL_ACCOUNT = "local"
 
-/** Default list as on the server ("Meine Aufgaben") */
-private const val DEFAULT_TASK_LIST = "Meine Aufgaben"
 private const val DEFAULT_TASK_COLOR = "#1A73E8"
-
-/** Creates the default task list if there is none yet. */
-private fun OfflineData.withDefaultTaskList(ts: String): OfflineData =
-    if (!taskLists.isNullOrEmpty()) this
-    else copy(taskLists = listOf(TaskList(LocalApi.newId(), DEFAULT_TASK_LIST, DEFAULT_TASK_COLOR, createdAt = ts, updatedAt = ts)))
 
 /**
  * "Server" of the local mode: the same interface as the REST API, but stored in the [OfflineStore] under
  * [LOCAL_ACCOUNT]. This way the repositories and the sync with Android work unchanged, even entirely without
- * the web UI. Validation and error messages match those of the server (see backend/src/routes).
+ * the web UI. Validation, error messages and default names match those of the server (see backend/src/routes
+ * and backend/locales) in the app's language, see [texts].
  */
 class LocalApi(
     private val store: OfflineStore,
+    /** Error messages and default names, like the server's for the same language */
+    private val texts: LocalTexts,
     /** Default view from the session (for [me]) */
     private val defaultView: () -> String,
 ) : SyncHavenApi {
@@ -100,13 +98,13 @@ class LocalApi(
             val ts = now()
             d.copy(
                 calendars = d.calendars ?: listOf(
-                    Calendar(newId(), "Persönlich", "#6750A4", createdAt = ts, updatedAt = ts),
+                    Calendar(newId(), texts.get(R.string.api_calendar_default_name), "#6750A4", createdAt = ts, updatedAt = ts),
                 ),
                 events = d.events ?: emptyList(),
-                addressBooks = d.addressBooks?.takeIf { it.isNotEmpty() } ?: listOf(AddressBook(newId(), DEFAULT_BOOK)),
+                addressBooks = d.addressBooks?.takeIf { it.isNotEmpty() } ?: listOf(AddressBook(newId(), texts.get(R.string.api_contacts_default_book_name))),
                 contacts = d.contacts ?: emptyList(),
                 tasks = d.tasks ?: emptyList(),
-            ).withDefaultTaskList(ts).migrateLocal().let { Birthdays.sync(it, ::newId, ts) }.recount()
+            ).withDefaultTaskList(ts).migrateLocal().let { Birthdays.sync(it, ::newId, ts, texts) }.recount()
         }
     }
 
@@ -125,9 +123,14 @@ class LocalApi(
         return me().let { u -> body.defaultView?.let { u.copy(defaultView = it) } ?: u }
     }
 
-    private fun localInfo() = ServerInfo(name = "Synchaven (lokal)")
+    private fun localInfo() = ServerInfo(name = texts.get(R.string.local_account_name))
 
     // ---------- Tasks ----------
+
+    /** Creates the default list ("My tasks", like the server) if there is none yet. */
+    private fun OfflineData.withDefaultTaskList(ts: String): OfflineData =
+        if (!taskLists.isNullOrEmpty()) this
+        else copy(taskLists = listOf(TaskList(newId(), texts.get(R.string.api_tasks_default_list_name), DEFAULT_TASK_COLOR, createdAt = ts, updatedAt = ts)))
     // Like backend/src/routes/tasks.rs: at least one list, the last one cannot be deleted.
 
     override suspend fun taskLists(): List<TaskList> {
@@ -156,7 +159,7 @@ class LocalApi(
     override suspend fun deleteTaskList(id: String) {
         edit { d ->
             taskList(d, id)
-            if (d.taskLists.orEmpty().size <= 1) bad("Die letzte Aufgabenliste kann nicht gelöscht werden")
+            if (d.taskLists.orEmpty().size <= 1) bad(R.string.api_tasks_last_list)
             d.copy(taskLists = d.taskLists.orEmpty().filterNot { it.id == id }, tasks = d.tasks.orEmpty().filterNot { it.listId == id })
         }
     }
@@ -230,9 +233,9 @@ class LocalApi(
 
     private fun validateTaskList(input: TaskListInput): Pair<String, String?> {
         val name = input.name.trim()
-        if (name.isEmpty() || name.length > 100) bad("Der Name muss 1–100 Zeichen lang sein")
+        if (name.isEmpty() || name.length > 100) bad(R.string.api_validation_name_length)
         val color = input.color?.trim()?.takeIf { it.isNotEmpty() }?.let {
-            if (!Regex("#[0-9A-Fa-f]{6}").matches(it)) bad("Farbe muss im Format #RRGGBB angegeben werden")
+            if (!Regex("#[0-9A-Fa-f]{6}").matches(it)) bad(R.string.api_validation_color_format)
             it.uppercase()
         }
         return name to color
@@ -241,18 +244,18 @@ class LocalApi(
     /** Like `resolve_parent` in the backend: one level deep, the parent task must exist. */
     private fun validateParent(d: OfflineData, existing: Task?, input: TaskInput) {
         val parentId = input.parentId ?: return
-        if (existing?.id == parentId) bad("Eine Aufgabe kann nicht ihre eigene Unteraufgabe sein")
-        val parent = d.tasks.orEmpty().firstOrNull { it.id == parentId } ?: bad("Die übergeordnete Aufgabe gibt es nicht")
-        if (parent.parentId != null) bad("Unteraufgaben können keine eigenen Unteraufgaben haben")
+        if (existing?.id == parentId) bad(R.string.api_tasks_own_subtask)
+        val parent = d.tasks.orEmpty().firstOrNull { it.id == parentId } ?: bad(R.string.api_tasks_parent_missing)
+        if (parent.parentId != null) bad(R.string.api_tasks_nested_subtask)
         if (parent.listId == input.listId && existing != null && d.tasks.orEmpty().any { it.parentId == existing.id }) {
-            bad("Eine Aufgabe mit Unteraufgaben kann keine Unteraufgabe werden")
+            bad(R.string.api_tasks_parent_with_subtasks)
         }
     }
 
     private fun validateTask(input: TaskInput) {
         val title = input.title.trim()
-        if (title.isEmpty() || title.length > 500) bad("Der Titel muss 1–500 Zeichen lang sein")
-        if (input.due != null && parse(input.due) == null) bad("Ungültige Fälligkeit")
+        if (title.isEmpty() || title.length > 500) bad(R.string.api_validation_title_length)
+        if (input.due != null && parse(input.due) == null) bad(R.string.api_tasks_invalid_due)
     }
 
     // ---------- Calendars ----------
@@ -292,7 +295,7 @@ class LocalApi(
     override suspend fun deleteCalendar(id: String) {
         edit { d ->
             val cal = d.calendars.orEmpty().firstOrNull { it.id == id } ?: notFound()
-            if (cal.isBirthdays) bad("Der Geburtstagskalender kann nicht gelöscht, aber ausgeblendet werden")
+            if (cal.isBirthdays) bad(R.string.api_calendar_birthdays_not_deletable)
             d.copy(calendars = d.calendars.orEmpty().filterNot { it.id == id }, events = d.events.orEmpty().filterNot { it.calendarId == id })
         }
     }
@@ -316,9 +319,9 @@ class LocalApi(
         ensureWritable(calendar(data(), id))
         val zone = ICal.zoneOrNull(timezone) ?: ZoneOffset.UTC
         val parsed = try {
-            ICal.parse(ics.readText(), zone)
-        } catch (e: IllegalArgumentException) {
-            bad(e.message.orEmpty())
+            ICal.parse(ics.readText(), zone, untitled = texts.get(R.string.sync_untitled))
+        } catch (_: IllegalArgumentException) {
+            bad(R.string.api_ical_invalid_file)
         }
         val (masters, overrides) = parsed.partition { it.recurrenceId == null }
         var imported = 0
@@ -340,7 +343,7 @@ class LocalApi(
                 val uid = e.uid?.takeIf { it.isNotEmpty() } ?: newUid()
                 // An invalid RRULE should not discard the whole event
                 val ev = runCatching { validateEvent(input(e, e.rrule), "") }.recoverCatching {
-                    validateEvent(input(e, null), "").also { skipped += "${e.title}: Wiederholungsregel ignoriert" }
+                    validateEvent(input(e, null), "").also { skipped += texts.get(R.string.api_ical_rrule_ignored, e.title) }
                 }
                 ev.onSuccess { valid -> upsert(uid) { valid.copy(id = it) } }
                     .onFailure { skipped += "${e.title}: ${(it as? ApiException)?.serverMessage ?: it.message}" }
@@ -364,14 +367,14 @@ class LocalApi(
     private fun calendar(d: OfflineData, id: String) = d.calendars.orEmpty().firstOrNull { it.id == id } ?: notFound()
 
     private fun ensureWritable(cal: Calendar) {
-        if (cal.isBirthdays) bad("Der Geburtstagskalender wird automatisch aus den Kontakten erstellt")
+        if (cal.isBirthdays) bad(R.string.api_calendar_birthdays_read_only)
     }
 
     private fun validateCalendar(input: CalendarInput): Pair<String, String?> {
         val name = input.name.trim()
-        if (name.isEmpty() || name.length > 100) bad("Der Name muss 1–100 Zeichen lang sein")
+        if (name.isEmpty() || name.length > 100) bad(R.string.api_validation_name_length)
         val color = input.color.trim().takeIf { it.isNotEmpty() }?.let {
-            if (!Regex("#[0-9A-Fa-f]{6}").matches(it)) bad("Farbe muss im Format #RRGGBB angegeben werden")
+            if (!Regex("#[0-9A-Fa-f]{6}").matches(it)) bad(R.string.api_validation_color_format)
             it.uppercase()
         }
         return name to color
@@ -380,9 +383,9 @@ class LocalApi(
     // ---------- Events ----------
 
     override suspend fun occurrences(start: String, end: String, query: String?): List<Occurrence> {
-        val from = parse(start) ?: bad("Ungültiger Zeitpunkt: $start")
-        val to = parse(end) ?: bad("Ungültiger Zeitpunkt: $end")
-        if (to <= from) bad("`end` muss nach `start` liegen")
+        val from = parse(start) ?: bad(R.string.api_event_invalid_time, start)
+        val to = parse(end) ?: bad(R.string.api_event_invalid_time, end)
+        if (to <= from) bad(R.string.api_event_range_end_before_start)
         return data().occurrences(from, to, query).orEmpty()
     }
 
@@ -401,7 +404,7 @@ class LocalApi(
         var result: CalEvent? = null
         edit { d ->
             val old = d.events.orEmpty().firstOrNull { it.id == id } ?: notFound()
-            if (old.readOnly) bad(BIRTHDAY_READ_ONLY)
+            if (old.readOnly) bad(R.string.api_event_birthday_read_only)
             ensureWritable(calendar(d, body.calendarId))
             val ev = validateEvent(body, id).copy(uid = old.uid, reminders = body.applyReminders(old.reminders))
             result = ev
@@ -413,18 +416,18 @@ class LocalApi(
     override suspend fun deleteEvent(id: String) {
         edit { d ->
             val old = d.events.orEmpty().firstOrNull { it.id == id } ?: notFound()
-            if (old.readOnly) bad(BIRTHDAY_READ_ONLY)
+            if (old.readOnly) bad(R.string.api_event_birthday_read_only)
             d.copy(events = d.events.orEmpty().filterNot { it.id == id })
         }
     }
 
     override suspend fun addExdate(id: String, body: ExdateRequest): CalEvent {
-        val at = parse(body.occurrenceStart) ?: bad("Ungültiger Zeitpunkt: ${body.occurrenceStart}")
+        val at = parse(body.occurrenceStart) ?: bad(R.string.api_event_invalid_time, body.occurrenceStart)
         var result: CalEvent? = null
         edit { d ->
             val old = d.events.orEmpty().firstOrNull { it.id == id } ?: notFound()
-            if (old.readOnly) bad(BIRTHDAY_READ_ONLY)
-            if (old.rrule.isNullOrBlank()) bad("Der Termin ist keine Serie")
+            if (old.readOnly) bad(R.string.api_event_birthday_read_only)
+            if (old.rrule.isNullOrBlank()) bad(R.string.api_event_not_recurring)
             val ev = if (old.exdates.any { sameInstant(it, at) }) old
             else old.copy(exdates = (old.exdates + at.truncatedTo(ChronoUnit.SECONDS).toString()).sortedBy { parse(it) })
             result = ev
@@ -434,24 +437,32 @@ class LocalApi(
     }
 
     private fun validReminders(list: List<Int>, allDay: Boolean): List<Int> =
-        try { Reminders.validate(list, allDay) } catch (e: IllegalArgumentException) { bad(e.message.orEmpty()) }
+        try {
+            Reminders.validate(list, allDay)
+        } catch (e: Reminders.InvalidRemindersException) {
+            when {
+                e.tooMany -> bad(R.string.api_reminders_too_many, Reminders.MAX_COUNT)
+                allDay -> bad(R.string.api_reminders_range_all_day)
+                else -> bad(R.string.api_reminders_range)
+            }
+        }
 
     /** Like the server's `EventData::validate`: returns the stored event (without UID, reminders validated). */
     private fun validateEvent(input: EventInput, id: String): CalEvent {
         input.applyReminders(null)?.let { validReminders(it, input.allDay) }
         val title = input.title.trim()
-        if (title.isEmpty() || title.length > 500) bad("Der Titel muss 1–500 Zeichen lang sein")
+        if (title.isEmpty() || title.length > 500) bad(R.string.api_validation_title_length)
         val tzName = input.timezone.trim().ifEmpty { "UTC" }
-        val zone = ICal.zoneOrNull(tzName) ?: bad("Unbekannte Zeitzone: $tzName")
-        val s = parse(input.start) ?: bad("Ungültiger Beginn: ${input.start}")
-        val e = parse(input.end) ?: bad("Ungültiges Ende: ${input.end}")
+        val zone = ICal.zoneOrNull(tzName) ?: bad(R.string.api_event_unknown_time_zone, tzName)
+        val s = parse(input.start) ?: bad(R.string.api_event_invalid_start, input.start)
+        val e = parse(input.end) ?: bad(R.string.api_event_invalid_end, input.end)
         val (start, end) = if (input.allDay) {
             // All-day: midnight UTC, end exclusive
             val ds = midnightUtc(s)
             val de = midnightUtc(e)
             ds to if (de <= ds) ds.plus(Duration.ofDays(1)) else de
         } else {
-            if (e < s) bad("Das Ende darf nicht vor dem Beginn liegen")
+            if (e < s) bad(R.string.api_event_end_before_start)
             s to e
         }
         val rrule = input.rrule?.trim()?.takeIf { it.isNotEmpty() }?.let { normalizeRrule(it, zone, input.allDay) }
@@ -469,9 +480,9 @@ class LocalApi(
         val parts = rule.removePrefix("RRULE:").removePrefix("rrule:").uppercase().split(';')
             .map { it.trim() }.filter { it.isNotEmpty() }
             .map { p -> if (p.startsWith("UNTIL=")) "UNTIL=" + normalizeUntil(p.removePrefix("UNTIL="), zone, allDay) else p }
-        if (parts.isEmpty()) bad("Leere Wiederholungsregel")
+        if (parts.isEmpty()) bad(R.string.api_recurrence_empty)
         val normalized = parts.joinToString(";")
-        if (!RRuleExpander.isSupported(normalized)) bad("Ungültige Wiederholungsregel: $normalized")
+        if (!RRuleExpander.isSupported(normalized)) bad(R.string.api_recurrence_invalid, normalized)
         return normalized
     }
 
@@ -521,7 +532,7 @@ class LocalApi(
             d.addressBooks.orEmpty().firstOrNull { it.id == id } ?: notFound()
             val rest = d.addressBooks.orEmpty().filterNot { it.id == id }
             d.copy(
-                addressBooks = rest.ifEmpty { listOf(AddressBook(newId(), DEFAULT_BOOK)) },
+                addressBooks = rest.ifEmpty { listOf(AddressBook(newId(), texts.get(R.string.api_contacts_default_book_name))) },
                 contacts = d.contacts.orEmpty().filterNot { it.addressBookId == id },
             ).withBirthdays()
         }
@@ -543,7 +554,7 @@ class LocalApi(
     override suspend fun importAddressBook(id: String, vcf: RequestBody): ContactImportResult {
         data().addressBooks.orEmpty().firstOrNull { it.id == id } ?: notFound()
         val cards = VCard.parseCards(vcf.readText())
-        if (cards.isEmpty()) bad("Keine vCards gefunden (BEGIN:VCARD fehlt)")
+        if (cards.isEmpty()) bad(R.string.api_contacts_no_vcards)
         var created = 0
         var updated = 0
         var unchanged = 0
@@ -559,9 +570,9 @@ class LocalApi(
                 birthday = parsed.birthday.takeIf { Birthdays.parse(it) != null }.orEmpty(),
                 photo = parsed.photo?.takeIf { it.length <= MAX_PHOTO && it.startsWith("data:") } ?: "",
             ).normalizedInput()
-            val input = base.copy(fullName = base.fullName.ifEmpty { "(Ohne Namen)" })
+            val input = base.copy(fullName = base.fullName.ifEmpty { texts.get(R.string.contact_no_name) })
             if (uid.length > 500) {
-                skipped += "${input.fullName}: UID zu lang"
+                skipped += texts.get(R.string.api_contacts_uid_too_long, input.fullName)
                 continue
             }
             val existing = data().contacts.orEmpty().firstOrNull { it.addressBookId == id && it.uid == uid }
@@ -587,7 +598,7 @@ class LocalApi(
 
     private fun validateBookName(name: String): String {
         val n = name.trim()
-        if (n.isEmpty() || n.length > 100) bad("Der Name muss 1–100 Zeichen lang sein")
+        if (n.isEmpty() || n.length > 100) bad(R.string.api_validation_name_length)
         return n
     }
 
@@ -602,13 +613,13 @@ class LocalApi(
     }
 
     override suspend fun createContact(body: ContactInput): Contact {
-        data().addressBooks.orEmpty().firstOrNull { it.id == body.addressBookId } ?: bad("Adressbuch nicht gefunden")
+        data().addressBooks.orEmpty().firstOrNull { it.id == body.addressBookId } ?: bad(R.string.api_contacts_book_not_found)
         return save(newId(), UUID.randomUUID().toString(), body, previous = null)
     }
 
     override suspend fun updateContact(id: String, body: ContactInput): Contact {
         val old = data().contacts.orEmpty().firstOrNull { it.id == id } ?: notFound()
-        data().addressBooks.orEmpty().firstOrNull { it.id == body.addressBookId } ?: bad("Adressbuch nicht gefunden")
+        data().addressBooks.orEmpty().firstOrNull { it.id == body.addressBookId } ?: bad(R.string.api_contacts_book_not_found)
         return save(id, old.uid, body, previous = old)
     }
 
@@ -649,26 +660,29 @@ class LocalApi(
     }
 
     private fun validateContact(c: ContactInput) {
-        if (c.fullName.isEmpty()) bad("Bitte einen Namen, eine Firma, E-Mail-Adresse oder Telefonnummer angeben")
-        if (c.fullName.length > 500 || c.note.length > 20_000) bad("Name oder Notiz ist zu lang")
-        if (c.categories.orEmpty().let { l -> l.size > 100 || l.any { it.length > 100 } }) bad("Zu viele oder zu lange Kategorien")
-        if (c.birthday.isNotEmpty() && Birthdays.parse(c.birthday) == null) bad("Ungültiger Geburtstag")
+        if (c.fullName.isEmpty()) bad(R.string.api_contacts_name_required)
+        if (c.fullName.length > 500 || c.note.length > 20_000) bad(R.string.api_contacts_too_long)
+        if (c.categories.orEmpty().let { l -> l.size > 100 || l.any { it.length > 100 } }) bad(R.string.api_contacts_categories)
+        if (c.birthday.isNotEmpty() && Birthdays.parse(c.birthday) == null) bad(R.string.api_contacts_invalid_birthday)
     }
 
     private fun validatePhoto(p: String) {
-        if (p.length > MAX_PHOTO) bad("Das Foto ist zu groß (max. 3,5 MB)")
-        if (!p.startsWith("data:") || ',' !in p) bad("Das Foto muss als data:-URL (Base64) übergeben werden")
+        if (p.length > MAX_PHOTO) bad(R.string.api_contacts_photo_too_large)
+        if (!p.startsWith("data:") || ',' !in p) bad(R.string.api_contacts_photo_format)
     }
 
-    private fun OfflineData.withBirthdays() = Birthdays.sync(this, ::newId, now())
+    private fun bad(@StringRes message: Int, vararg args: Any): Nothing =
+        throw ApiException(400, "bad_request", texts.get(message, *args))
+    private fun notFound(): Nothing = throw ApiException(404, "not_found", texts.get(R.string.api_error_not_found))
+    private fun unavailable(): Nothing = throw ApiException(400, "local_mode", texts.get(R.string.api_local_unavailable))
+
+    private fun OfflineData.withBirthdays() = Birthdays.sync(this, ::newId, now(), texts)
 
     // ---------- Helpers ----------
 
     private suspend fun RequestBody.readText(): String = Buffer().also { writeTo(it) }.readUtf8()
 
     companion object {
-        private const val DEFAULT_BOOK = "Kontakte"
-        private const val BIRTHDAY_READ_ONLY = "Geburtstage werden über den Kontakt bearbeitet"
         private const val MAX_PHOTO = 5_000_000
         private val DATE = DateTimeFormatter.ofPattern("yyyyMMdd")
         private val DATE_TIME = DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss")
@@ -682,9 +696,6 @@ class LocalApi(
         private fun sameInstant(s: String, t: Instant) = parse(s) == t
         private fun midnightUtc(t: Instant): Instant = t.atOffset(ZoneOffset.UTC).toLocalDate().atStartOfDay(ZoneOffset.UTC).toInstant()
 
-        private fun bad(message: String): Nothing = throw ApiException(400, "bad_request", message)
-        private fun notFound(): Nothing = throw ApiException(404, "not_found", "Nicht gefunden")
-        private fun unavailable(): Nothing = throw ApiException(400, "local_mode", "Im lokalen Modus nicht verfügbar")
 
         /** UID in UUID format from the content of a card */
         private fun stableUid(text: String): String {

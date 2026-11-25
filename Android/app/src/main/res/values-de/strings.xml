@@ -1,0 +1,606 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- General -->
+    <string name="action_cancel">Abbrechen</string>
+    <string name="action_ok">OK</string>
+    <string name="action_save">Speichern</string>
+    <string name="action_delete">Löschen</string>
+    <string name="action_done">Fertig</string>
+    <string name="action_retry">Erneut versuchen</string>
+    <string name="action_edit">Bearbeiten</string>
+    <string name="action_more">Mehr</string>
+    <string name="action_menu">Menü</string>
+    <string name="action_refresh">Aktualisieren</string>
+    <string name="action_search">Suchen</string>
+    <string name="action_back">Zurück</string>
+    <string name="action_remove">Entfernen</string>
+    <string name="action_clear">Leeren</string>
+    <string name="action_move">Verschieben</string>
+    <string name="action_close">Schließen</string>
+    <string name="content_selected">Ausgewählt</string>
+    <string name="label_name">Name</string>
+    <string name="label_description">Beschreibung</string>
+    <string name="label_color">Farbe</string>
+    <string name="label_type">Typ</string>
+    <!-- Quotes preserve the trailing space -->
+    <string name="list_separator">", "</string>
+    <string name="time_range">%1$s – %2$s</string>
+
+    <!-- Main navigation -->
+    <string name="tab_calendar">Kalender</string>
+    <string name="tab_tasks">Aufgaben</string>
+    <string name="tab_contacts">Kontakte</string>
+    <string name="tab_settings">Einstellungen</string>
+
+    <!-- Views -->
+    <string name="view_month">Monat</string>
+    <string name="view_week">Woche</string>
+    <string name="view_day">Tag</string>
+    <string name="view_list">Terminliste</string>
+    <string name="view_title_week">%1$s · KW %2$d</string>
+    <string name="view_title_list">Ab %1$s</string>
+    <string name="month_range">%1$s – %2$s</string>
+
+    <!-- Time range of an event -->
+    <string name="span_all_day">%1$s · ganztägig</string>
+    <string name="span_days">%1$s – %2$s</string>
+    <string name="span_same_day">%1$s · %2$s – %3$s</string>
+    <string name="span_multi_day">%1$s, %2$s – %3$s, %4$s</string>
+
+    <!-- Recurrence -->
+    <string name="freq_none">Keine Wiederholung</string>
+    <string name="freq_daily">Täglich</string>
+    <string name="freq_weekly">Wöchentlich</string>
+    <string name="freq_monthly">Monatlich</string>
+    <string name="freq_yearly">Jährlich</string>
+    <string name="freq_custom">Benutzerdefiniert (RRULE)</string>
+    <plurals name="rrule_daily">
+        <item quantity="one">Täglich</item>
+        <item quantity="other">Alle %1$d Tage</item>
+    </plurals>
+    <plurals name="rrule_weekly">
+        <item quantity="one">Wöchentlich am %2$s</item>
+        <item quantity="other">Alle %1$d Wochen am %2$s</item>
+    </plurals>
+    <plurals name="rrule_monthly">
+        <item quantity="one">Monatlich %2$s</item>
+        <item quantity="other">Alle %1$d Monate %2$s</item>
+    </plurals>
+    <plurals name="rrule_yearly">
+        <item quantity="one">Jährlich am %2$s</item>
+        <item quantity="other">Alle %1$d Jahre am %2$s</item>
+    </plurals>
+    <string name="rrule_monthly_on_day">am %1$d.</string>
+    <string name="rrule_monthly_on_weekday">am %1$s %2$s</string>
+    <string name="ordinal_last">letzten</string>
+    <string name="ordinal_n">%1$d.</string>
+    <string name="rrule_until">%1$s bis %2$s</string>
+    <string name="rrule_count">%1$s, %2$s Mal</string>
+    <string name="rrule_raw">Wiederholung: %1$s</string>
+    <string name="recurrence_label">Wiederholung</string>
+    <string name="recurrence_rrule_hint">Regel nach RFC 5545, ohne „RRULE:“</string>
+    <string name="recurrence_every">Alle</string>
+    <plurals name="recurrence_unit_day">
+        <item quantity="one">Tag</item>
+        <item quantity="other">Tage</item>
+    </plurals>
+    <plurals name="recurrence_unit_week">
+        <item quantity="one">Woche</item>
+        <item quantity="other">Wochen</item>
+    </plurals>
+    <plurals name="recurrence_unit_month">
+        <item quantity="one">Monat</item>
+        <item quantity="other">Monate</item>
+    </plurals>
+    <plurals name="recurrence_unit_year">
+        <item quantity="one">Jahr</item>
+        <item quantity="other">Jahre</item>
+    </plurals>
+    <string name="recurrence_ends">Endet</string>
+    <string name="recurrence_never">Nie</string>
+    <string name="recurrence_on">Am</string>
+    <string name="recurrence_after">Nach</string>
+    <string name="recurrence_occurrences">Terminen</string>
+
+    <!-- Calendars -->
+    <string name="calendar_my_calendars">Meine Kalender</string>
+    <string name="calendar_new">Neuer Kalender</string>
+    <string name="calendar_edit">Kalender bearbeiten</string>
+    <string name="calendar_menu">Kalender-Menü</string>
+    <string name="event_open_contact">Kontakt öffnen</string>
+    <string name="calendar_export">Exportieren (.ics)</string>
+    <string name="calendar_import">Importieren (.ics)</string>
+    <string name="calendar_open_drawer">Seitenleiste</string>
+    <string name="calendar_pick_date">Datum wählen</string>
+    <string name="calendar_today">Heute</string>
+    <string name="calendar_new_event">Neuer Termin</string>
+    <string name="calendar_search_hint">Termine suchen</string>
+    <string name="calendar_search_close">Suche schließen</string>
+    <string name="calendar_search_empty_query">Suchbegriff eingeben</string>
+    <string name="calendar_search_no_results">Keine Termine gefunden</string>
+    <plurals name="calendar_list_empty">
+        <item quantity="one">Keine Termine am nächsten %1$d Tag</item>
+        <item quantity="other">Keine Termine in den nächsten %1$d Tagen</item>
+    </plurals>
+    <string name="calendar_more">+%1$d</string>
+    <string name="calendar_all_day_short">ganzt.</string>
+    <string name="event_title_time">%1$s, %2$s</string>
+    <string name="event_time_title">%1$s %2$s</string>
+    <string name="dialog_move_series_title">Serientermin verschieben?</string>
+    <string name="dialog_move_series_text">Nur der Termin am %1$s wird verschoben und dabei aus der Serie gelöst.</string>
+    <string name="dialog_delete_calendar_title">Kalender löschen?</string>
+    <string name="dialog_delete_calendar_text">„%1$s“ wird mit allen Terminen endgültig gelöscht.</string>
+    <string name="agenda_today">%1$s · Heute</string>
+    <string name="agenda_until">bis %1$s</string>
+    <string name="agenda_from">ab %1$s</string>
+    <string name="agenda_subtitle">%1$s · %2$s</string>
+    <string name="all_day">Ganztägig</string>
+
+    <!-- Event details -->
+    <string name="event_edit_series">Serie bearbeiten</string>
+    <string name="dialog_delete_event_title">Termin löschen?</string>
+    <string name="dialog_delete_event_text">„%1$s“ wird gelöscht.</string>
+    <string name="dialog_delete_series_title">Serientermin löschen?</string>
+    <string name="dialog_delete_series_text">Nur den Termin am %1$s oder alle Termine dieser Serie löschen?</string>
+    <string name="delete_only_this">Nur diesen Termin</string>
+    <string name="delete_whole_series">Ganze Serie</string>
+
+    <!-- Event editor -->
+    <string name="event_edit">Termin bearbeiten</string>
+    <string name="event_title">Titel</string>
+    <string name="event_calendar">Kalender</string>
+    <string name="event_start">Beginn</string>
+    <string name="event_end">Ende</string>
+    <string name="event_timezone">Zeitzone des Termins: %1$s</string>
+    <string name="event_location">Ort</string>
+    <string name="error_title_required">Bitte einen Titel eingeben</string>
+    <string name="error_title_too_long">Der Titel darf höchstens 500 Zeichen lang sein</string>
+    <string name="error_calendar_required">Bitte einen Kalender wählen</string>
+    <string name="error_end_before_start">Das Ende liegt vor dem Beginn</string>
+    <string name="error_rrule_required">Bitte eine RRULE eingeben</string>
+
+    <!-- Calendar messages -->
+    <string name="msg_calendar_created">Kalender angelegt</string>
+    <string name="msg_calendar_saved">Kalender gespeichert</string>
+    <string name="msg_calendar_deleted">Kalender „%1$s“ gelöscht</string>
+    <string name="msg_calendar_exported">Kalender exportiert</string>
+    <plurals name="msg_events_imported">
+        <item quantity="one">%1$d Termin importiert</item>
+        <item quantity="other">%1$d Termine importiert</item>
+    </plurals>
+    <plurals name="msg_import_skipped">
+        <item quantity="one">%1$s, %2$d übersprungen</item>
+        <item quantity="other">%1$s, %2$d übersprungen</item>
+    </plurals>
+    <string name="msg_event_deleted">Termin gelöscht</string>
+    <string name="msg_event_moved">Termin verschoben</string>
+    <string name="msg_event_moved_series">Termin am %1$s verschoben und aus der Serie gelöst</string>
+
+    <!-- Contacts -->
+    <string name="contacts_manage_books">Adressbücher verwalten</string>
+    <string name="contacts_sync">Mit Android synchronisieren</string>
+    <string name="contacts_search_hint">Name, Telefon, E-Mail, Ort …</string>
+    <string name="contacts_empty">Noch keine Kontakte.\nNeue Kontakte mit + anlegen oder eine .vcf-Datei unter „Adressbücher verwalten“ importieren.</string>
+    <string name="contacts_no_results">Keine Kontakte gefunden</string>
+    <string name="contacts_new">Neuer Kontakt</string>
+    <string name="contacts_filter_all">Alle</string>
+    <string name="contacts_book_chip">%1$s (%2$d)</string>
+    <string name="contact_no_name">(Ohne Namen)</string>
+    <string name="msg_book_created">Adressbuch angelegt</string>
+    <string name="msg_book_saved">Adressbuch gespeichert</string>
+    <string name="msg_book_deleted">Adressbuch „%1$s“ gelöscht</string>
+    <plurals name="msg_contacts_exported">
+        <item quantity="one">%1$d Kontakt exportiert</item>
+        <item quantity="other">%1$d Kontakte exportiert</item>
+    </plurals>
+    <plurals name="msg_contacts_imported">
+        <item quantity="one">%1$d Kontakt importiert (%2$s)</item>
+        <item quantity="other">%1$d Kontakte importiert (%2$s)</item>
+    </plurals>
+    <plurals name="import_created">
+        <item quantity="one">%1$d neu</item>
+        <item quantity="other">%1$d neu</item>
+    </plurals>
+    <plurals name="import_updated">
+        <item quantity="one">%1$d aktualisiert</item>
+        <item quantity="other">%1$d aktualisiert</item>
+    </plurals>
+    <plurals name="import_unchanged">
+        <item quantity="one">%1$d unverändert</item>
+        <item quantity="other">%1$d unverändert</item>
+    </plurals>
+    <plurals name="import_skipped">
+        <item quantity="one">%1$d übersprungen</item>
+        <item quantity="other">%1$d übersprungen</item>
+    </plurals>
+
+    <!-- Address books -->
+    <string name="books_title">Adressbücher</string>
+    <plurals name="book_contact_count">
+        <item quantity="one">%1$d Kontakt</item>
+        <item quantity="other">%1$d Kontakte</item>
+    </plurals>
+    <string name="book_rename">Umbenennen</string>
+    <string name="book_import">Importieren (.vcf)</string>
+    <string name="book_export">Exportieren (.vcf)</string>
+    <string name="book_new">Neues Adressbuch</string>
+    <string name="book_edit">Adressbuch bearbeiten</string>
+    <string name="dialog_delete_book_title">Adressbuch löschen?</string>
+    <plurals name="dialog_delete_book_text">
+        <item quantity="one">„%2$s“ wird mit %1$d Kontakt endgültig gelöscht – auch auf allen synchronisierten Geräten.</item>
+        <item quantity="other">„%2$s“ wird mit %1$d Kontakten endgültig gelöscht – auch auf allen synchronisierten Geräten.</item>
+    </plurals>
+
+
+    <!-- Contact details -->
+    <string name="contact_call">Anrufen</string>
+    <string name="contact_sms">SMS</string>
+    <string name="contact_email">E-Mail</string>
+    <string name="contact_nickname">„%1$s“</string>
+    <string name="contact_birthday">Geburtstag</string>
+    <string name="contact_note">Notiz</string>
+    <string name="contact_categories">Kategorien</string>
+    <string name="field_new_category">Kategorie hinzufügen</string>
+    <string name="action_add_category">Kategorie hinzufügen</string>
+    <string name="contact_address_book">Adressbuch</string>
+    <string name="contact_not_found">Kontakt nicht gefunden</string>
+    <string name="dialog_delete_contact_title">Kontakt löschen?</string>
+    <string name="dialog_delete_contact_text">„%1$s“ wird gelöscht – auch auf allen synchronisierten Geräten.</string>
+    <string name="address_po_box">Postfach %1$s</string>
+    <plurals name="birthday_age">
+        <item quantity="one">%1$s (%2$d Jahr)</item>
+        <item quantity="other">%1$s (%2$d Jahre)</item>
+    </plurals>
+    <string name="type_mobile">Mobil</string>
+    <string name="type_home">Privat</string>
+    <string name="type_work">Geschäftlich</string>
+    <string name="type_fax">Fax</string>
+    <string name="type_pager">Pager</string>
+    <string name="type_other">Sonstige</string>
+
+    <!-- Contact editor -->
+    <string name="contact_edit">Kontakt bearbeiten</string>
+    <string name="field_prefix">Präfix (z. B. Dr.)</string>
+    <string name="field_given_name">Vorname</string>
+    <string name="field_additional_names">Weitere Vornamen</string>
+    <string name="field_family_name">Nachname</string>
+    <string name="field_suffix">Suffix (z. B. jun.)</string>
+    <string name="field_nickname">Spitzname</string>
+    <string name="field_more_names">Weitere Namensfelder</string>
+    <string name="field_organization">Firma</string>
+    <string name="field_department">Abteilung</string>
+    <string name="field_job_title">Position</string>
+    <string name="section_phone">Telefon</string>
+    <string name="section_addresses">Adressen</string>
+    <string name="section_websites">Websites</string>
+    <string name="section_more">Weitere Angaben</string>
+    <string name="field_phone">Telefonnummer</string>
+    <string name="field_email">E-Mail-Adresse</string>
+    <string name="field_website">Website</string>
+    <string name="add_item">%1$s hinzufügen</string>
+    <string name="add_address">Adresse hinzufügen</string>
+    <string name="remove_address">Adresse entfernen</string>
+    <string name="field_street">Straße und Hausnummer</string>
+    <string name="field_extended">Adresszusatz</string>
+    <string name="field_postal_code">PLZ</string>
+    <string name="field_locality">Ort</string>
+    <string name="field_region">Region</string>
+    <string name="field_country">Land</string>
+    <string name="field_po_box">Postfach</string>
+    <string name="field_birthday_placeholder">TT.MM.JJJJ oder TT.MM.</string>
+    <string name="field_birthday_hint">Jahr ist optional</string>
+    <string name="field_birthday_invalid">Ungültiges Datum</string>
+    <string name="error_birthday">Geburtstag bitte als TT.MM.JJJJ oder TT.MM. eingeben</string>
+    <string name="error_address_book_required">Bitte ein Adressbuch wählen</string>
+    <string name="error_contact_empty">Bitte einen Namen, eine Firma, E-Mail-Adresse oder Telefonnummer eingeben</string>
+
+    <!-- Sign-in -->
+    <string name="login_subtitle">Kalender und Kontakte vom eigenen Server</string>
+    <string name="login_server">Server</string>
+    <string name="login_server_checking">Server wird geprüft …</string>
+    <string name="login_server_hint">Adresse der Weboberfläche</string>
+    <string name="login_server_info">%1$s %2$s</string>
+    <string name="login_tab_login">Anmelden</string>
+    <string name="login_tab_register">Registrieren</string>
+    <string name="login_password">Passwort</string>
+    <string name="login_password_hint">Mindestens 8 Zeichen</string>
+    <string name="login_show_password">Passwort anzeigen</string>
+    <string name="login_hide_password">Passwort verbergen</string>
+    <string name="login_create_account">Konto anlegen</string>
+    <string name="login_cleartext_note">Unverschlüsselte Verbindungen (http://) nur im Heimnetz verwenden.</string>
+    <string name="login_or">oder</string>
+    <string name="login_local">Ohne Server verwenden</string>
+    <string name="login_local_hint">Kalender und Kontakte nur auf diesem Gerät speichern. Die Weboberfläche wird dafür nicht gebraucht.</string>
+    <string name="local_account_name">Synchaven (lokal)</string>
+
+    <!-- Settings -->
+    <string name="settings_account">Konto</string>
+    <string name="settings_server_value">%1$s · %2$s %3$s</string>
+    <string name="settings_logout">Abmelden</string>
+    <string name="settings_local_mode">Nur auf diesem Gerät</string>
+    <string name="settings_local_mode_hint">Kalender und Kontakte werden ohne Server gespeichert. Zum Sichern eignet sich der Export als iCalendar- bzw. vCard-Datei.</string>
+    <string name="settings_connect_server">Mit Server verbinden</string>
+    <string name="dialog_connect_server_title">Mit Server verbinden?</string>
+    <string name="dialog_connect_server_text">Die mit Android synchronisierten Kalender und Kontakte werden von diesem Gerät entfernt. Die Daten der App bleiben erhalten und sind wieder da, sobald „Ohne Server verwenden“ gewählt wird – auf den Server übertragen werden sie nicht.</string>
+    <string name="settings_appearance">Darstellung</string>
+    <string name="theme_system">System</string>
+    <string name="theme_light">Hell</string>
+    <string name="theme_dark">Dunkel</string>
+    <string name="settings_dynamic_color">Farben vom Hintergrundbild</string>
+    <string name="settings_dynamic_color_hint">Material You – sonst die gewählte Grundfarbe</string>
+    <string name="settings_seed_color">Grundfarbe</string>
+    <string name="settings_default_view">Standardansicht</string>
+    <string name="settings_week_start">Woche beginnt am</string>
+    <string name="settings_week_numbers">Kalenderwochen anzeigen</string>
+    <string name="settings_about">Synchaven für Android</string>
+    <string name="settings_version">Version %1$s</string>
+    <string name="profile_title">Profil bearbeiten</string>
+    <string name="profile_new_password">Neues Passwort (optional)</string>
+    <string name="profile_current_password">Aktuelles Passwort</string>
+    <string name="profile_current_password_hint">Nötig für neue E-Mail-Adresse oder neues Passwort</string>
+    <string name="dialog_logout_title">Abmelden?</string>
+    <string name="dialog_logout_text">Die Anmeldung und die mit Android synchronisierten Kalender und Kontakte werden von diesem Gerät entfernt. Die Daten bleiben auf dem Server.</string>
+    <string name="msg_profile_saved">Profil gespeichert</string>
+    <string name="error_email_required">Bitte eine E-Mail-Adresse eingeben</string>
+    <string name="error_password_too_short">Das neue Passwort braucht mindestens 8 Zeichen</string>
+    <string name="error_current_password_required">Zum Ändern von E-Mail-Adresse oder Passwort bitte das aktuelle Passwort eingeben</string>
+
+    <!-- Sync with Android -->
+    <string name="sync_title">Mit Android synchronisieren</string>
+    <string name="sync_intro">Termine und Kontakte erscheinen im Kalender und in den Kontakten von Android – Änderungen dort werden auf den Server übertragen. DAVx⁵ wird dafür nicht mehr gebraucht.</string>
+    <string name="sync_setup">Synchronisierung einrichten</string>
+    <string name="sync_setup_hint">Die Synchronisierung für „%1$s“ konnte sich nicht mehr anmelden. Mit dem Passwort meldet sie sich neu an; es wird dafür im Android-Konto gespeichert.</string>
+    <string name="sync_reenter_password">Passwort erneut eingeben</string>
+    <string name="sync_calendar">Kalender</string>
+    <string name="sync_contacts">Kontakte</string>
+    <string name="sync_off">Aus</string>
+    <string name="sync_running">Wird synchronisiert …</string>
+    <string name="sync_pending">Noch nicht synchronisiert</string>
+    <string name="sync_last">Zuletzt: %1$s</string>
+    <string name="sync_now">Jetzt synchronisieren</string>
+    <string name="sync_interval">Automatisch synchronisieren</string>
+    <string name="sync_interval_manual">Nur bei Änderungen und von Hand</string>
+    <plurals name="sync_interval_minutes">
+        <item quantity="one">Jede Minute</item>
+        <item quantity="other">Alle %1$d Minuten</item>
+    </plurals>
+    <plurals name="sync_interval_hours">
+        <item quantity="one">Jede Stunde</item>
+        <item quantity="other">Alle %1$d Stunden</item>
+    </plurals>
+    <string name="sync_interval_daily">Einmal täglich</string>
+    <string name="sync_disable_title">%1$s vom Gerät entfernen?</string>
+    <string name="sync_disable_calendar_text">Die Synchronisierung wird ausgeschaltet und die Synchaven-Kalender verschwinden aus dem Android-Kalender. Die Termine bleiben auf dem Server.</string>
+    <string name="sync_disable_contacts_text">Die Synchronisierung wird ausgeschaltet und die Synchaven-Kontakte verschwinden aus den Android-Kontakten. Die Kontakte bleiben auf dem Server.</string>
+    <string name="sync_disable_confirm">Ausschalten</string>
+    <string name="sync_permission_denied">Ohne Berechtigung ist keine Synchronisierung möglich – bitte in den App-Einstellungen erlauben</string>
+    <string name="sync_untitled">(Ohne Titel)</string>
+    <string name="sync_error_auth">Anmeldung fehlgeschlagen – wurde das Passwort geändert? Bitte erneut eingeben.</string>
+    <string name="sync_error_permission">Berechtigung fehlt – bitte Zugriff auf Kalender bzw. Kontakte erlauben</string>
+    <plurals name="sync_items_skipped">
+        <item quantity="one">%1$d Eintrag nicht übertragen: %2$s</item>
+        <item quantity="other">%1$d Einträge nicht übertragen: %2$s</item>
+    </plurals>
+    <string name="msg_sync_set_up">Synchronisierung eingerichtet</string>
+    <string name="sync_error_account">Das Android-Konto konnte nicht angelegt werden</string>
+    <string name="sync_error_group">Gruppe „%1$s“ konnte nicht angelegt werden</string>
+
+    <!-- Offline mode -->
+    <string name="offline_title">Offline-Daten</string>
+    <string name="offline_hint">Kalender und Kontakte werden auf dem Gerät gespeichert. Ohne Verbindung zum Server bleiben sie lesbar und bearbeitbar; Änderungen werden übertragen, sobald der Server wieder erreichbar ist.</string>
+    <string name="offline_banner">Offline – gespeicherte Daten</string>
+    <plurals name="offline_pending">
+        <item quantity="one">%1$d Änderung ausstehend</item>
+        <item quantity="other">%1$d Änderungen ausstehend</item>
+    </plurals>
+    <plurals name="offline_uploading">
+        <item quantity="one">%1$d Änderung wird übertragen …</item>
+        <item quantity="other">%1$d Änderungen werden übertragen …</item>
+    </plurals>
+    <string name="offline_rejected">Änderung vom Server abgelehnt und verworfen: %1$s</string>
+    <string name="offline_last_sync">Zuletzt abgeglichen: %1$s</string>
+    <string name="offline_never">Noch nicht abgeglichen</string>
+    <string name="offline_unreachable">Server nicht erreichbar: %1$s</string>
+    <string name="offline_unreachable_plain">Server nicht erreichbar</string>
+    <string name="offline_syncing">Wird abgeglichen …</string>
+    <string name="offline_sync_now">Jetzt abgleichen</string>
+    <plurals name="dialog_logout_pending">
+        <item quantity="one">Achtung: %1$d Änderung wurde noch nicht zum Server übertragen und geht beim Abmelden verloren.</item>
+        <item quantity="other">Achtung: %1$d Änderungen wurden noch nicht zum Server übertragen und gehen beim Abmelden verloren.</item>
+    </plurals>
+
+    <!-- Errors -->
+    <string name="error_server">Serverfehler (%1$d)</string>
+    <string name="error_http">Fehler %1$d</string>
+    <string name="error_local_network">Zugriff auf das lokale Netzwerk verweigert – bitte in den App-Einstellungen erlauben</string>
+    <string name="error_unknown_host">Server nicht gefunden – Adresse prüfen</string>
+    <string name="error_connect">Server nicht erreichbar</string>
+    <string name="error_timeout">Zeitüberschreitung – der Server antwortet nicht</string>
+    <string name="error_ssl">Sichere Verbindung fehlgeschlagen (Zertifikat prüfen)</string>
+    <string name="error_unexpected_response">Unerwartete Antwort – ist das ein Synchaven-Server?</string>
+    <string name="error_not_logged_in">Nicht angemeldet</string>
+    <string name="error_invalid_server_url">Ungültige Serveradresse</string>
+    <string name="error_file_read">Datei kann nicht gelesen werden</string>
+    <string name="error_file_write">Datei kann nicht geschrieben werden</string>
+    <string name="error_unknown">Unbekannter Fehler</string>
+
+    <!-- Reminders -->
+    <string name="reminders_title">Erinnerungen</string>
+    <string name="reminder_add">Erinnerung hinzufügen</string>
+    <string name="reminder_remove">Erinnerung entfernen</string>
+    <string name="reminder_custom">Benutzerdefiniert …</string>
+    <string name="reminder_custom_title">Eigene Erinnerung</string>
+    <string name="reminder_custom_before">vorher</string>
+    <string name="reminder_custom_days">Tage vorher</string>
+    <string name="reminder_custom_at">um %1$s</string>
+    <string name="reminder_custom_invalid">Höchstens 4 Wochen vorher</string>
+    <string name="reminder_unit_minutes">Minuten</string>
+    <string name="reminder_unit_hours">Stunden</string>
+    <string name="reminder_unit_days">Tage</string>
+    <string name="reminder_unit_weeks">Wochen</string>
+    <string name="reminders_calendar_default">Standard des Kalenders</string>
+    <string name="reminders_none">Keine Erinnerung</string>
+    <string name="reminders_use_default">Standard des Kalenders verwenden</string>
+    <string name="calendar_default_reminders">Standard-Erinnerungen</string>
+    <string name="calendar_default_reminders_hint">Gelten für alle Termine dieses Kalenders ohne eigene Erinnerungen.</string>
+    <string name="reminders_timed">Termine mit Uhrzeit</string>
+    <string name="reminders_all_day">Ganztägige Termine</string>
+    <string name="reminder_at_start">Zum Beginn</string>
+    <plurals name="reminder_minutes">
+        <item quantity="one">%1$d Minute vorher</item>
+        <item quantity="other">%1$d Minuten vorher</item>
+    </plurals>
+    <plurals name="reminder_hours">
+        <item quantity="one">%1$d Stunde vorher</item>
+        <item quantity="other">%1$d Stunden vorher</item>
+    </plurals>
+    <plurals name="reminder_days">
+        <item quantity="one">%1$d Tag vorher</item>
+        <item quantity="other">%1$d Tage vorher</item>
+    </plurals>
+    <plurals name="reminder_weeks">
+        <item quantity="one">%1$d Woche vorher</item>
+        <item quantity="other">%1$d Wochen vorher</item>
+    </plurals>
+    <string name="reminder_all_day_same">Am selben Tag um %1$s</string>
+    <string name="reminder_all_day_before">Am Vortag um %1$s</string>
+    <plurals name="reminder_all_day_days">
+        <item quantity="one">%1$d Tag vorher um %2$s</item>
+        <item quantity="other">%1$d Tage vorher um %2$s</item>
+    </plurals>
+    <plurals name="reminder_all_day_weeks">
+        <item quantity="one">%1$d Woche vorher um %2$s</item>
+        <item quantity="other">%1$d Wochen vorher um %2$s</item>
+    </plurals>
+
+    <!-- Notifications -->
+    <string name="notification_channel_reminders">Erinnerungen</string>
+    <string name="notification_channel_reminders_description">Erinnerungen an Termine und fällige Aufgaben</string>
+    <string name="notification_task_due">Fällig: %1$s</string>
+    <string name="notification_today">Heute</string>
+    <string name="notification_tomorrow">Morgen</string>
+    <string name="notification_all_day">%1$s (ganztägig)</string>
+    <string name="settings_notifications">Benachrichtigungen</string>
+    <string name="settings_reminders">Erinnerungen an Termine und Aufgaben</string>
+    <string name="settings_reminders_summary">Erinnerungen werden pro Termin oder als Standard pro Kalender eingestellt. Aufgaben erinnern zur Fälligkeit, ganztägige um 09:00.</string>
+    <string name="settings_reminders_denied">Benachrichtigungen sind für Synchaven in den Android-Einstellungen ausgeschaltet.</string>
+    <string name="settings_reminders_open_settings">Einstellungen öffnen</string>
+    <string name="settings_reminders_exact">Für pünktliche Erinnerungen „Wecker und Erinnerungen“ erlauben.</string>
+
+    <!-- Tasks -->
+    <string name="tasks_title">Aufgaben</string>
+    <string name="tasks_add_hint">Aufgabe hinzufügen</string>
+    <string name="tasks_empty">Keine offenen Aufgaben</string>
+    <string name="tasks_no_lists">Noch keine Aufgabenlisten vorhanden</string>
+    <string name="tasks_completed_section">Erledigt (%1$d)</string>
+    <string name="tasks_clear_completed">Erledigte Aufgaben löschen</string>
+    <string name="tasks_select_list">Liste wählen</string>
+    <string name="task_new">Neue Aufgabe</string>
+    <string name="task_edit">Aufgabe bearbeiten</string>
+    <string name="task_title">Titel</string>
+    <string name="task_notes">Notizen</string>
+    <string name="task_list">Liste</string>
+    <string name="task_add_date">Datum hinzufügen</string>
+    <string name="task_remove_date">Datum entfernen</string>
+    <string name="task_add_time">Uhrzeit hinzufügen</string>
+    <string name="task_remove_time">Uhrzeit entfernen</string>
+    <string name="task_no_date">Ohne Datum</string>
+    <string name="task_due_today">Heute</string>
+    <string name="task_due_tomorrow">Morgen</string>
+    <string name="task_due_yesterday">Gestern</string>
+    <string name="task_due_with_time">%1$s, %2$s</string>
+    <string name="task_due_long_time">%1$s · %2$s</string>
+    <string name="task_completed_at">Erledigt am %1$s</string>
+    <string name="task_mark_done">Als erledigt markieren</string>
+    <string name="task_mark_open">Als offen markieren</string>
+    <string name="task_lists_header">Aufgaben</string>
+    <string name="task_list_new">Neue Aufgabenliste</string>
+    <string name="task_list_edit">Aufgabenliste bearbeiten</string>
+    <string name="task_list_menu">Listen-Menü</string>
+    <string name="fab_new_event">Termin</string>
+    <string name="fab_new_task">Aufgabe</string>
+    <string name="calendar_create">Erstellen</string>
+    <string name="dialog_delete_task_title">Aufgabe löschen?</string>
+    <string name="dialog_delete_task_text">„%1$s“ wird endgültig gelöscht.</string>
+    <plurals name="dialog_delete_task_with_subtasks_text">
+        <item quantity="one">„%2$s“ und eine Unteraufgabe werden endgültig gelöscht.</item>
+        <item quantity="other">„%2$s“ und %1$d Unteraufgaben werden endgültig gelöscht.</item>
+    </plurals>
+    <string name="subtasks_title">Unteraufgaben</string>
+    <string name="subtask_add_hint">Unteraufgabe hinzufügen</string>
+    <string name="subtask_of">Unteraufgabe von „%1$s“</string>
+    <string name="subtask_list_hint">In einer anderen Liste wird die Unteraufgabe zur Hauptaufgabe.</string>
+    <plurals name="subtask_move_hint">
+        <item quantity="one">Die Unteraufgabe wird mit verschoben.</item>
+        <item quantity="other">Die %1$d Unteraufgaben werden mit verschoben.</item>
+    </plurals>
+    <string name="dialog_delete_task_list_title">Aufgabenliste löschen?</string>
+    <string name="dialog_delete_task_list_text">„%1$s“ wird mit allen Aufgaben endgültig gelöscht.</string>
+    <string name="msg_task_created">Aufgabe angelegt</string>
+    <string name="msg_task_saved">Aufgabe gespeichert</string>
+    <string name="msg_task_deleted">Aufgabe gelöscht</string>
+    <string name="msg_task_done">Aufgabe erledigt</string>
+    <string name="msg_task_reopened">Aufgabe wieder offen</string>
+    <string name="msg_task_moved">Aufgabe verschoben</string>
+    <string name="msg_task_list_created">Aufgabenliste angelegt</string>
+    <string name="msg_task_list_saved">Aufgabenliste gespeichert</string>
+    <string name="msg_task_list_deleted">Aufgabenliste „%1$s“ gelöscht</string>
+    <plurals name="msg_tasks_clear_confirm">
+        <item quantity="one">%1$d erledigte Aufgabe dieser Liste wird endgültig gelöscht.</item>
+        <item quantity="other">%1$d erledigte Aufgaben dieser Liste werden endgültig gelöscht.</item>
+    </plurals>
+    <plurals name="msg_tasks_cleared">
+        <item quantity="one">%1$d erledigte Aufgabe gelöscht</item>
+        <item quantity="other">%1$d erledigte Aufgaben gelöscht</item>
+    </plurals>
+
+    <!-- Local mode: the same texts as the server's (backend/locales/de.json, key in the name) -->
+    <string name="api_calendar_default_name">Persönlich</string>
+    <string name="api_tasks_default_list_name">Meine Aufgaben</string>
+    <string name="api_contacts_default_book_name">Kontakte</string>
+    <string name="api_birthdays_calendar_name">Geburtstage</string>
+    <string name="api_birthdays_calendar_description">Wird automatisch aus den Kontakten erstellt</string>
+    <string name="api_birthdays_born_on">Geboren am %1$s</string>
+    <!-- Language of these texts, for month names in dates -->
+    <string name="api_language">de</string>
+    <!-- Date in "Born on …", as the server writes it (java.time pattern) -->
+    <string name="api_birthdays_date_pattern">dd.MM.yyyy</string>
+    <string name="api_error_not_found">Nicht gefunden</string>
+    <string name="api_local_unavailable">Im lokalen Modus nicht verfügbar</string>
+    <string name="api_validation_name_length">Der Name muss 1–100 Zeichen lang sein</string>
+    <string name="api_validation_title_length">Der Titel muss 1–500 Zeichen lang sein</string>
+    <string name="api_validation_color_format">Farbe muss im Format #RRGGBB angegeben werden</string>
+    <string name="api_tasks_last_list">Die letzte Aufgabenliste kann nicht gelöscht werden</string>
+    <string name="api_tasks_own_subtask">Eine Aufgabe kann nicht ihre eigene Unteraufgabe sein</string>
+    <string name="api_tasks_parent_missing">Die übergeordnete Aufgabe gibt es nicht</string>
+    <string name="api_tasks_nested_subtask">Unteraufgaben können keine eigenen Unteraufgaben haben</string>
+    <string name="api_tasks_parent_with_subtasks">Eine Aufgabe mit Unteraufgaben kann keine Unteraufgabe werden</string>
+    <string name="api_tasks_invalid_due">Ungültige Fälligkeit</string>
+    <string name="api_calendar_birthdays_not_deletable">Der Geburtstagskalender kann nicht gelöscht, aber ausgeblendet werden</string>
+    <string name="api_calendar_birthdays_read_only">Der Geburtstagskalender wird automatisch aus den Kontakten erstellt</string>
+    <string name="api_event_birthday_read_only">Geburtstage werden über den Kontakt bearbeitet</string>
+    <string name="api_event_invalid_time">Ungültiger Zeitpunkt: %1$s</string>
+    <string name="api_event_invalid_start">Ungültiger Beginn: %1$s</string>
+    <string name="api_event_invalid_end">Ungültiges Ende: %1$s</string>
+    <string name="api_event_range_end_before_start">`end` muss nach `start` liegen</string>
+    <string name="api_event_end_before_start">Das Ende darf nicht vor dem Beginn liegen</string>
+    <string name="api_event_not_recurring">Der Termin ist keine Serie</string>
+    <string name="api_event_unknown_time_zone">Unbekannte Zeitzone: %1$s</string>
+    <string name="api_recurrence_empty">Leere Wiederholungsregel</string>
+    <string name="api_recurrence_invalid">Ungültige Wiederholungsregel: %1$s</string>
+    <string name="api_reminders_too_many">Höchstens %1$d Erinnerungen pro Termin</string>
+    <string name="api_reminders_range">Erinnerungen: höchstens 4 Wochen und frühestens zum Beginn des Termins</string>
+    <string name="api_reminders_range_all_day">Erinnerungen an ganztägige Termine: höchstens 4 Wochen vorher, spätestens 23:59 am Tag selbst</string>
+    <string name="api_ical_invalid_file">Keine gültige iCalendar-Datei (BEGIN:VCALENDAR fehlt)</string>
+    <string name="api_ical_rrule_ignored">%1$s: Wiederholungsregel ignoriert</string>
+    <string name="api_contacts_no_vcards">Keine vCards gefunden (BEGIN:VCARD fehlt)</string>
+    <string name="api_contacts_uid_too_long">%1$s: UID zu lang</string>
+    <string name="api_contacts_book_not_found">Adressbuch nicht gefunden</string>
+    <string name="api_contacts_name_required">Bitte einen Namen, eine Firma, E-Mail-Adresse oder Telefonnummer angeben</string>
+    <string name="api_contacts_too_long">Name oder Notiz ist zu lang</string>
+    <string name="api_contacts_categories">Zu viele oder zu lange Kategorien</string>
+    <string name="api_contacts_invalid_birthday">Ungültiger Geburtstag</string>
+    <string name="api_contacts_photo_too_large">Das Foto ist zu groß (max. 3,5 MB)</string>
+    <string name="api_contacts_photo_format">Das Foto muss als data:-URL (Base64) übergeben werden</string>
+</resources>

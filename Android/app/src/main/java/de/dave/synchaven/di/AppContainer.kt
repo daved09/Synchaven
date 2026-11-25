@@ -12,6 +12,7 @@ import de.dave.synchaven.data.api.NetworkFactory
 import de.dave.synchaven.data.api.SessionApi
 import de.dave.synchaven.data.local.LOCAL_ACCOUNT
 import de.dave.synchaven.data.local.LocalApi
+import de.dave.synchaven.data.local.LocalTexts
 import de.dave.synchaven.data.offline.OfflineStore
 import de.dave.synchaven.data.offline.OfflineSync
 import de.dave.synchaven.data.store.AppDataStore
@@ -42,7 +43,11 @@ class AppContainer(context: Context) {
     val offlineStore = OfflineStore(context, appScope)
 
     /** "Server" of the local mode – also for the sync with Android (see sync/SyncApi.kt) */
-    val localApi = LocalApi(offlineStore) { sessionStore.current?.defaultView?.apiValue ?: ViewMode.MONTH.apiValue }
+    val localApi = LocalApi(
+        offlineStore,
+        // Resources of the application context follow the current language (device or per-app setting)
+        texts = LocalTexts { id, args -> context.getString(id, *args) },
+    ) { sessionStore.current?.defaultView?.apiValue ?: ViewMode.MONTH.apiValue }
     private val api = SessionApi(NetworkFactory.api(httpClient), localApi) { sessionStore.current?.local == true }
     val offlineSync: OfflineSync = OfflineSync(
         context, api, offlineStore, sessionStore, appScope,

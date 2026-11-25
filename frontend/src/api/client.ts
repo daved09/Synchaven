@@ -1,7 +1,7 @@
 import type {
-  AdminOverview, AdminSettings, AdminSettingsValues, AdminUser, AdminUserInput, AddressBook, AddressBookInput, AuthResponse, CalEvent, Calendar, CalendarInput, Contact, ContactImportResult,
+  AdminOverview, AdminSettings, AdminSettingsValues, AdminUser, AdminUserInput, AddressBook, AppPassword, AddressBookInput, AuthResponse, CalEvent, Calendar, CalendarInput, Contact, ContactImportResult,
   ContactInput, DbImportReport, EventInput, ImportResult, LogEntry, Occurrence, PushSubscriptionInput, ServerInfo, Task, TaskInput,
-  TaskList, TaskListInput, User, ViewMode,
+  TaskList, TaskListInput, TotpSetup, TotpStatus, User, ViewMode,
 } from './types'
 import { language, t } from '@/i18n'
 
@@ -35,9 +35,10 @@ interface Options {
   asText?: boolean
 }
 
-/** Requests whose 401 means a wrong password – not an ended session */
+/** Requests whose 401 means a wrong password or code – not an ended session */
 function checksCredentials(method: string, path: string) {
-  return path.startsWith('/auth/login') || (method === 'PUT' && path === '/auth/me')
+  return path.startsWith('/auth/login') || path.startsWith('/auth/totp/') ||
+    (method === 'PUT' && path === '/auth/me') || (method === 'POST' && path === '/auth/app-passwords')
 }
 
 async function request<T>(method: string, path: string, opts: Options = {}): Promise<T> {
@@ -84,7 +85,9 @@ async function request<T>(method: string, path: string, opts: Options = {}): Pro
 export const api = {
   info: () => request<ServerInfo>('GET', '/info'),
 
-  login: (email: string, password: string) => request<AuthResponse>('POST', '/auth/login', { body: { email, password } }),
+  /** `code`: code of the authenticator app or a recovery code, for accounts with two-factor authentication */
+  login: (email: string, password: string, code?: string) =>
+    request<AuthResponse>('POST', '/auth/login', { body: { email, password, code } }),
   /** `language`: language of the initial data (calendar, task list, address book) */
   register: (email: string, password: string, name: string, language: 'de' | 'en') =>
     request<AuthResponse>('POST', '/auth/register', { body: { email, password, name, language } }),
@@ -94,6 +97,21 @@ export const api = {
     language?: 'de' | 'en'
   }) =>
     request<User>('PUT', '/auth/me', { body: data }),
+
+  totpStatus: () => request<TotpStatus>('GET', '/auth/totp'),
+  totpSetup: (currentPassword: string) =>
+    request<TotpSetup>('POST', '/auth/totp/setup', { body: { current_password: currentPassword } }),
+  totpEnable: (code: string) => request<{ recovery_codes: string[] }>('POST', '/auth/totp/enable', { body: { code } }),
+  totpDisable: (currentPassword: string, code: string) =>
+    request<void>('POST', '/auth/totp/disable', { body: { current_password: currentPassword, code } }),
+  totpRecoveryCodes: (currentPassword: string, code: string) =>
+    request<{ recovery_codes: string[] }>('POST', '/auth/totp/recovery-codes', {
+      body: { current_password: currentPassword, code },
+    }),
+  appPasswords: () => request<AppPassword[]>('GET', '/auth/app-passwords'),
+  createAppPassword: (name: string, currentPassword: string) =>
+    request<AppPassword>('POST', '/auth/app-passwords', { body: { name, current_password: currentPassword } }),
+  deleteAppPassword: (id: string) => request<void>('DELETE', `/auth/app-passwords/${id}`),
 
   calendars: () => request<Calendar[]>('GET', '/calendars'),
   createCalendar: (data: CalendarInput) => request<Calendar>('POST', '/calendars', { body: data }),

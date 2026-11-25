@@ -27,6 +27,8 @@ data class User(
     /** The calendar's default view: `month`, `week`, `day` or `list` */
     @SerialName("default_view") val defaultView: String = "month",
     @SerialName("created_at") val createdAt: String = "",
+    /** Sign-in needs a code of an authenticator app */
+    @SerialName("totp_enabled") val totpEnabled: Boolean = false,
 )
 
 @Serializable
@@ -37,7 +39,12 @@ data class AuthResponse(
 )
 
 @Serializable
-data class LoginRequest(val email: String, val password: String)
+data class LoginRequest(
+    val email: String,
+    val password: String,
+    /** Code of the authenticator app or a recovery code, for accounts with two-factor authentication */
+    val code: String? = null,
+)
 
 @Serializable
 data class RegisterRequest(val email: String, val password: String, val name: String)

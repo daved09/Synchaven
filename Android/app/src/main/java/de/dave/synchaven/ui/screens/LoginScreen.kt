@@ -21,6 +21,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.ErrorOutline
+import androidx.compose.material.icons.outlined.Password
 import androidx.compose.material.icons.outlined.PhoneAndroid
 import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material.icons.outlined.VisibilityOff
@@ -38,12 +39,16 @@ import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -147,7 +152,10 @@ fun LoginScreen() {
                     label = { Text(stringResource(R.string.login_password)) }, singleLine = true,
                     supportingText = if (s.register) ({ Text(stringResource(R.string.login_password_hint)) }) else null,
                     visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Go),
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Password,
+                        imeAction = if (s.needsCode) ImeAction.Next else ImeAction.Go,
+                    ),
                     keyboardActions = KeyboardActions(onGo = { vm.submit() }),
                     trailingIcon = {
                         IconButton(onClick = { showPassword = !showPassword }) {
@@ -159,6 +167,21 @@ fun LoginScreen() {
                     },
                     modifier = Modifier.fillMaxWidth(),
                 )
+
+                if (s.needsCode) {
+                    val focus = remember { FocusRequester() }
+                    LaunchedEffect(Unit) { focus.requestFocus() }
+                    OutlinedTextField(
+                        value = s.code, onValueChange = vm::onCodeChange,
+                        label = { Text(stringResource(R.string.login_code)) }, singleLine = true,
+                        leadingIcon = { Icon(Icons.Outlined.Password, null) },
+                        supportingText = { Text(stringResource(R.string.login_code_hint)) },
+                        // Recovery codes contain letters as well
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii, imeAction = ImeAction.Go),
+                        keyboardActions = KeyboardActions(onGo = { vm.submit() }),
+                        modifier = Modifier.fillMaxWidth().focusRequester(focus),
+                    )
+                }
 
                 s.error?.let {
                     Text(it.asString(), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)

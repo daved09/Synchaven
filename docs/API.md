@@ -32,7 +32,10 @@ This also applies when an administrator has disabled the account, signed it out 
 | 401  | `unauthorized` | Not signed in / wrong password / account disabled / session ended |
 | 403  | `forbidden`    | e.g. registration disabled, sign-in of a disabled account |
 | 404  | `not_found`    | Does not exist or belongs to another user  |
+| 401  | `totp_required` | Correct password, but the account has two-factor authentication: send `code` as well |
+| 401  | `totp_invalid` | The code of the second factor is wrong or was already used |
 | 409  | `conflict`     | Email already registered                   |
+| 429  | `too_many_requests` | Too many wrong codes of the second factor (5 within 5 minutes per account) |
 | 500  | `internal`     | Server error                               |
 
 ## Time model
@@ -72,7 +75,7 @@ Response (also for login):
   "token": "eyJ…",
   "token_type": "Bearer",
   "expires_at": "2026-12-22T18:56:04Z",
-  "user": { "id": "…", "email": "anna@example.com", "name": "Anna", "default_view": "month", "language": "de", "created_at": "…", "is_admin": false }
+  "user": { "id": "…", "email": "anna@example.com", "name": "Anna", "default_view": "month", "language": "de", "created_at": "…", "is_admin": false, "totp_enabled": false }
 }
 ```
 `default_view` is the calendar's default view (`month`, `week`, `day` or `list`). The web UI and the app
@@ -85,8 +88,14 @@ account gets `403` when signing in with the correct password.
 
 ### `POST /auth/login`
 ```json
-{ "email": "anna@example.com", "password": "…" }
+{ "email": "anna@example.com", "password": "…", "code": "123456" }
 ```
+`code` is only needed for accounts with two-factor authentication (`totp_enabled`): the 6-digit code of the
+authenticator app or one of the recovery codes (`xxxxx-xxxxx`, dashes and case don't matter). Without `code`, such an
+account gets `401` with `error: "totp_required"` after a correct password – the client then asks for the code and
+sends the request again with it. A wrong or already used code gives `401` with `totp_invalid`; each code is accepted
+only once. After 5 wrong codes within 5 minutes, further codes for the account are rejected with `429` for the rest of
+those 5 minutes.
 
 ### `POST /auth/refresh` → like login
 Returns a new token (same response as `/auth/login`) for a session that is still valid. The Android app uses this
@@ -101,6 +110,48 @@ All fields optional. `current_password` is required for changing `email` or `new
 ```
 Changing `language` updates the texts of the birthday events; existing calendars, lists and address books keep their
 names.
+
+## Two-factor authentication (TOTP)
+
+Codes follow RFC 6238 (SHA-1, 6 digits, 30 seconds, ±30 seconds tolerance) – supported by every authenticator app.
+Changes need the account password (`current_password`) again; a wrong one gives `401` (`unauthorized`).
+
+### `GET /auth/totp`
+```json
+{ "enabled": true, "recovery_codes_left": 9 }
+```
+
+### `POST /auth/totp/setup`
+`{ "current_password": "…" }` – starts the setup with a new secret (`409` if two-factor authentication is already on):
+```json
+{ "secret": "JBSWY3DPEHPK3PXP…", "otpauth_uri": "otpauth://totp/Synchaven:anna@example.com?secret=…", "qr_code": "data:image/svg+xml;base64,…" }
+```
+`qr_code` shows `otpauth_uri` as a QR code for scanning; on phones `otpauth_uri` opens the authenticator app directly.
+
+### `POST /auth/totp/enable`
+`{ "code": "123456" }` – confirms the setup with a code of the new secret. Only then is two-factor authentication on.
+Response: `{ "recovery_codes": ["kjtfb-h74hx", …] }` – 10 codes, shown only this once; each one replaces a code of the
+app once.
+
+### `POST /auth/totp/disable` → `204`
+`{ "current_password": "…", "code": "123456" }` – `code` may also be a recovery code.
+
+### `POST /auth/totp/recovery-codes`
+`{ "current_password": "…", "code": "123456" }` – new recovery codes (response like `enable`); the old ones become invalid.
+
+## App passwords
+
+Random passwords for sync clients that cannot enter a code (CardDAV). With two-factor authentication on, CardDAV only
+accepts app passwords; without it, both the account password and app passwords work.
+
+`AppPassword`: `{ "id": "…", "name": "DAVx⁵ on my phone", "created_at": "…", "last_used_at": "…" }`
+(`last_used_at` is updated at most once per hour; `null` = never used)
+
+| Method | Path | Body | Response |
+|--------|------|------|----------|
+| GET    | `/auth/app-passwords` | – | `AppPassword[]` (newest first) |
+| POST   | `/auth/app-passwords` | `{ "name": "…", "current_password": "…" }` | `201 AppPassword` plus `"password": "abcd-efgh-jkmn-pqrs"` – shown only this once |
+| DELETE | `/auth/app-passwords/{id}` | – | `204` – clients using it can no longer sign in |
 
 ## Calendars
 
@@ -430,7 +481,7 @@ The lifetime applies to newly issued tokens.
 All accounts, oldest first:
 ```json
 [ { "id": "…", "email": "anna@example.com", "name": "Anna", "is_admin": true, "disabled": false,
-    "created_at": "…", "last_login_at": "…", "calendars": 2, "events": 120, "contacts": 35, "tasks": 12, "devices": 1 } ]
+    "created_at": "…", "last_login_at": "…", "totp_enabled": false, "calendars": 2, "events": 120, "contacts": 35, "tasks": 12, "devices": 1 } ]
 ```
 `last_login_at` is the last sign-in or token refresh (`null` = never), `devices` the number of browsers with
 notifications.
@@ -440,14 +491,15 @@ notifications.
 account with its initial data in `language` (optional, like for registration), even if registration is closed. Response like an entry from `GET /admin/users`.
 
 ### `PUT /admin/users/{id}`
-Optional `name`, `email`, `password`, `is_admin`, `disabled`; only the given fields are changed. A new password
+Optional `name`, `email`, `password`, `is_admin`, `disabled`, `reset_totp`; only the given fields are changed.
+`reset_totp: true` turns two-factor authentication off, e.g. when the phone with the authenticator app is lost. A new password
 invalidates all tokens of the account (except for your own account). Disabled accounts (`disabled: true`) can neither
 sign in nor sync via CardDAV; their tokens are rejected. Your own account cannot be disabled
 or demoted (`400`).
 
 ### `POST /admin/users/{id}/logout`
-Invalidates all tokens issued so far for the account. CardDAV clients sign in with the password and are
-not affected. Not for your own account (`400`).
+Invalidates all tokens issued so far for the account. CardDAV clients sign in with the password or an app password
+and are not affected. Not for your own account (`400`).
 
 ### `DELETE /admin/users/{id}` → `204`
 Deletes the account with all calendars, events, address books, contacts and tasks. Not for your own account (`400`).
@@ -485,7 +537,8 @@ push subscriptions are deleted. Tokens stay valid as long as the user still exis
 ## CardDAV (DAVx⁵, Thunderbird, iOS)
 
 Independently of the REST API, the server provides address books via CardDAV (RFC 6352). Sign-in via HTTP Basic
-with email address and password. Base URL: `https://<server>/dav/` (discovery also via `/.well-known/carddav`).
+with email address and an app password (see above) or – only while two-factor authentication is off – the account
+password. Base URL: `https://<server>/dav/` (discovery also via `/.well-known/carddav`).
 
 | Path | Content |
 |------|--------|

@@ -14,6 +14,7 @@ const name = ref('')
 const email = ref('')
 const password = ref('')
 const isAdmin = ref(false)
+const resetTotp = ref(false)
 /** Language of the new account's initial data */
 const accountLanguage = ref<Language>(language)
 const showPassword = ref(false)
@@ -29,6 +30,7 @@ watch(open, (v) => {
   email.value = props.user?.email ?? ''
   password.value = ''
   isAdmin.value = props.user?.is_admin ?? false
+  resetTotp.value = false
   accountLanguage.value = language
   showPassword.value = false
 })
@@ -56,6 +58,7 @@ async function save() {
       const data: AdminUserInput = { name: name.value, email: email.value }
       if (password.value) data.password = password.value
       if (!isOwn.value) data.is_admin = isAdmin.value
+      if (resetTotp.value) data.reset_totp = true
       saved = await api.updateAdminUser(props.user.id, data)
       notify.info(password.value && !isOwn.value ? t('userDialog.savedSignedOut') : t('userDialog.saved'))
     } else {
@@ -110,6 +113,10 @@ async function save() {
           <div class="text-body-small text-medium-emphasis">
             {{ $t('userDialog.adminHint') }}
           </div>
+          <template v-if="user?.totp_enabled">
+            <v-checkbox v-model="resetTotp" :label="$t('userDialog.resetTotp')" color="error" hide-details class="mt-2" />
+            <div class="text-body-small text-medium-emphasis">{{ $t('userDialog.resetTotpHint') }}</div>
+          </template>
         </v-form>
       </v-card-text>
       <template #actions>

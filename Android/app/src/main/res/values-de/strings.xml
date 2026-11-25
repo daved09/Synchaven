@@ -307,6 +307,8 @@
     <string name="login_password_hint">Mindestens 8 Zeichen</string>
     <string name="login_show_password">Passwort anzeigen</string>
     <string name="login_hide_password">Passwort verbergen</string>
+    <string name="login_code">Code aus der Authenticator-App</string>
+    <string name="login_code_hint">Die Zwei-Faktor-Authentifizierung ist aktiv. Ein Wiederherstellungscode geht auch.</string>
     <string name="login_create_account">Konto anlegen</string>
     <string name="login_cleartext_note">Unverschlüsselte Verbindungen (http://) nur im Heimnetz verwenden.</string>
     <string name="login_or">oder</string>

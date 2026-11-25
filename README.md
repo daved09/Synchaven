@@ -7,6 +7,8 @@ Material 3 design** (Vuetify), a **REST API** for custom clients such as an Andr
 ## Features
 
 * Multi-user with registration/sign-in (Argon2 passwords, JWT bearer tokens)
+* **Two-factor authentication** with an authenticator app (TOTP, e.g. Aegis, Google Authenticator, 2FAS) and
+  recovery codes; **app passwords** for CardDAV clients, revocable per device
 * Multiple colored calendars per user, can be shown/hidden
 * All-day, multi-day and timed events
 * Recurring events (RFC 5545 RRULE: daily, weekly, monthly, yearly, custom),
@@ -109,7 +111,7 @@ The **administrator** is the first account to be registered. The first account c
 * **Overview:** version, uptime, database size, number of users, events, contacts etc. and the
   server configuration from the environment variables
 * **Users:** create accounts (also with registration closed), change name/email, reset password,
-  grant admin rights, disable and enable accounts, sign out on all devices and delete. A disabled
+  turn off two-factor authentication (e.g. after losing the phone), grant admin rights, disable and enable accounts, sign out on all devices and delete. A disabled
   account can neither sign in nor sync via CardDAV. Your own account cannot be disabled, deleted
   or demoted – so there is always an administrator left.
 * **Settings:** open/close registration and session lifetime. Stored values take precedence over
@@ -135,11 +137,21 @@ subscribed individually; there is also a test notification. Requirements:
 The server's key (VAPID) is stored in `vapid_private_key` in the data directory. If it is lost, the
 browsers have to enable notifications again.
 
+### Two-factor authentication
+
+Under *Account → Security* each user can turn on two-factor authentication: scan the QR code with an
+authenticator app (or enter the key), confirm with a code, and keep the 10 recovery codes shown – each one signs in
+once without the app. Signing in to the web UI and the Android app then also asks for a code. CardDAV clients such
+as DAVx⁵ cannot enter codes: they need an **app password**, created in the same dialog and revocable per device.
+If someone loses the phone and the recovery codes, an administrator can turn two-factor authentication off for the
+account in the admin page.
+
 ### Syncing contacts with DAVx⁵
 
 1. In DAVx⁵, tap **+** and choose **Login with URL and user name**.
 2. Base URL `https://<server>/dav/` (the start address works as well), user name = email address,
-   password = sign-in password.
+   password = an app password (*Account → Security → App passwords*) or the sign-in password. With two-factor
+   authentication on, only app passwords work.
 3. Create the account and enable the address books in the **CardDAV** tab.
 
 The web UI shows the same details under *Contacts → Sync with DAVx⁵*. Since the password is sent with
@@ -227,7 +239,8 @@ and contacts into the Android calendar and the system contacts – via its own S
 in both directions. Changes in Android's calendar or contacts app are uploaded, changes on
 the server are taken over periodically (configurable, hourly by default) and after every change in the app. Enable it
 under *Settings → Sync with Android*, separately for calendars and contacts. For this, the password is stored in the
-Android account so the sync can sign in again by itself after the token expires.
+Android account so the sync can sign in again by itself after the token expires – except for accounts with
+two-factor authentication: their sync only renews its token and asks to sign in again if it has expired anyway.
 
 * Series are transferred with RRULE/EXDATE; a single occurrence modified or cancelled on the device becomes a
   separate event or an EXDATE of the series on the server (as with .ics import).

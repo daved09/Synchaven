@@ -217,6 +217,7 @@ struct AdminUserRow {
     disabled: bool,
     created_at: String,
     last_login_at: Option<String>,
+    totp_enabled: bool,
     calendars: i64,
     events: i64,
     contacts: i64,
@@ -233,6 +234,8 @@ pub struct AdminUser {
     disabled: bool,
     created_at: DateTime<Utc>,
     last_login_at: Option<DateTime<Utc>>,
+    /// Sign-in with two-factor authentication (TOTP)
+    totp_enabled: bool,
     /// Own calendars (without the birthday calendar)
     calendars: i64,
     /// Events without birthdays
@@ -253,6 +256,7 @@ impl From<AdminUserRow> for AdminUser {
             disabled: r.disabled,
             created_at: time::from_db(&r.created_at),
             last_login_at: r.last_login_at.as_deref().map(time::from_db),
+            totp_enabled: r.totp_enabled,
             calendars: r.calendars,
             events: r.events,
             contacts: r.contacts,
@@ -263,6 +267,7 @@ impl From<AdminUserRow> for AdminUser {
 }
 
 const USER_SELECT: &str = "SELECT u.id, u.email, u.name, u.is_admin, u.disabled, u.created_at, u.last_login_at, \
+    u.totp_secret IS NOT NULL AS totp_enabled, \
     (SELECT COUNT(*) FROM calendars c WHERE c.user_id = u.id AND c.kind = 'default') AS calendars, \
     (SELECT COUNT(*) FROM events e JOIN calendars c ON c.id = e.calendar_id \
        WHERE c.user_id = u.id AND e.contact_id IS NULL) AS events, \
@@ -321,6 +326,9 @@ pub struct UpdateUserInput {
     password: Option<String>,
     is_admin: Option<bool>,
     disabled: Option<bool>,
+    /// `true`: turn two-factor authentication off (e.g. the phone with the authenticator app is lost)
+    #[serde(default)]
+    reset_totp: bool,
 }
 
 /// `PUT /api/admin/users/{id}` – only the given fields are changed
@@ -387,6 +395,10 @@ pub async fn update(
     .bind(&id)
     .execute(&state.db)
     .await?;
+    if input.reset_totp && user.totp_secret.is_some() {
+        super::security::disable_for(&state, &id).await?;
+        tracing::info!("Account {id}: two-factor authentication turned off by administrator {}", auth.id);
+    }
     tracing::info!("Account {id} changed by administrator {}", auth.id);
     Ok(Json(load_admin_user(&state, &id).await?))
 }

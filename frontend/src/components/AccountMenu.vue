@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import ProfileDialog from '@/components/ProfileDialog.vue'
+import SecurityDialog from '@/components/SecurityDialog.vue'
 import SettingsDialog from '@/components/SettingsDialog.vue'
 import { useAuthStore } from '@/stores/auth'
 import { useCalendarsStore } from '@/stores/calendars'
@@ -19,6 +20,7 @@ const tasks = useTasksStore()
 
 const profileOpen = ref(false)
 const settingsOpen = ref(false)
+const securityOpen = ref(false)
 
 const initials = computed(() =>
   (auth.user?.name || auth.user?.email || '?').split(/[\s@.]+/).filter(Boolean).slice(0, 2).map((s) => s[0].toUpperCase()).join(''),
@@ -35,7 +37,7 @@ async function logout() {
   router.replace({ name: 'login' })
 }
 
-defineExpose({ dialogOpen: computed(() => profileOpen.value || settingsOpen.value) })
+defineExpose({ dialogOpen: computed(() => profileOpen.value || settingsOpen.value || securityOpen.value) })
 </script>
 
 <template>
@@ -50,6 +52,7 @@ defineExpose({ dialogOpen: computed(() => profileOpen.value || settingsOpen.valu
       <v-divider />
       <v-list density="compact" bg-color="transparent">
         <v-list-item prepend-icon="mdi-account-outline" :title="$t('profile.title')" @click="profileOpen = true" />
+        <v-list-item prepend-icon="mdi-shield-lock-outline" :title="$t('security.title')" @click="securityOpen = true" />
         <v-list-item prepend-icon="mdi-cog-outline" :title="$t('settings.title')" @click="settingsOpen = true" />
         <v-list-item
           v-if="auth.user?.is_admin" prepend-icon="mdi-shield-account-outline" :title="$t('admin.title')" :to="{ name: 'admin' }"
@@ -60,4 +63,5 @@ defineExpose({ dialogOpen: computed(() => profileOpen.value || settingsOpen.valu
   </v-menu>
   <ProfileDialog v-model="profileOpen" />
   <SettingsDialog v-model="settingsOpen" />
+  <SecurityDialog v-model="securityOpen" />
 </template>

@@ -154,6 +154,7 @@ async function remove(u: AdminUser) {
             <v-chip v-if="u.is_admin" size="x-small" color="primary" variant="tonal" prepend-icon="mdi-shield-account-outline">
               {{ $t('userDialog.admin') }}
             </v-chip>
+            <v-chip v-if="u.totp_enabled" size="x-small" variant="tonal" prepend-icon="mdi-shield-key-outline">{{ $t('users.totpChip') }}</v-chip>
             <v-chip v-if="u.disabled" size="x-small" color="error" variant="tonal" prepend-icon="mdi-lock-outline">{{ $t('users.disabledChip') }}</v-chip>
           </v-list-item-title>
           <v-list-item-subtitle>{{ u.email }} · {{ stats(u) }}</v-list-item-subtitle>

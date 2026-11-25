@@ -11,6 +11,33 @@ export interface User {
   created_at: string
   /** May open the admin page (initially the first registered account) */
   is_admin: boolean
+  /** Sign-in needs a code of an authenticator app */
+  totp_enabled: boolean
+}
+
+export interface TotpStatus {
+  enabled: boolean
+  /** Unused recovery codes */
+  recovery_codes_left: number
+}
+
+export interface TotpSetup {
+  /** Base32 secret for entering it by hand */
+  secret: string
+  /** `otpauth://` link, opens the authenticator app on phones */
+  otpauth_uri: string
+  /** QR code as data URL */
+  qr_code: string
+}
+
+/** App password for sync clients (CardDAV) */
+export interface AppPassword {
+  id: string
+  name: string
+  created_at: string
+  last_used_at: string | null
+  /** Only in the response to creating it */
+  password?: string
 }
 
 /** Account in the admin page's user list */
@@ -23,6 +50,8 @@ export interface AdminUser {
   disabled: boolean
   created_at: string
   last_login_at: string | null
+  /** Sign-in with two-factor authentication */
+  totp_enabled: boolean
   calendars: number
   events: number
   contacts: number
@@ -37,6 +66,8 @@ export interface AdminUserInput {
   password?: string
   is_admin?: boolean
   disabled?: boolean
+  /** Turn two-factor authentication off */
+  reset_totp?: boolean
 }
 
 export interface AdminSettingsValues {

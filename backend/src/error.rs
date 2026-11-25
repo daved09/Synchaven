@@ -18,6 +18,14 @@ pub enum AppError {
     NotFound,
     #[error("{0}")]
     Conflict(String),
+    /// Correct password, but the account needs a code of the authenticator app (or a recovery code)
+    #[error("{0}")]
+    TotpRequired(String),
+    /// The code of the second factor is wrong or was already used
+    #[error("{0}")]
+    TotpInvalid(String),
+    #[error("{0}")]
+    TooManyRequests(String),
     #[error("Internal error")]
     Internal(#[from] anyhow::Error),
 }
@@ -41,6 +49,9 @@ impl IntoResponse for AppError {
             AppError::Forbidden(_) => (StatusCode::FORBIDDEN, "forbidden"),
             AppError::NotFound => (StatusCode::NOT_FOUND, "not_found"),
             AppError::Conflict(_) => (StatusCode::CONFLICT, "conflict"),
+            AppError::TotpRequired(_) => (StatusCode::UNAUTHORIZED, "totp_required"),
+            AppError::TotpInvalid(_) => (StatusCode::UNAUTHORIZED, "totp_invalid"),
+            AppError::TooManyRequests(_) => (StatusCode::TOO_MANY_REQUESTS, "too_many_requests"),
             AppError::Internal(e) => {
                 tracing::error!("Internal error: {e:#}");
                 (StatusCode::INTERNAL_SERVER_ERROR, "internal")

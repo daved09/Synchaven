@@ -1,6 +1,7 @@
 //! CardDAV server (RFC 6352) for syncing with DAVx⁵, Thunderbird, iOS and others.
 //!
-//! Sign-in via HTTP Basic with the account's email address and password.
+//! Sign-in via HTTP Basic with the account's email address and an app password or – only while
+//! two-factor authentication is off – the account password.
 //!
 //! ```text
 //! /.well-known/carddav                      → redirect to /dav/
@@ -102,6 +103,20 @@ async fn authenticate(state: &AppState, headers: &HeaderMap) -> AppResult<Option
         return Ok(None);
     }
 
+    // App passwords are long random strings: a SHA-256 lookup is enough, no cache needed – a deleted one
+    // stops working immediately.
+    if let Some(app_id) = app_password(state, &user.id, password).await? {
+        tracing::debug!("CardDAV: account {} signed in with app password {app_id}", user.id);
+        return Ok(Some(DavUser { id: user.id, name: user.name }));
+    }
+    if user.totp_secret.is_some() {
+        tracing::warn!(
+            "CardDAV: rejected sign-in for account {}: two-factor authentication is on, an app password is needed",
+            user.id
+        );
+        return Ok(None);
+    }
+
     let key = cache_key(&email, password, &user.password_hash);
     let cached = {
         let map = state.dav_auth.0.lock().unwrap();
@@ -123,6 +138,25 @@ async fn authenticate(state: &AppState, headers: &HeaderMap) -> AppResult<Option
         map.insert(key, now + AUTH_TTL);
     }
     Ok(Some(DavUser { id: user.id, name: user.name }))
+}
+
+/// ID of the account's app password `password`, if it is one; records its use (at most once per hour).
+async fn app_password(state: &AppState, user_id: &str, password: &str) -> AppResult<Option<String>> {
+    let hash = crate::totp::hash_code(password);
+    let id: Option<(String,)> = sqlx::query_as("SELECT id FROM app_passwords WHERE user_id = ? AND password_hash = ?")
+        .bind(user_id)
+        .bind(&hash)
+        .fetch_optional(&state.db)
+        .await?;
+    let Some((id,)) = id else { return Ok(None) };
+    let now = crate::time::now();
+    sqlx::query("UPDATE app_passwords SET last_used_at = ? WHERE id = ? AND (last_used_at IS NULL OR last_used_at < ?)")
+        .bind(crate::time::to_db(now))
+        .bind(&id)
+        .bind(crate::time::to_db(now - chrono::Duration::hours(1)))
+        .execute(&state.db)
+        .await?;
+    Ok(Some(id))
 }
 
 fn unauthorized() -> Response {

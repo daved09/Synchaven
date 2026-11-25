@@ -14,6 +14,7 @@ mod contacts;
 mod events;
 mod ical;
 mod push;
+mod security;
 mod tasks;
 
 pub fn api_router() -> Router<AppState> {
@@ -23,6 +24,13 @@ pub fn api_router() -> Router<AppState> {
         .route("/auth/login", post(auth::login))
         .route("/auth/me", get(auth::me).put(auth::update_me))
         .route("/auth/refresh", post(auth::refresh))
+        .route("/auth/totp", get(security::status))
+        .route("/auth/totp/setup", post(security::setup))
+        .route("/auth/totp/enable", post(security::enable))
+        .route("/auth/totp/disable", post(security::disable))
+        .route("/auth/totp/recovery-codes", post(security::regenerate_recovery_codes))
+        .route("/auth/app-passwords", get(security::list_app_passwords).post(security::create_app_password))
+        .route("/auth/app-passwords/{id}", axum::routing::delete(security::delete_app_password))
         .route("/calendars", get(calendars::list).post(calendars::create))
         .route(
             "/calendars/{id}",

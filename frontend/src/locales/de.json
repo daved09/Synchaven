@@ -289,7 +289,12 @@
     "register": "Registrieren",
     "haveAccount": "Bereits registriert?",
     "noAccount": "Noch kein Konto?",
-    "languageHint": "Kalender, Aufgabenliste und Adressbuch werden in dieser Sprache angelegt."
+    "languageHint": "Kalender, Aufgabenliste und Adressbuch werden in dieser Sprache angelegt.",
+    "twoFactor": "Zwei-Faktor-Authentifizierung",
+    "twoFactorSubtitle": "Gib den Code aus deiner Authenticator-App ein",
+    "code": "Code",
+    "codeHint": "Oder einer deiner Wiederherstellungscodes",
+    "verify": "Bestätigen"
   },
   "nav": {
     "calendar": "Kalender",
@@ -349,7 +354,11 @@
     "step4": "Kontonamen bestätigen (am besten die E-Mail-Adresse) und {create}.",
     "step4Create": "Konto anlegen",
     "step5": "Im Reiter {tab} die gewünschten Adressbücher aktivieren.",
-    "otherClients": "Thunderbird und iOS finden die Adressbücher mit derselben Adresse automatisch (iOS: Einstellungen → Kontakte → Accounts → Andere → CardDAV-Account)."
+    "otherClients": "Thunderbird und iOS finden die Adressbücher mit derselben Adresse automatisch (iOS: Einstellungen → Kontakte → Accounts → Andere → CardDAV-Account).",
+    "appPassword": "Ein App-Passwort",
+    "appPasswords": "App-Passwörter",
+    "appPasswordRequired": "Mit aktiver Zwei-Faktor-Authentifizierung akzeptiert CardDAV nur App-Passwörter.",
+    "appPasswordHint": "Statt deines Passworts kannst du ein App-Passwort verwenden, das du jederzeit widerrufen kannst."
   },
   "backup": {
     "replaceTitle": "Datenbank ersetzen?",
@@ -434,7 +443,9 @@
     "admin": "Administrator",
     "ownRights": "Die eigenen Rechte lassen sich nicht entziehen",
     "adminHint": "Administratoren dürfen diese Verwaltung öffnen: Konten bearbeiten, Einstellungen ändern und die ganze Datenbank exportieren und ersetzen.",
-    "languageHint": "Kalender, Aufgabenliste und Adressbuch des Kontos werden in dieser Sprache angelegt."
+    "languageHint": "Kalender, Aufgabenliste und Adressbuch des Kontos werden in dieser Sprache angelegt.",
+    "resetTotp": "Zwei-Faktor-Authentifizierung ausschalten",
+    "resetTotpHint": "Z. B. wenn das Handy mit der Authenticator-App verloren ist. Das Konto kann sich dann nur mit dem Passwort anmelden und sie neu einrichten."
   },
   "users": {
     "calendars": "{n} Kalender",
@@ -448,7 +459,7 @@
     "enabled": "Konto entsperrt",
     "disabled": "Konto gesperrt",
     "signOutTitle": "Überall abmelden?",
-    "signOutText": "{name} muss sich in der Weboberfläche und der App neu anmelden. CardDAV-Clients wie DAVx⁵ nutzen das Passwort und bleiben verbunden – dafür das Passwort ändern.",
+    "signOutText": "{name} muss sich in der Weboberfläche und der App neu anmelden. CardDAV-Clients wie DAVx⁵ nutzen das Passwort oder ein App-Passwort und bleiben verbunden – dafür das Passwort ändern bzw. das App-Passwort in den Sicherheitseinstellungen des Kontos widerrufen.",
     "signedOut": "{name} wurde überall abgemeldet",
     "deleteTitle": "Konto löschen?",
     "deleteText": "{name} ({email}) wird mit allen Kalendern, Terminen, Kontakten und Aufgaben gelöscht ({stats}). Das lässt sich nicht rückgängig machen.",
@@ -462,7 +473,8 @@
     "devices": "Benachrichtigungen in {n} Browser | Benachrichtigungen in {n} Browsern",
     "actions": "Aktionen",
     "signOutEverywhere": "Überall abmelden",
-    "none": "Keine Benutzer gefunden"
+    "none": "Keine Benutzer gefunden",
+    "totpChip": "2FA"
   },
   "calendarView": {
     "deleteOccurrence": "Nur der Termin am {date} wird aus der Serie entfernt.",
@@ -529,5 +541,50 @@
     "dropTarget": "Import in „{name}“",
     "renameCategory": "Kategorie umbenennen",
     "renameHint": "Gilt für alle Kontakte. Gibt es den neuen Namen schon, werden beide Kategorien zusammengeführt."
+  },
+  "security": {
+    "title": "Sicherheit",
+    "twoFactor": "Zwei-Faktor-Authentifizierung",
+    "on": "Aktiv",
+    "off": "Aus",
+    "twoFactorIntro": "Zur Anmeldung ist dann zusätzlich ein Code aus einer Authenticator-App auf deinem Handy nötig (z. B. Aegis, Google Authenticator, 2FAS).",
+    "recoveryCodesLeft": "Keine Wiederherstellungscodes mehr übrig – bitte erstelle neue. | Noch {n} Wiederherstellungscode übrig. | Noch {n} Wiederherstellungscodes übrig.",
+    "setup": "Einrichten",
+    "setupTitle": "Zwei-Faktor-Authentifizierung einrichten",
+    "setupIntro": "Bitte bestätige mit deinem Passwort.",
+    "scan": "Scanne den QR-Code mit deiner Authenticator-App.",
+    "qrAlt": "QR-Code für die Authenticator-App",
+    "manualEntry": "Oder gib diesen Schlüssel in der App ein:",
+    "openInApp": "In Authenticator-App öffnen",
+    "confirmHint": "Gib den Code aus der App ein, um die Einrichtung abzuschließen.",
+    "activate": "Aktivieren",
+    "enabled": "Die Zwei-Faktor-Authentifizierung ist aktiv",
+    "disabled": "Die Zwei-Faktor-Authentifizierung ist ausgeschaltet",
+    "recoveryCodes": "Wiederherstellungscodes",
+    "recoveryCodesWarning": "Bewahre diese Codes sicher auf. Jeder meldet dich einmal ohne die App an – z. B. wenn dein Handy verloren ist. Sie werden nur jetzt angezeigt.",
+    "recoveryFileHeader": "Synchaven-Wiederherstellungscodes für {email} – jeder Code funktioniert einmal",
+    "regenerate": "Neue Wiederherstellungscodes",
+    "regenerateTitle": "Neue Wiederherstellungscodes",
+    "regenerateText": "Deine bisherigen Wiederherstellungscodes werden ungültig. Bitte bestätige mit deinem Passwort und einem Code aus der App.",
+    "disable": "Ausschalten",
+    "disableTitle": "Zwei-Faktor-Authentifizierung ausschalten?",
+    "disableText": "Zur Anmeldung genügt dann wieder dein Passwort. Bitte bestätige mit deinem Passwort und einem Code aus der App.",
+    "appPasswords": "App-Passwörter",
+    "appPasswordsIntro": "Für Sync-Apps wie DAVx⁵ oder Thunderbird: Sie melden sich mit einem App-Passwort statt mit deinem Passwort an, und du kannst es pro Gerät widerrufen.",
+    "appPasswordsIntroTotp": "Für Sync-Apps wie DAVx⁵ oder Thunderbird: Mit aktiver Zwei-Faktor-Authentifizierung akzeptiert CardDAV nur App-Passwörter.",
+    "noAppPasswords": "Noch keine App-Passwörter.",
+    "createdOn": "Erstellt am {date}",
+    "lastUsed": "zuletzt verwendet am {date}",
+    "neverUsed": "noch nie verwendet",
+    "newAppPassword": "Neues App-Passwort",
+    "newAppPasswordIntro": "Gib ihm einen Namen, an dem du erkennst, wo es verwendet wird. Bitte bestätige mit deinem Passwort.",
+    "appPasswordNamePlaceholder": "z. B. DAVx⁵ auf dem Handy",
+    "appPasswordCreated": "Gib dieses Passwort in „{name}“ als Passwort ein:",
+    "appPasswordOnce": "Das Passwort wird nur jetzt angezeigt. Wenn du es verlierst, erstelle einfach ein neues.",
+    "revoke": "Widerrufen",
+    "revokeTitle": "App-Passwort widerrufen?",
+    "revokeText": "Apps, die „{name}“ verwenden, können nicht mehr synchronisieren.",
+    "revoked": "App-Passwort widerrufen",
+    "twoFactorIntroOn": "Zur Anmeldung ist zusätzlich zum Passwort ein Code aus deiner Authenticator-App nötig."
   }
 }

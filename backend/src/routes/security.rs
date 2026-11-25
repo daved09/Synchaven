@@ -31,7 +31,7 @@ async fn require_password(user: &UserRow, password: Option<&str>) -> AppResult<(
 }
 
 /// Password and – with two-factor authentication on – a code of the second factor
-async fn require_password_and_code(
+pub(super) async fn require_password_and_code(
     state: &AppState,
     user: &UserRow,
     password: Option<&str>,

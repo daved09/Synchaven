@@ -57,10 +57,8 @@ class AuthRepository(
     suspend fun login(server: String, email: String, password: String, code: String? = null) {
         val url = normalizeServerUrl(server)
         val res = apiCall { api.login(url, LoginRequest(email.trim(), password, code?.trim()?.ifEmpty { null })) }
-        // With two-factor authentication the password alone can't sign in again: the sync only renews its token
-        val syncPassword = password.takeUnless { res.user.totpEnabled }
         // Sign-in should not fail because of this; sync can be set up later
-        runCatching { setupSyncAccount(url, syncPassword, res) }
+        runCatching { setupSyncAccount(url, res) }
         sessionStore.save(url, res.token, res.user)
     }
 
@@ -68,7 +66,7 @@ class AuthRepository(
         val url = normalizeServerUrl(server)
         val res = apiCall { api.register(url, RegisterRequest(email.trim(), password, name.trim())) }
         // Sign-in should not fail because of this; sync can be set up later
-        runCatching { setupSyncAccount(url, password, res) }
+        runCatching { setupSyncAccount(url, res) }
         sessionStore.save(url, res.token, res.user)
     }
 
@@ -84,7 +82,7 @@ class AuthRepository(
         if (!force && sessionStore.syncAccountCreated(s)) return
         if (s.local) {
             // Without a server there is no token: the sync reads and writes the local data directly
-            withContext(Dispatchers.IO) { sync.setupAccount(s.serverUrl, s.userId, localAccountName, null, "", "") }
+            withContext(Dispatchers.IO) { sync.setupAccount(s.serverUrl, s.userId, localAccountName, "", "") }
             sessionStore.markSyncAccountCreated(s.serverUrl, s.userId)
             return
         }
@@ -96,32 +94,32 @@ class AuthRepository(
             AuthResponse(token = s.token, expiresAt = "", user = User(s.userId, s.email, s.name))
         }
         withContext(Dispatchers.IO) {
-            sync.setupAccount(s.serverUrl, res.user.id, res.user.email, null, res.token, res.expiresAt)
+            sync.setupAccount(s.serverUrl, res.user.id, res.user.email, res.token, res.expiresAt)
         }
         sessionStore.markSyncAccountCreated(s.serverUrl, res.user.id)
     }
 
     /**
-     * Sets up the Android account for syncing if the session doesn't have one yet (e.g. after
-     * an app update) or the stored password no longer matches. Checks the password with the server.
+     * Sets up the Android account for syncing if the session doesn't have one yet (e.g. after an app update) or its
+     * token was rejected. Checks the password with the server; the sync only gets a new token, not the password.
      */
     suspend fun setupSync(password: String) {
         val session = sessionStore.current ?: throw NoServerConfiguredException()
         try {
             val res = apiCall { api.login(session.serverUrl, LoginRequest(session.email, password)) }
-            setupSyncAccount(session.serverUrl, password, res)
+            setupSyncAccount(session.serverUrl, res)
         } catch (e: ApiException) {
             if (e.code != TOTP_REQUIRED) throw e
             // The password is correct, but the account has two-factor authentication: the sync gets its own token
-            // from the session instead and renews it itself, without a password
+            // from the session instead
             val res = apiCall { api.refreshToken() }
-            setupSyncAccount(session.serverUrl, null, res)
+            setupSyncAccount(session.serverUrl, res)
         }
     }
 
-    private suspend fun setupSyncAccount(server: String, password: String?, res: AuthResponse) {
+    private suspend fun setupSyncAccount(server: String, res: AuthResponse) {
         withContext(Dispatchers.IO) {
-            sync.setupAccount(server, res.user.id, res.user.email, password, res.token, res.expiresAt)
+            sync.setupAccount(server, res.user.id, res.user.email, res.token, res.expiresAt)
         }
         sessionStore.markSyncAccountCreated(server, res.user.id)
     }
@@ -135,9 +133,8 @@ class AuthRepository(
         // New password: the server ended all sessions, this one continues with the new token
         res.token?.let { sessionStore.updateToken(it) }
         sessionStore.updateUser(user)
-        // The Android account signs in again with email and password when its token expires
+        // The sync's token was revoked along with the other sessions: it continues with the new one
         withContext(Dispatchers.IO) {
-            request.newPassword?.let(sync::updatePassword)
             res.token?.let { sync.updateToken(it, res.expiresAt) }
             if (request.email != null) sync.updateEmail(user.email)
         }

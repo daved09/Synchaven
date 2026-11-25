@@ -372,6 +372,8 @@
     "title": "Export and import the database",
     "intro": "Back up the whole database with all users, password hashes and settings (without push subscriptions) as JSON, e.g. before an update. The import replaces all existing data.",
     "export": "Export database",
+    "exportConfirmTitle": "Export database",
+    "exportConfirmText": "The export contains all data of all users, their password hashes and the two-factor secrets in plaintext. Confirm it with your password and keep the file as safe as the database itself.",
     "import": "Import database",
     "done": "Import finished: {summary}",
     "reload": "Reload",

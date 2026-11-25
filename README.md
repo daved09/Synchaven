@@ -194,11 +194,15 @@ from the log) and import the export – the
 temporary account is replaced by the accounts from the export. If the export does not contain an
 administrator yet (older versions), the oldest account becomes one.
 
-**On the command line** – the export also works while the server is running:
+**On the command line** – the export also works while the server is running. The file contains all password hashes
+and the two-factor secrets in plaintext, so create it readable only for yourself (`umask 077`) and keep it as safe as
+the database itself:
 
 ```bash
-docker exec synchaven synchaven export > synchaven-export.json
+(umask 077 && docker exec synchaven synchaven export > synchaven-export.json)
 ```
+
+In the web UI the export asks for your password (and a two-factor code, if enabled) first.
 
 The import creates an empty database with the schema of the current version and loads the data. Columns or
 tables that no longer exist are skipped with a warning, new columns get their default value.
@@ -215,7 +219,7 @@ docker compose up -d
 
 If the database already contains data, the import aborts; `import --replace …` deletes it first. The JWT secret and
 VAPID key are files in `/data` and not part of the export – if they are kept, sign-ins stay
-valid and browsers can re-subscribe to notifications without granting permission again. Without Docker: `DATA_DIR=./data synchaven export file.json` or
+valid and browsers can re-subscribe to notifications without granting permission again. Without Docker: `DATA_DIR=./data synchaven export file.json` (written readable only for its owner) or
 `synchaven import file.json`.
 
 ## REST API

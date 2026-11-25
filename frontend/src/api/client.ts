@@ -38,7 +38,8 @@ interface Options {
 /** Requests whose 401 means a wrong password or code – not an ended session */
 function checksCredentials(method: string, path: string) {
   return path.startsWith('/auth/login') || path.startsWith('/auth/totp/') ||
-    (method === 'PUT' && path === '/auth/me') || (method === 'POST' && path === '/auth/app-passwords')
+    (method === 'PUT' && path === '/auth/me') || (method === 'POST' && path === '/auth/app-passwords') ||
+    (method === 'POST' && path === '/admin/export')
 }
 
 async function request<T>(method: string, path: string, opts: Options = {}): Promise<T> {
@@ -188,7 +189,8 @@ export const api = {
     request<{ entries: LogEntry[]; started_at: string; capacity: number }>('GET', '/admin/logs', { query: { after: String(after) } }),
   clearAdminLogs: () => request<void>('DELETE', '/admin/logs'),
 
-  adminExport: () => request<string>('GET', '/admin/export', { asText: true }),
+  adminExport: (currentPassword: string, code?: string) =>
+    request<string>('POST', '/admin/export', { body: { current_password: currentPassword, code: code || undefined }, asText: true }),
   adminImport: (json: string) =>
     request<DbImportReport>('POST', '/admin/import', {
       rawBody: json, contentType: 'application/json', query: { replace: 'true' },

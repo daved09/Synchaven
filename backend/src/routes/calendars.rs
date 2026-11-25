@@ -134,5 +134,6 @@ pub async fn delete(State(state): State<AppState>, auth: AuthUser, Path(id): Pat
     }
     // Events are deleted along with it via ON DELETE CASCADE.
     sqlx::query("DELETE FROM calendars WHERE id = ?").bind(&id).execute(&state.db).await?;
+    tracing::info!("Kalender „{}“ ({id}) von Konto {} gelöscht", cal.name, auth.id);
     Ok(StatusCode::NO_CONTENT)
 }

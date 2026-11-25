@@ -93,9 +93,11 @@ async fn authenticate(state: &AppState, headers: &HeaderMap) -> AppResult<Option
         .fetch_optional(&state.db)
         .await?
     else {
+        tracing::warn!("CardDAV: Anmeldung mit unbekannter E-Mail-Adresse abgewiesen");
         return Ok(None);
     };
     if user.disabled {
+        tracing::warn!("CardDAV: Anmeldung an gesperrtem Konto {} abgewiesen", user.id);
         return Ok(None);
     }
 
@@ -108,8 +110,10 @@ async fn authenticate(state: &AppState, headers: &HeaderMap) -> AppResult<Option
         let (password, hash) = (password.to_string(), user.password_hash.clone());
         let ok = tokio::task::spawn_blocking(move || verify_password(&password, &hash)).await.unwrap_or(false);
         if !ok {
+            tracing::warn!("CardDAV: Fehlgeschlagene Anmeldung für Konto {}: falsches Passwort", user.id);
             return Ok(None);
         }
+        tracing::debug!("CardDAV: Konto {} angemeldet", user.id);
         let mut map = state.dav_auth.0.lock().unwrap();
         let now = Instant::now();
         if map.len() > 1000 {
@@ -593,6 +597,7 @@ async fn handle_inner(state: AppState, req: Request) -> AppResult<Response> {
         ("DELETE", Target::Book(_, b)) => {
             contacts::owned_book(&state.db, &user.id, b).await?;
             sqlx::query("DELETE FROM addressbooks WHERE id = ?").bind(b).execute(&state.db).await?;
+            tracing::info!("CardDAV: Adressbuch {b} von Konto {} gelöscht", user.id);
             Ok(status(StatusCode::NO_CONTENT))
         }
         ("PUT" | "DELETE" | "MKCOL" | "PROPPATCH", _) => Ok(status(StatusCode::FORBIDDEN)),

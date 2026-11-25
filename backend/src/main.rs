@@ -73,7 +73,9 @@ async fn main() -> anyhow::Result<()> {
             .init();
     }
 
+    tracing::info!("Synchaven {} startet", env!("SYNCHAVEN_VERSION"));
     let config = Config::from_env()?;
+    tracing::info!("Datenbank: {}", config.db_path().display());
 
     let options = SqliteConnectOptions::from_str(&format!("sqlite://{}", config.db_path().display()))?
         .create_if_missing(true)
@@ -85,7 +87,9 @@ async fn main() -> anyhow::Result<()> {
         .connect_with(options)
         .await
         .context("Datenbank kann nicht geöffnet werden")?;
-    sqlx::migrate!("./migrations").run(&db).await.context("Migration fehlgeschlagen")?;
+    let migrator = sqlx::migrate!("./migrations");
+    migrator.run(&db).await.context("Migration fehlgeschlagen")?;
+    tracing::info!("Datenbankschema aktuell (Migration {})", migrator.iter().map(|m| m.version).max().unwrap_or(0));
     birthdays::sync_all(&db).await.map_err(|e| anyhow::anyhow!("{e:?}")).context("Geburtstagskalender konnte nicht abgeglichen werden")?;
 
     let push = push::WebPush::load_or_create(&config.data_dir, config.vapid_subject.clone())?;
@@ -132,6 +136,7 @@ async fn main() -> anyhow::Result<()> {
     let listener = tokio::net::TcpListener::bind(config.bind).await?;
     tracing::info!("Synchaven läuft auf http://{}", config.bind);
     axum::serve(listener, app).with_graceful_shutdown(shutdown_signal()).await?;
+    tracing::info!("Synchaven beendet");
     Ok(())
 }
 
@@ -165,6 +170,7 @@ async fn shutdown_signal() {
     #[cfg(not(unix))]
     let terminate = std::future::pending::<()>();
     tokio::select! { _ = ctrl_c => {}, _ = terminate => {} }
+    tracing::info!("Signal zum Beenden empfangen, offene Anfragen werden noch abgeschlossen");
 }
 
 /// `synchaven healthcheck` – for the Docker HEALTHCHECK (no curl in the image).

@@ -112,6 +112,11 @@ pub async fn register(
     let id = create_user(&state, &input.email, &input.name, &input.password, None).await?;
     touch_login(&state, &id).await?;
     let user = load_user(&state, &id).await?;
+    if user.is_admin {
+        tracing::info!("Konto {} registriert (Administrator)", user.id);
+    } else {
+        tracing::info!("Konto {} registriert", user.id);
+    }
     Ok((StatusCode::CREATED, respond(&state, user)?))
 }
 
@@ -191,12 +196,23 @@ pub async fn login(State(state): State<AppState>, Json(input): Json<LoginInput>)
     };
     match user {
         // Only reveal that the account is disabled after the correct password
-        Some(u) if ok && u.disabled => Err(AppError::Forbidden("Dieses Konto ist gesperrt".into())),
+        Some(u) if ok && u.disabled => {
+            tracing::warn!("Anmeldung an gesperrtem Konto {} abgewiesen", u.id);
+            Err(AppError::Forbidden("Dieses Konto ist gesperrt".into()))
+        }
         Some(u) if ok => {
             touch_login(&state, &u.id).await?;
+            tracing::info!("Anmeldung: Konto {}", u.id);
             respond(&state, u)
         }
-        _ => Err(AppError::Unauthorized("E-Mail-Adresse oder Passwort falsch".into())),
+        Some(u) => {
+            tracing::warn!("Fehlgeschlagene Anmeldung für Konto {}: falsches Passwort", u.id);
+            Err(AppError::Unauthorized("E-Mail-Adresse oder Passwort falsch".into()))
+        }
+        None => {
+            tracing::warn!("Fehlgeschlagene Anmeldung: unbekannte E-Mail-Adresse");
+            Err(AppError::Unauthorized("E-Mail-Adresse oder Passwort falsch".into()))
+        }
     }
 }
 
@@ -224,6 +240,7 @@ pub async fn update_me(
     if wants_email || wants_password {
         let current = input.current_password.as_deref().unwrap_or("");
         if !verify_password(current, &user.password_hash) {
+            tracing::warn!("Konto {}: Änderung von E-Mail/Passwort mit falschem Passwort abgewiesen", user.id);
             return Err(AppError::Unauthorized("Aktuelles Passwort ist falsch".into()));
         }
     }
@@ -259,5 +276,11 @@ pub async fn update_me(
         .bind(&user.id)
         .execute(&state.db)
         .await?;
+    if wants_email {
+        tracing::info!("Konto {}: E-Mail-Adresse geändert", user.id);
+    }
+    if wants_password {
+        tracing::info!("Konto {}: Passwort geändert", user.id);
+    }
     Ok(Json(load_user(&state, &auth.id).await?.into()))
 }

@@ -185,6 +185,7 @@ pub async fn sync_all(db: &SqlitePool) -> AppResult<()> {
         sync_contact(&mut tx, id).await?;
     }
     tx.commit().await?;
+    tracing::info!("Geburtstagskalender mit {} Kontakt(en) abgeglichen", ids.len());
     Ok(())
 }
 

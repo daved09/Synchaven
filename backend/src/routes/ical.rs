@@ -142,5 +142,12 @@ pub async fn import(
         }
     }
 
+    tracing::info!(
+        "Kalender {id}: {imported} Termin(e) aus .ics importiert, {} übersprungen",
+        skipped.len()
+    );
+    for s in &skipped {
+        tracing::debug!("Kalender {id}: Import übersprungen/angepasst – {s}");
+    }
     Ok(Json(json!({ "imported": imported, "skipped": skipped })))
 }

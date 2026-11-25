@@ -198,6 +198,7 @@ pub async fn delete_book(State(state): State<AppState>, auth: AuthUser, Path(id)
     contacts::owned_book(&state.db, &auth.id, &id).await?;
     // Contacts are deleted along with it via ON DELETE CASCADE.
     sqlx::query("DELETE FROM addressbooks WHERE id = ?").bind(&id).execute(&state.db).await?;
+    tracing::info!("Adressbuch {id} von Konto {} gelöscht", auth.id);
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -274,6 +275,10 @@ pub async fn import_book(
         }
     }
     tx.commit().await?;
+    tracing::info!(
+        "Adressbuch {id}: vCard-Import – {created} neu, {updated} aktualisiert, {unchanged} unverändert, {} übersprungen",
+        skipped.len()
+    );
     Ok(Json(json!({
         "imported": created + updated + unchanged,
         "created": created,

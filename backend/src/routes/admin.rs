@@ -305,7 +305,7 @@ pub async fn create(
 ) -> AppResult<(StatusCode, Json<AdminUser>)> {
     require_admin(&state, &auth).await?;
     let id = create_user(&state, &input.email, &input.name, &input.password, Some(input.is_admin)).await?;
-    tracing::info!("Konto {} von der Verwaltung angelegt", input.email.trim().to_lowercase());
+    tracing::info!("Konto {id} von Administrator {} angelegt", auth.id);
     Ok((StatusCode::CREATED, Json(load_admin_user(&state, &id).await?)))
 }
 
@@ -383,7 +383,7 @@ pub async fn update(
     .bind(&id)
     .execute(&state.db)
     .await?;
-    tracing::info!("Konto {email} von der Verwaltung geändert");
+    tracing::info!("Konto {id} von Administrator {} geändert", auth.id);
     Ok(Json(load_admin_user(&state, &id).await?))
 }
 
@@ -414,11 +414,10 @@ pub async fn delete(State(state): State<AppState>, auth: AuthUser, Path(id): Pat
     if id == auth.id {
         return Err(AppError::BadRequest("Du kannst dein eigenes Konto nicht löschen".into()));
     }
-    let email: Option<String> = sqlx::query_scalar("DELETE FROM users WHERE id = ? RETURNING email")
-        .bind(&id)
-        .fetch_optional(&state.db)
-        .await?;
-    let Some(email) = email else { return Err(AppError::NotFound) };
-    tracing::info!("Konto {email} von der Verwaltung gelöscht");
+    let res = sqlx::query("DELETE FROM users WHERE id = ?").bind(&id).execute(&state.db).await?;
+    if res.rows_affected() == 0 {
+        return Err(AppError::NotFound);
+    }
+    tracing::info!("Konto {id} von Administrator {} gelöscht", auth.id);
     Ok(StatusCode::NO_CONTENT)
 }

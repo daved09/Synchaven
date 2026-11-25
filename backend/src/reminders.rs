@@ -207,6 +207,7 @@ pub fn spawn(state: AppState) {
             .flatten();
         let mut last = saved.map(|(v,)| time::from_db(&v)).filter(|t| *t <= now).unwrap_or(now).max(now - MAX_CATCH_UP);
 
+        tracing::info!("Erinnerungsdienst gestartet (prüft ab {})", time::to_db(last));
         let mut ticker = tokio::time::interval(INTERVAL);
         ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
         loop {
@@ -252,6 +253,7 @@ async fn run(state: &AppState, from: DateTime<Utc>, to: DateTime<Utc>) -> anyhow
         by_user.entry(&s.user_id).or_default().push(s);
     }
 
+    let mut sent = 0usize;
     for (user_id, subs) in by_user {
         let calendars: HashMap<String, CalendarRow> = sqlx::query_as::<_, CalendarRow>("SELECT * FROM calendars WHERE user_id = ?")
             .bind(user_id)
@@ -306,6 +308,7 @@ async fn run(state: &AppState, from: DateTime<Utc>, to: DateTime<Utc>) -> anyhow
                 for sub in subs.iter().filter(|s| s.timezone == tz_name) {
                     deliver(state, sub, body.as_bytes(), StdDuration::from_secs(ttl)).await;
                 }
+                sent += 1;
             }
             for d in tasks.iter().filter_map(|t| task_due(t, tz, from, to)) {
                 let body = task_payload(&d).to_string();
@@ -314,8 +317,12 @@ async fn run(state: &AppState, from: DateTime<Utc>, to: DateTime<Utc>) -> anyhow
                 for sub in subs.iter().filter(|s| s.timezone == tz_name) {
                     deliver(state, sub, body.as_bytes(), StdDuration::from_secs(ttl as u64)).await;
                 }
+                sent += 1;
             }
         }
+    }
+    if sent > 0 {
+        tracing::debug!("{sent} Erinnerung(en) per Push verschickt");
     }
     Ok(())
 }

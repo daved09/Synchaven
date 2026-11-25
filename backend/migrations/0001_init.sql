@@ -15,7 +15,11 @@ CREATE TABLE users (
     -- ("sign out everywhere", password reset by the administrator). NULL = all valid.
     tokens_valid_after INTEGER,
     -- Last sign-in or token refresh (format like created_at); NULL = never
-    last_login_at TEXT
+    last_login_at TEXT,
+    -- Language for texts the server stores for the user (default names, birthday events):
+    -- 'en' or 'de', taken from the registration or the settings. The default 'de' applies to
+    -- imports of older exports, whose accounts were created with German texts.
+    language      TEXT NOT NULL DEFAULT 'de'
 );
 
 CREATE TABLE calendars (

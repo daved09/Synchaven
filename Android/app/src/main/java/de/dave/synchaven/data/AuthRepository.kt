@@ -130,11 +130,15 @@ class AuthRepository(
     suspend fun me(): User? = if (isLocal) null else apiCall { api.me() }.also { sessionStore.updateUser(it) }
 
     suspend fun updateMe(request: UpdateMeRequest): User {
-        val user = apiCall { api.updateMe(request) }
+        val res = apiCall { api.updateMe(request) }
+        val user = res.user
+        // New password: the server ended all sessions, this one continues with the new token
+        res.token?.let { sessionStore.updateToken(it) }
         sessionStore.updateUser(user)
         // The Android account signs in again with email and password when its token expires
         withContext(Dispatchers.IO) {
             request.newPassword?.let(sync::updatePassword)
+            res.token?.let { sync.updateToken(it, res.expiresAt) }
             if (request.email != null) sync.updateEmail(user.email)
         }
         return user

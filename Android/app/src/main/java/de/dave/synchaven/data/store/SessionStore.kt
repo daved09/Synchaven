@@ -83,6 +83,15 @@ class SessionStore(private val dataStore: AppDataStore) {
         }
     }
 
+    /**
+     * New token of the signed-in session (after a password change the old one is no longer valid).
+     * Returns once [current] carries it, so the next request already uses it.
+     */
+    suspend fun updateToken(token: String) {
+        store.edit { it[Keys.token] = token }
+        state.first { (it as? SessionState.LoggedIn)?.session?.token == token }
+    }
+
     suspend fun updateUser(user: User) {
         store.edit {
             it.putUser(user)

@@ -98,7 +98,8 @@ export const api = {
     name?: string; email?: string; current_password?: string; new_password?: string; default_view?: ViewMode
     language?: 'de' | 'en'
   }) =>
-    request<User>('PUT', '/auth/me', { body: data }),
+    // After a password change all other sessions end; the response then carries the new token for this one
+    request<User & { token?: string; expires_at?: string }>('PUT', '/auth/me', { body: data }),
 
   totpStatus: () => request<TotpStatus>('GET', '/auth/totp'),
   totpSetup: (currentPassword: string) =>

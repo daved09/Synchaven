@@ -51,8 +51,12 @@ Or build the image yourself, then start it:
 docker compose up -d
 ```
 
-Then open <http://localhost:8080> and register an account. The data (SQLite database and
-JWT secret) is stored in the `synchaven-data` volume under `/data`.
+Then open <http://localhost:8080> and create the administrator account with the setup token from
+`docker compose logs`. The data (SQLite database, JWT secret and key for the two-factor secrets) is stored in the
+`synchaven-data` volume under `/data`.
+
+The `docker-compose.yml` binds the port to `127.0.0.1` only: the server is reachable from the same machine, e.g. for a
+reverse proxy with HTTPS. To reach it directly from other devices on your network, change the port to `"8080:8080"`.
 
 Instead of the volume, a host directory can be mounted (`./data:/data`). In that case set `PUID` and
 `PGID` to the owner's IDs (`id -u` / `id -g`): on startup the container adjusts the ownership of
@@ -292,9 +296,10 @@ birthdays are ports from `backend/src`. On vCard import, only the fields the app
 next time *Use without server* is chosen – it is not transferred to a server (use export and import for that; tasks are not
 included).
 
-On first start, enter the server address (e.g. `http://192.168.1.10:8080`) or choose *Use without server*.
-Unencrypted HTTP is allowed for servers on the home network; user-installed certificate authorities are
-accepted.
+On first start, enter the server address (e.g. `synchaven.example.org`) or choose *Use without server*.
+Without `http://` or `https://` the app always uses HTTPS. Unencrypted HTTP (e.g. `http://192.168.1.10:8080` on the
+home network) has to be typed explicitly and confirmed on the sign-in screen; user-installed certificate authorities
+are accepted.
 
 ```bash
 cd Android

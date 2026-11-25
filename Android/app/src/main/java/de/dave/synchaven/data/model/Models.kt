@@ -1,6 +1,11 @@
 package de.dave.synchaven.data.model
 
 import kotlinx.serialization.EncodeDefault
+import kotlinx.serialization.KSerializer
+import kotlinx.serialization.descriptors.SerialDescriptor
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
+import kotlinx.serialization.json.JsonDecoder
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -32,6 +37,30 @@ data class User(
     /** Sign-in needs a code of an authenticator app */
     @SerialName("totp_enabled") val totpEnabled: Boolean = false,
 )
+
+/**
+ * Response of `PUT /auth/me`: the account and – after a password change, which ends all other sessions – the new
+ * token for this one (`null` otherwise).
+ */
+@Serializable(with = UpdateMeResponseSerializer::class)
+data class UpdateMeResponse(val user: User, val token: String? = null, val expiresAt: String = "")
+
+@Serializable
+internal class SessionPart(val token: String? = null, @SerialName("expires_at") val expiresAt: String = "")
+
+/** The server sends the account's fields and the token in one object */
+object UpdateMeResponseSerializer : KSerializer<UpdateMeResponse> {
+    override val descriptor: SerialDescriptor = User.serializer().descriptor
+
+    override fun deserialize(decoder: Decoder): UpdateMeResponse {
+        val json = decoder as JsonDecoder
+        val element = json.decodeJsonElement()
+        val session = json.json.decodeFromJsonElement(SessionPart.serializer(), element)
+        return UpdateMeResponse(json.json.decodeFromJsonElement(User.serializer(), element), session.token, session.expiresAt)
+    }
+
+    override fun serialize(encoder: Encoder, value: UpdateMeResponse) = User.serializer().serialize(encoder, value.user)
+}
 
 @Serializable
 data class AuthResponse(

@@ -32,6 +32,7 @@ import de.dave.synchaven.data.model.TaskInput
 import de.dave.synchaven.data.model.TaskList
 import de.dave.synchaven.data.model.TaskListInput
 import de.dave.synchaven.data.model.UpdateMeRequest
+import de.dave.synchaven.data.model.UpdateMeResponse
 import de.dave.synchaven.data.model.User
 import de.dave.synchaven.data.offline.OfflineData
 import de.dave.synchaven.data.offline.OfflineStore
@@ -118,9 +119,9 @@ class LocalApi(
     override suspend fun me(): User = User(id = LOCAL_ACCOUNT, email = "", defaultView = defaultView())
 
     /** Locally there is only the default view; the session stores it. */
-    override suspend fun updateMe(body: UpdateMeRequest): User {
+    override suspend fun updateMe(body: UpdateMeRequest): UpdateMeResponse {
         if (body.name != null || body.email != null || body.newPassword != null) unavailable()
-        return me().let { u -> body.defaultView?.let { u.copy(defaultView = it) } ?: u }
+        return UpdateMeResponse(me().let { u -> body.defaultView?.let { u.copy(defaultView = it) } ?: u })
     }
 
     private fun localInfo() = ServerInfo(name = texts.get(R.string.local_account_name))

@@ -302,6 +302,7 @@ backend/            Rust (axum, sqlx/SQLite, rrule, jsonwebtoken, argon2, quick-
   src/contacts.rs   Storage of address books and contacts
   src/birthdays.rs  Birthday calendar from the contacts
   src/dav.rs        CardDAV server for DAVx⁵ & co.
+  test/             Unit tests, mirroring src/ (test/vcard.rs tests src/vcard.rs)
 frontend/           Vue 3 + Vuetify 3 (Material 3) + Pinia
   src/components/   Month, week/day and list views, contact details, dialogs
   src/views/        Sign-in, calendar, contacts

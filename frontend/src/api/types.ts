@@ -6,6 +6,8 @@ export interface User {
   name: string
   /** The calendar's default view */
   default_view: ViewMode
+  /** Language of the texts the server stores for the account (default names, birthday events) */
+  language: 'de' | 'en'
   created_at: string
   /** May open the admin page (initially the first registered account) */
   is_admin: boolean

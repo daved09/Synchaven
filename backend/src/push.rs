@@ -49,19 +49,19 @@ impl WebPush {
         let path = data_dir.join("vapid_private_key");
         let secret = match std::fs::read_to_string(&path) {
             Ok(s) => {
-                let bytes = B64.decode(s.trim()).context("vapid_private_key ist kein gültiges Base64url")?;
-                SecretKey::from_slice(&bytes).context("vapid_private_key ist kein gültiger P-256-Schlüssel")?
+                let bytes = B64.decode(s.trim()).context("vapid_private_key is not valid Base64url")?;
+                SecretKey::from_slice(&bytes).context("vapid_private_key is not a valid P-256 key")?
             }
             Err(_) => {
                 let secret = random_secret();
                 std::fs::write(&path, B64.encode(secret.to_bytes()))
-                    .with_context(|| format!("{} kann nicht gespeichert werden", path.display()))?;
+                    .with_context(|| format!("Cannot save {}", path.display()))?;
                 #[cfg(unix)]
                 {
                     use std::os::unix::fs::PermissionsExt;
                     let _ = std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600));
                 }
-                tracing::info!("Neuer VAPID-Schlüssel für Web Push in {} erzeugt", path.display());
+                tracing::info!("Generated new VAPID key for Web Push in {}", path.display());
                 secret
             }
         };
@@ -88,7 +88,7 @@ impl WebPush {
     /// Encrypts `payload` for the subscription and sends it to the push service.
     /// `ttl`: how long the service may try to deliver the message if the browser is offline.
     pub async fn send(&self, sub: &Subscription<'_>, payload: &[u8], ttl: Duration) -> anyhow::Result<Outcome> {
-        let url = reqwest::Url::parse(sub.endpoint).context("Ungültiger Push-Endpunkt")?;
+        let url = reqwest::Url::parse(sub.endpoint).context("Invalid push endpoint")?;
         let audience = url.origin().ascii_serialization();
         let body = encrypt(payload, sub.p256dh, sub.auth, &random_secret(), &random_salt())?;
         let res = self
@@ -110,7 +110,7 @@ impl WebPush {
             return Ok(Outcome::Gone);
         }
         let text = res.text().await.unwrap_or_default();
-        anyhow::bail!("Push-Dienst antwortet mit {status}: {}", text.chars().take(300).collect::<String>())
+        anyhow::bail!("Push service responded with {status}: {}", text.chars().take(300).collect::<String>())
     }
 }
 
@@ -131,16 +131,16 @@ fn random_salt() -> [u8; 16] {
 }
 
 fn hkdf_expand(salt: &[u8], ikm: &[u8], info: &[u8], out: &mut [u8]) {
-    Hkdf::<Sha256>::new(Some(salt), ikm).expand(info, out).expect("HKDF-Länge gültig");
+    Hkdf::<Sha256>::new(Some(salt), ikm).expand(info, out).expect("valid HKDF length");
 }
 
 /// Encryption according to RFC 8291 (content encoding `aes128gcm`, one record).
 /// `sender` is the server's ephemeral key, `salt` 16 random bytes.
 fn encrypt(payload: &[u8], p256dh: &str, auth: &str, sender: &SecretKey, salt: &[u8; 16]) -> anyhow::Result<Vec<u8>> {
-    anyhow::ensure!(payload.len() <= MAX_PAYLOAD, "Push-Nachricht zu groß");
-    let ua_public_bytes = B64.decode(p256dh.trim_end_matches('=')).context("p256dh ungültig")?;
-    let ua_public = PublicKey::from_sec1_bytes(&ua_public_bytes).context("p256dh ist kein P-256-Punkt")?;
-    let auth_secret = B64.decode(auth.trim_end_matches('=')).context("auth ungültig")?;
+    anyhow::ensure!(payload.len() <= MAX_PAYLOAD, "Push message too large");
+    let ua_public_bytes = B64.decode(p256dh.trim_end_matches('=')).context("Invalid p256dh")?;
+    let ua_public = PublicKey::from_sec1_bytes(&ua_public_bytes).context("p256dh is not a P-256 point")?;
+    let auth_secret = B64.decode(auth.trim_end_matches('=')).context("Invalid auth")?;
     let as_public = sender.public_key().to_sec1_point(false);
     let as_public = as_public.as_bytes();
 
@@ -159,10 +159,10 @@ fn encrypt(payload: &[u8], p256dh: &str, auth: &str, sender: &SecretKey, salt: &
 
     let mut plain = payload.to_vec();
     plain.push(2); // delimiter byte of the last record, no padding
-    let cipher = Aes128Gcm::new_from_slice(&cek).expect("16-Byte-Schlüssel");
+    let cipher = Aes128Gcm::new_from_slice(&cek).expect("16-byte key");
     let encrypted = cipher
         .encrypt(&nonce.into(), plain.as_slice())
-        .map_err(|_| anyhow::anyhow!("Verschlüsselung fehlgeschlagen"))?;
+        .map_err(|_| anyhow::anyhow!("Encryption failed"))?;
 
     let mut body = Vec::with_capacity(16 + 4 + 1 + as_public.len() + encrypted.len());
     body.extend_from_slice(salt);

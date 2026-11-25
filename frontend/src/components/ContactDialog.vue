@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { t } from '@/i18n'
 import { computed, ref, watch } from 'vue'
 import { useDisplay } from 'vuetify'
 import type { Contact, ContactData } from '@/api/types'
@@ -71,7 +72,7 @@ function setCategories(list: string[]) {
 }
 
 const birthdayRule = (v: string) =>
-  v === initialBirthdayText || birthdayFromInput(v) !== null || 'Format: TT.MM.JJJJ oder TT.MM.'
+  v === initialBirthdayText || birthdayFromInput(v) !== null || t('contactDialog.birthdayFormat')
 
 function addAddress() {
   form.value.addresses.push(emptyAddress(form.value.addresses.length ? 'work' : 'home'))
@@ -81,7 +82,7 @@ async function save() {
   const { valid } = await formRef.value.validate()
   if (!valid) return
   if (!keptName.value && !autoName.value) {
-    notify.fail(new Error('Bitte einen Namen, eine Firma, E-Mail-Adresse oder Telefonnummer angeben'))
+    notify.fail(new Error(t('contactDialog.nameRequired')))
     return
   }
   const birthday = birthdayText.value === initialBirthdayText ? initialBirthday : birthdayFromInput(birthdayText.value) ?? ''
@@ -89,7 +90,7 @@ async function save() {
   saving.value = true
   try {
     const c = props.contactId ? await contacts.update(props.contactId, input) : await contacts.create(input)
-    notify.info(props.contactId ? 'Kontakt gespeichert' : 'Kontakt erstellt')
+    notify.info(props.contactId ? t('contact.saved') : t('contact.created'))
     emit('saved', c)
     open.value = false
   } catch (e) {
@@ -104,9 +105,9 @@ async function save() {
   <v-dialog v-model="open" :fullscreen="xs" max-width="680" persistent scrollable @keydown.esc="open = false">
     <v-card color="surface-container-high">
       <v-toolbar color="transparent" density="comfortable">
-        <v-btn icon="mdi-close" title="Schließen" @click="open = false" />
-        <v-toolbar-title>{{ contactId ? 'Kontakt bearbeiten' : 'Neuer Kontakt' }}</v-toolbar-title>
-        <v-btn color="primary" variant="flat" class="mr-3" :loading="saving" @click="save">Speichern</v-btn>
+        <v-btn icon="mdi-close" :title="$t('common.close')" @click="open = false" />
+        <v-toolbar-title>{{ contactId ? $t('contact.edit') : $t('contact.new') }}</v-toolbar-title>
+        <v-btn color="primary" variant="flat" class="mr-3" :loading="saving" @click="save">{{ $t('common.save') }}</v-btn>
       </v-toolbar>
       <v-card-text class="pt-2">
         <v-form ref="formRef" @submit.prevent="save">
@@ -115,18 +116,18 @@ async function save() {
             <v-icon icon="mdi-account-outline" class="mt-4 field-icon" />
             <div class="flex-1-1">
               <div class="d-flex ga-3 flex-wrap">
-                <v-text-field v-model="form.given_name" label="Vorname" autofocus class="flex-1-1 min-field" autocomplete="off" />
-                <v-text-field v-model="form.family_name" label="Nachname" class="flex-1-1 min-field" autocomplete="off" />
+                <v-text-field v-model="form.given_name" :label="$t('contact.givenName')" autofocus class="flex-1-1 min-field" autocomplete="off" />
+                <v-text-field v-model="form.family_name" :label="$t('contact.familyName')" class="flex-1-1 min-field" autocomplete="off" />
               </div>
               <v-expand-transition>
                 <div v-if="showMore">
                   <div class="d-flex ga-3 flex-wrap">
-                    <v-text-field v-model="form.prefix" label="Titel (z. B. Dr.)" class="flex-1-1 min-field" />
-                    <v-text-field v-model="form.additional_names" label="Zweiter Vorname" class="flex-1-1 min-field" />
+                    <v-text-field v-model="form.prefix" :label="$t('contact.prefix')" class="flex-1-1 min-field" />
+                    <v-text-field v-model="form.additional_names" :label="$t('contact.additionalNames')" class="flex-1-1 min-field" />
                   </div>
                   <div class="d-flex ga-3 flex-wrap">
-                    <v-text-field v-model="form.suffix" label="Namenszusatz (z. B. jun.)" class="flex-1-1 min-field" />
-                    <v-text-field v-model="form.nickname" label="Spitzname" class="flex-1-1 min-field" />
+                    <v-text-field v-model="form.suffix" :label="$t('contact.suffix')" class="flex-1-1 min-field" />
+                    <v-text-field v-model="form.nickname" :label="$t('contact.nickname')" class="flex-1-1 min-field" />
                   </div>
                 </div>
               </v-expand-transition>
@@ -134,7 +135,7 @@ async function save() {
                 variant="text" size="small" class="mb-2 ml-n2" :prepend-icon="showMore ? 'mdi-chevron-up' : 'mdi-chevron-down'"
                 @click="showMore = !showMore"
               >
-                {{ showMore ? 'Weniger Namensfelder' : 'Weitere Namensfelder' }}
+                {{ showMore ? $t('contactDialog.fewerNameFields') : $t('contactDialog.moreNameFields') }}
               </v-btn>
             </div>
           </div>
@@ -143,21 +144,21 @@ async function save() {
           <div class="d-flex ga-2 align-start">
             <v-icon icon="mdi-domain" class="mt-4 field-icon" />
             <div class="flex-1-1">
-              <v-text-field v-model="form.organization" label="Firma" />
+              <v-text-field v-model="form.organization" :label="$t('contact.organization')" />
               <div class="d-flex ga-3 flex-wrap">
-                <v-text-field v-model="form.title" label="Position" class="flex-1-1 min-field" />
-                <v-text-field v-model="form.department" label="Abteilung" class="flex-1-1 min-field" />
+                <v-text-field v-model="form.title" :label="$t('contact.jobTitle')" class="flex-1-1 min-field" />
+                <v-text-field v-model="form.department" :label="$t('contact.department')" class="flex-1-1 min-field" />
               </div>
             </div>
           </div>
 
           <TypedListEditor
-            v-model="form.phones" label="Telefon" icon="mdi-phone-outline" :types="PHONE_TYPES" input-type="tel"
-            add-text="Telefonnummer hinzufügen" default-type="mobile"
+            v-model="form.phones" :label="$t('contact.phone')" icon="mdi-phone-outline" :types="PHONE_TYPES" input-type="tel"
+            :add-text="$t('contactDialog.addPhone')" default-type="mobile"
           />
           <TypedListEditor
-            v-model="form.emails" label="E-Mail" icon="mdi-email-outline" :types="OTHER_TYPES" input-type="email"
-            add-text="E-Mail-Adresse hinzufügen" default-type="home"
+            v-model="form.emails" :label="$t('common.email')" icon="mdi-email-outline" :types="OTHER_TYPES" input-type="email"
+            :add-text="$t('contactDialog.addEmail')" default-type="home"
           />
 
           <!-- Addresses -->
@@ -165,53 +166,53 @@ async function save() {
             <v-icon icon="mdi-map-marker-outline" class="mt-4 field-icon" :class="{ invisible: i > 0 }" />
             <div class="flex-1-1">
               <div class="d-flex ga-2 align-start">
-                <v-text-field v-model="a.street" label="Straße und Hausnummer" class="flex-1-1" />
+                <v-text-field v-model="a.street" :label="$t('contact.street')" class="flex-1-1" />
                 <v-combobox
                   :model-value="a.type" :items="OTHER_TYPES" item-title="title" item-value="value" :return-object="false"
-                  label="Typ" class="type-field" @update:model-value="(t: string | null) => (a.type = (t ?? '').trim())"
+                  :label="$t('contact.type')" class="type-field" @update:model-value="(t: string | null) => (a.type = (t ?? '').trim())"
                 />
-                <v-btn icon="mdi-close" variant="text" size="small" class="mt-2" title="Adresse entfernen" @click="form.addresses.splice(i, 1)" />
+                <v-btn icon="mdi-close" variant="text" size="small" class="mt-2" :title="$t('contactDialog.removeAddress')" @click="form.addresses.splice(i, 1)" />
               </div>
               <div class="d-flex ga-3 address-row">
-                <v-text-field v-model="a.postal_code" label="PLZ" class="plz" />
-                <v-text-field v-model="a.locality" label="Ort" class="flex-1-1" />
+                <v-text-field v-model="a.postal_code" :label="$t('contact.postalCode')" class="plz" />
+                <v-text-field v-model="a.locality" :label="$t('contact.locality')" class="flex-1-1" />
               </div>
               <div class="d-flex ga-3 flex-wrap address-row">
-                <v-text-field v-model="a.region" label="Bundesland/Region" class="flex-1-1 min-field" />
-                <v-text-field v-model="a.country" label="Land" class="flex-1-1 min-field" />
+                <v-text-field v-model="a.region" :label="$t('contact.region')" class="flex-1-1 min-field" />
+                <v-text-field v-model="a.country" :label="$t('contact.country')" class="flex-1-1 min-field" />
               </div>
-              <v-text-field v-if="a.extended || a.po_box" v-model="a.extended" label="Adresszusatz" />
+              <v-text-field v-if="a.extended || a.po_box" v-model="a.extended" :label="$t('contact.extended')" />
             </div>
           </div>
-          <v-btn variant="text" prepend-icon="mdi-plus" class="ml-8 mb-2" size="small" @click="addAddress">Adresse hinzufügen</v-btn>
+          <v-btn variant="text" prepend-icon="mdi-plus" class="ml-8 mb-2" size="small" @click="addAddress">{{ $t('contactDialog.addAddress') }}</v-btn>
 
           <TypedListEditor
-            v-model="form.urls" label="Website" icon="mdi-web" :types="OTHER_TYPES" input-type="url"
-            add-text="Website hinzufügen" default-type="home"
+            v-model="form.urls" :label="$t('contact.website')" icon="mdi-web" :types="OTHER_TYPES" input-type="url"
+            :add-text="$t('contactDialog.addWebsite')" default-type="home"
           />
 
           <div class="d-flex ga-2 align-start">
             <v-icon icon="mdi-cake-variant-outline" class="mt-4 field-icon" />
             <v-text-field
-              v-model="birthdayText" label="Geburtstag" placeholder="TT.MM.JJJJ" hint="Ohne Jahr: TT.MM." class="flex-1-1"
+              v-model="birthdayText" :label="$t('contact.birthday')" :placeholder="$t('contactDialog.birthdayPlaceholder')" :hint="$t('contactDialog.birthdayHint')" class="flex-1-1"
               :rules="[birthdayRule]"
             />
           </div>
           <div class="d-flex ga-2 align-start">
             <v-icon icon="mdi-text" class="mt-4 field-icon" />
-            <v-textarea v-model="form.note" label="Notiz" rows="2" auto-grow class="flex-1-1" />
+            <v-textarea v-model="form.note" :label="$t('contact.note')" rows="2" auto-grow class="flex-1-1" />
           </div>
           <div class="d-flex ga-2 align-start">
             <v-icon icon="mdi-label-outline" class="mt-4 field-icon" />
             <v-combobox
-              :model-value="form.categories" :items="categoryItems" label="Kategorien" multiple chips closable-chips
-              hint="Vorhandene auswählen oder neue eingeben (Enter)" class="flex-1-1" :delimiters="[',']"
+              :model-value="form.categories" :items="categoryItems" :label="$t('contact.categories')" multiple chips closable-chips
+              :hint="$t('contactDialog.categoriesHint')" class="flex-1-1" :delimiters="[',']"
               @update:model-value="setCategories"
             />
           </div>
           <div v-if="bookItems.length > 1" class="d-flex ga-2 align-start">
             <v-icon icon="mdi-book-account-outline" class="mt-4 field-icon" />
-            <v-select v-model="bookId" :items="bookItems" label="Adressbuch" class="flex-1-1" />
+            <v-select v-model="bookId" :items="bookItems" :label="$t('contact.addressBook')" class="flex-1-1" />
           </div>
         </v-form>
       </v-card-text>

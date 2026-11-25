@@ -3,6 +3,7 @@ import type {
   ContactInput, DbImportReport, EventInput, ImportResult, LogEntry, Occurrence, PushSubscriptionInput, ServerInfo, Task, TaskInput,
   TaskList, TaskListInput, User, ViewMode,
 } from './types'
+import { language, t } from '@/i18n'
 
 const BASE = '/api'
 const TOKEN_KEY = 'synchaven.token'
@@ -42,7 +43,7 @@ async function request<T>(method: string, path: string, opts: Options = {}): Pro
     const s = qs.toString()
     if (s) url += '?' + s
   }
-  const headers: Record<string, string> = { Accept: 'application/json' }
+  const headers: Record<string, string> = { Accept: 'application/json', 'Accept-Language': language }
   if (token) headers.Authorization = `Bearer ${token}`
   let body: BodyInit | undefined
   if (opts.rawBody !== undefined) {
@@ -57,12 +58,12 @@ async function request<T>(method: string, path: string, opts: Options = {}): Pro
   try {
     res = await fetch(url, { method, headers, body })
   } catch {
-    throw new ApiError(0, 'network', 'Server nicht erreichbar')
+    throw new ApiError(0, 'network', t('errors.network'))
   }
 
   if (!res.ok) {
     let code = 'error'
-    let message = `Fehler ${res.status}`
+    let message = t('errors.status', { status: res.status })
     try {
       const data = await res.json()
       code = data.error ?? code
@@ -79,11 +80,13 @@ export const api = {
   info: () => request<ServerInfo>('GET', '/info'),
 
   login: (email: string, password: string) => request<AuthResponse>('POST', '/auth/login', { body: { email, password } }),
-  register: (email: string, password: string, name: string) =>
-    request<AuthResponse>('POST', '/auth/register', { body: { email, password, name } }),
+  /** `language`: language of the initial data (calendar, task list, address book) */
+  register: (email: string, password: string, name: string, language: 'de' | 'en') =>
+    request<AuthResponse>('POST', '/auth/register', { body: { email, password, name, language } }),
   me: () => request<User>('GET', '/auth/me'),
   updateMe: (data: {
     name?: string; email?: string; current_password?: string; new_password?: string; default_view?: ViewMode
+    language?: 'de' | 'en'
   }) =>
     request<User>('PUT', '/auth/me', { body: data }),
 
@@ -148,7 +151,8 @@ export const api = {
   updateAdminSettings: (data: Partial<AdminSettingsValues>) =>
     request<AdminSettings>('PUT', '/admin/settings', { body: data }),
   adminUsers: () => request<AdminUser[]>('GET', '/admin/users'),
-  createAdminUser: (data: { email: string; name: string; password: string; is_admin: boolean }) =>
+  /** `language`: language of the new account's initial data */
+  createAdminUser: (data: { email: string; name: string; password: string; is_admin: boolean; language: 'de' | 'en' }) =>
     request<AdminUser>('POST', '/admin/users', { body: data }),
   updateAdminUser: (id: string, data: AdminUserInput) => request<AdminUser>('PUT', `/admin/users/${id}`, { body: data }),
   logoutAdminUser: (id: string) => request<AdminUser>('POST', `/admin/users/${id}/logout`),

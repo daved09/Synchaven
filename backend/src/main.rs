@@ -5,6 +5,7 @@ mod config;
 mod contacts;
 mod dav;
 mod error;
+mod i18n;
 mod ical;
 mod logs;
 mod models;
@@ -33,6 +34,9 @@ use tower_http::{
 };
 
 use crate::config::Config;
+
+// Texts per language from locales/*.json, see the i18n module
+rust_i18n::i18n!("locales", fallback = "en");
 
 #[derive(Clone)]
 pub struct AppState {
@@ -73,9 +77,9 @@ async fn main() -> anyhow::Result<()> {
             .init();
     }
 
-    tracing::info!("Synchaven {} startet", env!("SYNCHAVEN_VERSION"));
+    tracing::info!("Synchaven {} starting", env!("SYNCHAVEN_VERSION"));
     let config = Config::from_env()?;
-    tracing::info!("Datenbank: {}", config.db_path().display());
+    tracing::info!("Database: {}", config.db_path().display());
 
     let options = SqliteConnectOptions::from_str(&format!("sqlite://{}", config.db_path().display()))?
         .create_if_missing(true)
@@ -86,14 +90,14 @@ async fn main() -> anyhow::Result<()> {
         .max_connections(8)
         .connect_with(options)
         .await
-        .context("Datenbank kann nicht geöffnet werden")?;
+        .context("Cannot open database")?;
     let migrator = sqlx::migrate!("./migrations");
-    migrator.run(&db).await.context("Migration fehlgeschlagen")?;
-    tracing::info!("Datenbankschema aktuell (Migration {})", migrator.iter().map(|m| m.version).max().unwrap_or(0));
-    birthdays::sync_all(&db).await.map_err(|e| anyhow::anyhow!("{e:?}")).context("Geburtstagskalender konnte nicht abgeglichen werden")?;
+    migrator.run(&db).await.context("Migration failed")?;
+    tracing::info!("Database schema up to date (migration {})", migrator.iter().map(|m| m.version).max().unwrap_or(0));
+    birthdays::sync_all(&db).await.map_err(|e| anyhow::anyhow!("{e:?}")).context("Could not sync birthday calendars")?;
 
     let push = push::WebPush::load_or_create(&config.data_dir, config.vapid_subject.clone())?;
-    let settings = settings::SettingsStore::load(&db, &config).await.context("Einstellungen können nicht gelesen werden")?;
+    let settings = settings::SettingsStore::load(&db, &config).await.context("Cannot read settings")?;
     let state = AppState {
         settings: Arc::new(settings),
         started_at: chrono::Utc::now(),
@@ -129,14 +133,15 @@ async fn main() -> anyhow::Result<()> {
         .route("/", get_service(spa.clone()).fallback(dav::handle))
         .fallback_service(spa)
         .layer(axum::middleware::from_fn(cache_headers))
+        .layer(axum::middleware::from_fn(i18n::detect))
         .layer(DefaultBodyLimit::max(10 * 1024 * 1024))
         .layer(TraceLayer::new_for_http())
         .with_state(state);
 
     let listener = tokio::net::TcpListener::bind(config.bind).await?;
-    tracing::info!("Synchaven läuft auf http://{}", config.bind);
+    tracing::info!("Synchaven listening on http://{}", config.bind);
     axum::serve(listener, app).with_graceful_shutdown(shutdown_signal()).await?;
-    tracing::info!("Synchaven beendet");
+    tracing::info!("Synchaven stopped");
     Ok(())
 }
 
@@ -170,7 +175,7 @@ async fn shutdown_signal() {
     #[cfg(not(unix))]
     let terminate = std::future::pending::<()>();
     tokio::select! { _ = ctrl_c => {}, _ = terminate => {} }
-    tracing::info!("Signal zum Beenden empfangen, offene Anfragen werden noch abgeschlossen");
+    tracing::info!("Shutdown signal received, finishing open requests");
 }
 
 /// `synchaven healthcheck` – for the Docker HEALTHCHECK (no curl in the image).
@@ -185,6 +190,6 @@ async fn healthcheck() -> anyhow::Result<()> {
     let mut buf = vec![0u8; 64];
     let n = tokio::time::timeout(Duration::from_secs(3), stream.read(&mut buf)).await??;
     let head = String::from_utf8_lossy(&buf[..n]);
-    anyhow::ensure!(head.contains(" 200 "), "Unerwartete Antwort: {head}");
+    anyhow::ensure!(head.contains(" 200 "), "Unexpected response: {head}");
     Ok(())
 }

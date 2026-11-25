@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { t } from '@/i18n'
 import { computed, onMounted, ref } from 'vue'
 import { api } from '@/api/client'
 import type { AdminUser } from '@/api/types'
@@ -48,10 +49,10 @@ const dateTimeFmt = new Intl.DateTimeFormat(LOCALE, { dateStyle: 'medium', timeS
 
 function stats(u: AdminUser) {
   const parts = [
-    `${u.calendars} Kalender`,
-    `${u.events} ${u.events === 1 ? 'Termin' : 'Termine'}`,
-    `${u.contacts} ${u.contacts === 1 ? 'Kontakt' : 'Kontakte'}`,
-    `${u.tasks} ${u.tasks === 1 ? 'Aufgabe' : 'Aufgaben'}`,
+    t('users.calendars', u.calendars),
+    t('users.events', u.events),
+    t('users.contacts', u.contacts),
+    t('users.tasks', u.tasks),
   ]
   return parts.join(' · ')
 }
@@ -89,38 +90,35 @@ async function run(u: AdminUser, action: () => Promise<AdminUser | void>, messag
 async function toggleDisabled(u: AdminUser) {
   if (!u.disabled) {
     const ok = await confirmRef.value!.ask(
-      'Konto sperren?',
-      `${u.name} (${u.email}) wird sofort abgemeldet und kann sich nicht mehr anmelden oder synchronisieren, bis `
-        + 'du das Konto wieder entsperrst. Die Daten bleiben erhalten.',
-      'Sperren',
+      t('users.disableTitle'),
+      t('users.disableText', { name: u.name, email: u.email }),
+      t('users.disable'),
     )
     if (!ok) return
   }
-  await run(u, () => api.updateAdminUser(u.id, { disabled: !u.disabled }), u.disabled ? 'Konto entsperrt' : 'Konto gesperrt')
+  await run(u, () => api.updateAdminUser(u.id, { disabled: !u.disabled }), u.disabled ? t('users.enabled') : t('users.disabled'))
 }
 
 async function logoutEverywhere(u: AdminUser) {
   const ok = await confirmRef.value!.ask(
-    'Überall abmelden?',
-    `${u.name} muss sich in der Weboberfläche und der App neu anmelden. CardDAV-Clients wie DAVx⁵ nutzen das Passwort `
-      + 'und bleiben verbunden – dafür das Passwort ändern.',
-    'Abmelden', 'primary',
+    t('users.signOutTitle'),
+    t('users.signOutText', { name: u.name }),
+    t('account.signOut'), 'primary',
   )
-  if (ok) await run(u, () => api.logoutAdminUser(u.id), `${u.name} wurde überall abgemeldet`)
+  if (ok) await run(u, () => api.logoutAdminUser(u.id), t('users.signedOut', { name: u.name }))
 }
 
 async function remove(u: AdminUser) {
   const ok = await confirmRef.value!.ask(
-    'Konto löschen?',
-    `${u.name} (${u.email}) wird mit allen Kalendern, Terminen, Kontakten und Aufgaben gelöscht `
-      + `(${stats(u)}). Das lässt sich nicht rückgängig machen.`,
+    t('users.deleteTitle'),
+    t('users.deleteText', { name: u.name, email: u.email, stats: stats(u) }),
   )
   if (!ok) return
   busyId.value = u.id
   try {
     await api.deleteAdminUser(u.id)
     users.value = users.value.filter((x) => x.id !== u.id)
-    notify.info('Konto gelöscht')
+    notify.info(t('users.deleted'))
   } catch (e) {
     notify.fail(e)
   } finally {
@@ -132,10 +130,10 @@ async function remove(u: AdminUser) {
 <template>
   <div class="d-flex align-center ga-2 mb-3">
     <v-text-field
-      v-model="search" placeholder="Benutzer suchen" density="compact" variant="solo-filled" flat rounded="xl"
+      v-model="search" :placeholder="$t('users.search')" density="compact" variant="solo-filled" flat rounded="xl"
       hide-details clearable prepend-inner-icon="mdi-magnify" bg-color="surface-container-high" class="flex-grow-1"
     />
-    <v-btn color="primary" variant="flat" prepend-icon="mdi-account-plus-outline" @click="newUser">Neues Konto</v-btn>
+    <v-btn color="primary" variant="flat" prepend-icon="mdi-account-plus-outline" @click="newUser">{{ $t('userDialog.new') }}</v-btn>
   </div>
 
   <v-card variant="flat" color="surface-container-low" rounded="xl">
@@ -152,40 +150,40 @@ async function remove(u: AdminUser) {
           </template>
           <v-list-item-title class="d-flex align-center flex-wrap ga-1">
             <span class="mr-1">{{ u.name }}</span>
-            <v-chip v-if="isOwn(u)" size="x-small" variant="tonal">Du</v-chip>
+            <v-chip v-if="isOwn(u)" size="x-small" variant="tonal">{{ $t('users.you') }}</v-chip>
             <v-chip v-if="u.is_admin" size="x-small" color="primary" variant="tonal" prepend-icon="mdi-shield-account-outline">
-              Administrator
+              {{ $t('userDialog.admin') }}
             </v-chip>
-            <v-chip v-if="u.disabled" size="x-small" color="error" variant="tonal" prepend-icon="mdi-lock-outline">Gesperrt</v-chip>
+            <v-chip v-if="u.disabled" size="x-small" color="error" variant="tonal" prepend-icon="mdi-lock-outline">{{ $t('users.disabledChip') }}</v-chip>
           </v-list-item-title>
           <v-list-item-subtitle>{{ u.email }} · {{ stats(u) }}</v-list-item-subtitle>
           <v-list-item-subtitle>
-            Seit {{ dateFmt.format(new Date(u.created_at)) }} ·
-            {{ u.last_login_at ? `zuletzt angemeldet ${dateTimeFmt.format(new Date(u.last_login_at))}` : 'noch nicht angemeldet' }}
-            <template v-if="u.devices"> · Benachrichtigungen in {{ u.devices }} {{ u.devices === 1 ? 'Browser' : 'Browsern' }}</template>
+            {{ $t('users.since', { date: dateFmt.format(new Date(u.created_at)) }) }} ·
+            {{ u.last_login_at ? $t('users.lastLogin', { date: dateTimeFmt.format(new Date(u.last_login_at)) }) : $t('users.neverLoggedIn') }}
+            <template v-if="u.devices"> · {{ $t('users.devices', u.devices) }}</template>
           </v-list-item-subtitle>
           <template #append>
             <v-menu location="bottom end">
               <template #activator="{ props: p }">
-                <v-btn v-bind="p" icon="mdi-dots-vertical" variant="text" :loading="busyId === u.id" title="Aktionen" @click.stop />
+                <v-btn v-bind="p" icon="mdi-dots-vertical" variant="text" :loading="busyId === u.id" :title="$t('users.actions')" @click.stop />
               </template>
               <v-list density="compact" rounded="lg">
-                <v-list-item prepend-icon="mdi-pencil-outline" title="Bearbeiten" @click="edit(u)" />
+                <v-list-item prepend-icon="mdi-pencil-outline" :title="$t('common.edit')" @click="edit(u)" />
                 <template v-if="!isOwn(u)">
-                  <v-list-item prepend-icon="mdi-logout" title="Überall abmelden" @click="logoutEverywhere(u)" />
+                  <v-list-item prepend-icon="mdi-logout" :title="$t('users.signOutEverywhere')" @click="logoutEverywhere(u)" />
                   <v-list-item
                     :prepend-icon="u.disabled ? 'mdi-lock-open-variant-outline' : 'mdi-lock-outline'"
-                    :title="u.disabled ? 'Entsperren' : 'Sperren'" @click="toggleDisabled(u)"
+                    :title="u.disabled ? $t('users.enable') : $t('users.disable')" @click="toggleDisabled(u)"
                   />
                   <v-divider />
-                  <v-list-item prepend-icon="mdi-delete-outline" title="Löschen" base-color="error" @click="remove(u)" />
+                  <v-list-item prepend-icon="mdi-delete-outline" :title="$t('common.delete')" base-color="error" @click="remove(u)" />
                 </template>
               </v-list>
             </v-menu>
           </template>
         </v-list-item>
       </template>
-      <v-list-item v-if="!loading && !filtered.length" class="text-medium-emphasis text-center">Keine Benutzer gefunden</v-list-item>
+      <v-list-item v-if="!loading && !filtered.length" class="text-medium-emphasis text-center">{{ $t('users.none') }}</v-list-item>
     </v-list>
   </v-card>
 

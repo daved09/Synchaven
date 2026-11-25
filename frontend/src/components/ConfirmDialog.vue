@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { t } from '@/i18n'
 import { ref } from 'vue'
 
 const open = ref(false)
@@ -8,8 +9,8 @@ const confirmText = ref('OK')
 const confirmColor = ref('error')
 let resolver: ((v: boolean) => void) | null = null
 
-function ask(t: string, body: string, ok = 'Löschen', color = 'error'): Promise<boolean> {
-  title.value = t
+function ask(heading: string, body: string, ok = t('common.delete'), color = 'error'): Promise<boolean> {
+  title.value = heading
   text.value = body
   confirmText.value = ok
   confirmColor.value = color
@@ -29,7 +30,7 @@ defineExpose({ ask })
     <v-card :title="title" :text="text" color="surface-container-high">
       <template #actions>
         <v-spacer />
-        <v-btn @click="close(false)">Abbrechen</v-btn>
+        <v-btn @click="close(false)">{{ $t('common.cancel') }}</v-btn>
         <v-btn :color="confirmColor" @click="close(true)">{{ confirmText }}</v-btn>
       </template>
     </v-card>

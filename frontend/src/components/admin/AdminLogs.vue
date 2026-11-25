@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { t } from '@/i18n'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { api } from '@/api/client'
 import type { LogEntry, LogLevel } from '@/api/types'
@@ -26,10 +27,10 @@ const levelColor: Record<LogLevel, string> = {
   ERROR: 'error', WARN: 'warning', INFO: 'info', DEBUG: 'medium-emphasis', TRACE: 'medium-emphasis',
 }
 const levelFilters: { value: LogLevel; title: string }[] = [
-  { value: 'TRACE', title: 'Alle' },
-  { value: 'INFO', title: 'Info' },
-  { value: 'WARN', title: 'Warnungen' },
-  { value: 'ERROR', title: 'Fehler' },
+  { value: 'TRACE', title: t('logs.levels.all') },
+  { value: 'INFO', title: t('logs.levels.info') },
+  { value: 'WARN', title: t('logs.levels.warnings') },
+  { value: 'ERROR', title: t('logs.levels.errors') },
 ]
 
 const lastId = () => entries.value.at(-1)?.id ?? 0
@@ -135,7 +136,7 @@ async function clear() {
   try {
     await api.clearAdminLogs()
     entries.value = []
-    notify.info('Protokoll geleert')
+    notify.info(t('logs.cleared'))
   } catch (e) {
     notify.fail(e)
   }
@@ -145,19 +146,21 @@ async function clear() {
 <template>
   <v-card variant="flat" color="surface-container-low" rounded="xl" class="pa-2">
     <v-card-item>
-      <v-card-title>Protokoll</v-card-title>
+      <v-card-title>{{ $t('admin.tabs.logs') }}</v-card-title>
       <v-card-subtitle class="text-wrap">
-        Die letzten {{ capacity.toLocaleString(LOCALE) }} Meldungen seit dem Serverstart
-        (Umfang über <code>RUST_LOG</code>)<template v-if="counts.errors || counts.warnings"> ·
-          <span v-if="counts.errors" class="text-error">{{ counts.errors }} Fehler</span>
+        <i18n-t keypath="logs.subtitle">
+          <template #count>{{ capacity.toLocaleString(LOCALE) }}</template>
+          <template #variable><code>RUST_LOG</code></template>
+        </i18n-t><template v-if="counts.errors || counts.warnings"> ·
+          <span v-if="counts.errors" class="text-error">{{ $t('logs.errorCount', counts.errors) }}</span>
           <template v-if="counts.errors && counts.warnings">, </template>
-          <span v-if="counts.warnings" class="text-warning">{{ counts.warnings }} Warnungen</span>
+          <span v-if="counts.warnings" class="text-warning">{{ $t('logs.warningCount', counts.warnings) }}</span>
         </template>
       </v-card-subtitle>
       <template #append>
-        <v-btn icon="mdi-refresh" variant="text" title="Aktualisieren" :loading="loading && !live" @click="load()" />
-        <v-btn icon="mdi-download-outline" variant="text" title="Herunterladen" :disabled="!entries.length" @click="download" />
-        <v-btn icon="mdi-delete-sweep-outline" variant="text" title="Leeren" :disabled="!entries.length" @click="clear" />
+        <v-btn icon="mdi-refresh" variant="text" :title="$t('common.refresh')" :loading="loading && !live" @click="load()" />
+        <v-btn icon="mdi-download-outline" variant="text" :title="$t('common.download')" :disabled="!entries.length" @click="download" />
+        <v-btn icon="mdi-delete-sweep-outline" variant="text" :title="$t('logs.clear')" :disabled="!entries.length" @click="clear" />
       </template>
     </v-card-item>
 
@@ -166,7 +169,7 @@ async function clear() {
         <v-btn v-for="f in levelFilters" :key="f.value" :value="f.value" size="small">{{ f.title }}</v-btn>
       </v-btn-toggle>
       <v-text-field
-        v-model="search" placeholder="Suchen" prepend-inner-icon="mdi-magnify" density="compact" variant="outlined"
+        v-model="search" :placeholder="$t('common.search')" prepend-inner-icon="mdi-magnify" density="compact" variant="outlined"
         hide-details clearable class="search"
       />
       <v-switch v-model="live" label="Live" color="primary" inset hide-details density="compact" class="flex-grow-0" />
@@ -174,12 +177,12 @@ async function clear() {
 
     <v-alert
       v-if="unreachable && live" type="warning" variant="tonal" density="compact" class="mx-2 mb-2"
-      text="Server nicht erreichbar – es wird weiter versucht"
+      :text="$t('logs.unreachable')"
     />
     <div v-if="!loaded" class="d-flex justify-center pa-8"><v-progress-circular indeterminate color="primary" /></div>
     <div v-else ref="box" class="log mx-2 mb-2">
       <div v-if="!filtered.length" class="pa-6 text-center text-medium-emphasis">
-        {{ entries.length ? 'Keine passenden Meldungen' : 'Noch keine Meldungen' }}
+        {{ entries.length ? $t('logs.noMatches') : $t('logs.empty') }}
       </div>
       <div v-for="e in filtered" :key="e.id" class="line" :class="{ problem: severity[e.level] >= 3 }">
         <span class="time">{{ formatTime(e.time) }}</span>

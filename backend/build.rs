@@ -3,6 +3,8 @@
 //!
 //! The file is looked up next to `Cargo.toml` and one directory above it (project root). The version in
 //! `Cargo.toml` is only a placeholder.
+//!
+//! Also makes Cargo rebuild when the translations in `locales/` change.
 
 use std::path::PathBuf;
 
@@ -14,13 +16,15 @@ fn main() {
         // Also react to files that don't exist yet, so Cargo rebuilds as soon as they appear
         println!("cargo:rerun-if-changed={}", path.display());
     }
+    // The texts in locales/ are embedded by rust-i18n at compile time; rebuild when they change.
+    println!("cargo:rerun-if-changed={}", manifest_dir.join("locales").display());
 
     let path = candidates
         .iter()
         .find(|p| p.is_file())
-        .unwrap_or_else(|| panic!("version.properties nicht gefunden (gesucht: {candidates:?})"));
+        .unwrap_or_else(|| panic!("version.properties not found (searched: {candidates:?})"));
     let content = std::fs::read_to_string(path)
-        .unwrap_or_else(|e| panic!("{} kann nicht gelesen werden: {e}", path.display()));
+        .unwrap_or_else(|e| panic!("Cannot read {}: {e}", path.display()));
 
     let version = content
         .lines()
@@ -31,7 +35,7 @@ fn main() {
             (key.trim() == "version").then(|| value.trim().to_string())
         })
         .filter(|v| !v.is_empty())
-        .unwrap_or_else(|| panic!("Kein Eintrag 'version=…' in {}", path.display()));
+        .unwrap_or_else(|| panic!("No 'version=…' entry in {}", path.display()));
 
     println!("cargo:rustc-env=SYNCHAVEN_VERSION={version}");
 }

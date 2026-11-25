@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { LANGUAGE_OPTIONS, language, t, type Language } from '@/i18n'
 import { computed, ref, watch } from 'vue'
 import { api } from '@/api/client'
 import type { AdminUser, AdminUserInput } from '@/api/types'
@@ -13,6 +14,8 @@ const name = ref('')
 const email = ref('')
 const password = ref('')
 const isAdmin = ref(false)
+/** Language of the new account's initial data */
+const accountLanguage = ref<Language>(language)
 const showPassword = ref(false)
 const saving = ref(false)
 const formRef = ref()
@@ -26,6 +29,7 @@ watch(open, (v) => {
   email.value = props.user?.email ?? ''
   password.value = ''
   isAdmin.value = props.user?.is_admin ?? false
+  accountLanguage.value = language
   showPassword.value = false
 })
 
@@ -38,8 +42,8 @@ function generate() {
 }
 
 const rules = {
-  email: (v: string) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v.trim()) || 'Gültige E-Mail-Adresse eingeben',
-  password: (v: string) => (!v && !isNew.value) || v.length >= 8 || 'Mindestens 8 Zeichen',
+  email: (v: string) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v.trim()) || t('userDialog.invalidEmail'),
+  password: (v: string) => (!v && !isNew.value) || v.length >= 8 || t('common.minPassword'),
 }
 
 async function save() {
@@ -53,12 +57,13 @@ async function save() {
       if (password.value) data.password = password.value
       if (!isOwn.value) data.is_admin = isAdmin.value
       saved = await api.updateAdminUser(props.user.id, data)
-      notify.info(password.value && !isOwn.value ? 'Gespeichert – das Konto wurde auf allen Geräten abgemeldet' : 'Gespeichert')
+      notify.info(password.value && !isOwn.value ? t('userDialog.savedSignedOut') : t('userDialog.saved'))
     } else {
       saved = await api.createAdminUser({
         name: name.value, email: email.value, password: password.value, is_admin: isAdmin.value,
+        language: accountLanguage.value,
       })
-      notify.info(`Konto ${saved.email} angelegt`)
+      notify.info(t('userDialog.created', { email: saved.email }))
     }
     emit('saved', saved)
     open.value = false
@@ -72,43 +77,45 @@ async function save() {
 
 <template>
   <v-dialog v-model="open" max-width="480">
-    <v-card :title="isNew ? 'Neues Konto' : 'Konto bearbeiten'" color="surface-container-high">
+    <v-card :title="isNew ? $t('userDialog.new') : $t('userDialog.edit')" color="surface-container-high">
       <v-card-text>
         <v-form ref="formRef" @submit.prevent="save">
-          <v-text-field v-model="name" label="Name" prepend-inner-icon="mdi-account-outline" :hint="isNew ? 'Ohne Angabe der Teil vor dem @' : ''" />
+          <v-text-field v-model="name" :label="$t('common.name')" prepend-inner-icon="mdi-account-outline" :hint="isNew ? $t('userDialog.nameHint') : ''" />
           <v-text-field
-            v-model="email" label="E-Mail" type="email" prepend-inner-icon="mdi-email-outline" :rules="[rules.email]"
+            v-model="email" :label="$t('common.email')" type="email" prepend-inner-icon="mdi-email-outline" :rules="[rules.email]"
             autocomplete="off"
           />
           <v-text-field
-            v-model="password" :label="isNew ? 'Passwort' : 'Neues Passwort (optional)'"
+            v-model="password" :label="isNew ? $t('common.password') : $t('profile.newPassword')"
             :type="showPassword ? 'text' : 'password'" autocomplete="new-password" prepend-inner-icon="mdi-lock-outline"
             :rules="[rules.password]" persistent-hint
-            :hint="isNew ? 'Gib es dem Benutzer weiter; ändern kann er es im Profil.'
-              : isOwn ? '' : 'Meldet das Konto auf allen Geräten ab. CardDAV-Clients brauchen danach das neue Passwort.'"
+            :hint="isNew ? $t('userDialog.passwordHintNew') : isOwn ? '' : $t('userDialog.passwordHintChange')"
           >
             <template #append-inner>
               <v-icon
-                :icon="showPassword ? 'mdi-eye-off-outline' : 'mdi-eye-outline'" :title="showPassword ? 'Verbergen' : 'Anzeigen'"
+                :icon="showPassword ? 'mdi-eye-off-outline' : 'mdi-eye-outline'" :title="showPassword ? $t('userDialog.hide') : $t('userDialog.show')"
                 @click="showPassword = !showPassword"
               />
-              <v-icon icon="mdi-dice-multiple-outline" title="Passwort erzeugen" class="ml-2" @click="generate" />
+              <v-icon icon="mdi-dice-multiple-outline" :title="$t('userDialog.generate')" class="ml-2" @click="generate" />
             </template>
           </v-text-field>
+          <v-select
+            v-if="isNew" v-model="accountLanguage" :items="LANGUAGE_OPTIONS" :label="$t('settings.language')"
+            prepend-inner-icon="mdi-translate" :hint="$t('userDialog.languageHint')" persistent-hint class="mt-1"
+          />
           <v-checkbox
-            v-model="isAdmin" label="Administrator" color="primary" hide-details class="mt-2" :disabled="isOwn"
-            :messages="isOwn ? 'Die eigenen Rechte lassen sich nicht entziehen' : undefined"
+            v-model="isAdmin" :label="$t('userDialog.admin')" color="primary" hide-details class="mt-2" :disabled="isOwn"
+            :messages="isOwn ? $t('userDialog.ownRights') : undefined"
           />
           <div class="text-body-small text-medium-emphasis">
-            Administratoren dürfen diese Verwaltung öffnen: Konten bearbeiten, Einstellungen ändern und die ganze
-            Datenbank exportieren und ersetzen.
+            {{ $t('userDialog.adminHint') }}
           </div>
         </v-form>
       </v-card-text>
       <template #actions>
         <v-spacer />
-        <v-btn @click="open = false">Abbrechen</v-btn>
-        <v-btn color="primary" variant="flat" :loading="saving" @click="save">{{ isNew ? 'Anlegen' : 'Speichern' }}</v-btn>
+        <v-btn @click="open = false">{{ $t('common.cancel') }}</v-btn>
+        <v-btn color="primary" variant="flat" :loading="saving" @click="save">{{ isNew ? $t('common.create') : $t('common.save') }}</v-btn>
       </template>
     </v-card>
   </v-dialog>

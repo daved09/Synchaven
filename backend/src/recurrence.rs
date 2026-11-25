@@ -1,5 +1,6 @@
 //! Validate and expand recurring events (RFC 5545 RRULE).
 
+use crate::i18n::tr;
 use chrono::{DateTime, Duration, NaiveDate, NaiveDateTime, Utc};
 use rrule::{RRule, RRuleSet, Tz as RTz, Unvalidated};
 
@@ -36,7 +37,7 @@ pub fn normalize(rule: &str, start: DateTime<Utc>, tz: chrono_tz::Tz, all_day: b
         })
         .collect();
     if parts.is_empty() {
-        return Err("Leere Wiederholungsregel".into());
+        return Err(tr!("recurrence.empty"));
     }
     let normalized = parts.join(";");
 
@@ -71,10 +72,10 @@ fn normalize_until(v: &str, tz: chrono_tz::Tz, all_day: bool) -> String {
 }
 
 fn build(rule: &str, start: DateTime<Utc>, tz: chrono_tz::Tz, all_day: bool) -> Result<RRuleSet, String> {
-    let parsed: RRule<Unvalidated> = rule.parse().map_err(|e| format!("Ungültige Wiederholungsregel: {e}"))?;
+    let parsed: RRule<Unvalidated> = rule.parse().map_err(|e| tr!("recurrence.invalid", error = e))?;
     parsed
         .build(dtstart(start, tz, all_day))
-        .map_err(|e| format!("Ungültige Wiederholungsregel: {e}"))
+        .map_err(|e| tr!("recurrence.invalid", error = e))
 }
 
 /// Returns the start times of all occurrences that touch the range [from, to).
@@ -89,7 +90,7 @@ pub fn occurrences(ev: &Event, from: DateTime<Utc>, to: DateTime<Utc>) -> Vec<Da
     let set = match build(rule, ev.start, tz, ev.all_day) {
         Ok(set) => set,
         Err(e) => {
-            tracing::warn!("Termin {}: {e}", ev.id);
+            tracing::warn!("Event {}: {e}", ev.id);
             return if overlaps(ev.start) { vec![ev.start] } else { vec![] };
         }
     };

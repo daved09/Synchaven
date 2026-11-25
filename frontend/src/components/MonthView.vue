@@ -145,7 +145,7 @@ function barStyle(ev: ViewEvent) {
           >
             <template v-if="barStyle(it.ev)">
               <span
-                v-if="it.ev.task" class="task-check" role="button" :title="it.ev.task.completed ? 'Als offen markieren' : 'Als erledigt markieren'"
+                v-if="it.ev.task" class="task-check" role="button" :title="it.ev.task.completed ? $t('task.markOpen') : $t('task.markDone')"
                 @click.stop="emit('toggle', it.ev)"
               ><v-icon :icon="taskIcon(it.ev.task)" size="14" /></span>
               <span v-if="!it.ev.all_day && !it.contBefore" class="time">{{ fmtTime(it.ev.startDate) }}</span>
@@ -154,7 +154,7 @@ function barStyle(ev: ViewEvent) {
             <template v-else>
               <span
                 v-if="it.ev.task" class="task-check" role="button" :style="{ color: it.ev.color }"
-                :title="it.ev.task.completed ? 'Als offen markieren' : 'Als erledigt markieren'"
+                :title="it.ev.task.completed ? $t('task.markOpen') : $t('task.markDone')"
                 @click.stop="emit('toggle', it.ev)"
               ><v-icon :icon="taskIcon(it.ev.task)" size="14" /></span>
               <span v-else class="dot" :style="{ background: it.ev.color }" />

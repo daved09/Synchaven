@@ -8,6 +8,7 @@
 //! Like in Google Tasks, open tasks with a due date remind once: at the due time, or for all-day
 //! tasks on the due date at [`TASK_ALL_DAY_MINUTE`] in the recipient's time zone.
 
+use crate::i18n::tr;
 use std::{collections::HashMap, time::Duration as StdDuration};
 
 use chrono::{DateTime, Datelike, Duration, Utc};
@@ -54,14 +55,14 @@ pub fn validate(mut list: Vec<i32>, all_day: bool) -> Result<Vec<i32>, String> {
     list.sort_unstable();
     list.dedup();
     if list.len() > MAX_COUNT {
-        return Err(format!("Höchstens {MAX_COUNT} Erinnerungen pro Termin"));
+        return Err(tr!("reminders.too_many", max = MAX_COUNT));
     }
     let min = if all_day { MIN_ALL_DAY } else { 0 };
     if list.iter().any(|m| *m < min || *m > MAX_BEFORE) {
         return Err(if all_day {
-            "Erinnerungen an ganztägige Termine: höchstens 4 Wochen vorher, spätestens 23:59 am Tag selbst".into()
+            tr!("reminders.range_all_day")
         } else {
-            "Erinnerungen: höchstens 4 Wochen und frühestens zum Beginn des Termins".into()
+            tr!("reminders.range")
         });
     }
     Ok(list)
@@ -207,7 +208,7 @@ pub fn spawn(state: AppState) {
             .flatten();
         let mut last = saved.map(|(v,)| time::from_db(&v)).filter(|t| *t <= now).unwrap_or(now).max(now - MAX_CATCH_UP);
 
-        tracing::info!("Erinnerungsdienst gestartet (prüft ab {})", time::to_db(last));
+        tracing::info!("Reminder service started (checking from {})", time::to_db(last));
         let mut ticker = tokio::time::interval(INTERVAL);
         ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
         loop {
@@ -228,7 +229,7 @@ pub fn spawn(state: AppState) {
                     .await;
                 }
                 // The same range is checked again on the next run.
-                Err(e) => tracing::warn!("Erinnerungen konnten nicht geprüft werden: {e:#}"),
+                Err(e) => tracing::warn!("Could not check reminders: {e:#}"),
             }
         }
     });
@@ -322,7 +323,7 @@ async fn run(state: &AppState, from: DateTime<Utc>, to: DateTime<Utc>) -> anyhow
         }
     }
     if sent > 0 {
-        tracing::debug!("{sent} Erinnerung(en) per Push verschickt");
+        tracing::debug!("Sent {sent} reminder(s) via push");
     }
     Ok(())
 }
@@ -332,10 +333,10 @@ async fn deliver(state: &AppState, sub: &SubRow, body: &[u8], ttl: StdDuration) 
     match state.push.send(&target, body, ttl).await {
         Ok(Outcome::Sent) => {}
         Ok(Outcome::Gone) => {
-            tracing::info!("Push-Abonnement {} ist abgelaufen und wird entfernt", sub.id);
+            tracing::info!("Push subscription {} has expired and is being removed", sub.id);
             let _ = sqlx::query("DELETE FROM push_subscriptions WHERE id = ?").bind(&sub.id).execute(&state.db).await;
         }
-        Err(e) => tracing::warn!("Push an Abonnement {} fehlgeschlagen: {e:#}", sub.id),
+        Err(e) => tracing::warn!("Push to subscription {} failed: {e:#}", sub.id),
     }
 }
 

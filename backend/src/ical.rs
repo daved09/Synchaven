@@ -1,5 +1,6 @@
 //! Minimal iCalendar (RFC 5545) export and import for VEVENTs.
 
+use crate::i18n::tr;
 use chrono::{DateTime, Duration, NaiveDate, NaiveDateTime, Utc};
 use chrono_tz::Tz;
 
@@ -368,7 +369,7 @@ impl Builder {
 pub fn parse(text: &str, default_tz: Tz) -> Result<Vec<ParsedEvent>, String> {
     let lines = unfold(text);
     if !lines.iter().any(|l| l.trim().eq_ignore_ascii_case("BEGIN:VCALENDAR")) {
-        return Err("Keine gültige iCalendar-Datei (BEGIN:VCALENDAR fehlt)".into());
+        return Err(tr!("ical.invalid_file"));
     }
 
     let mut events = Vec::new();

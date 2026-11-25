@@ -23,7 +23,7 @@ export async function registerServiceWorker(): Promise<ServiceWorkerRegistration
   try {
     return await navigator.serviceWorker.register('/sw.js')
   } catch (e) {
-    console.warn('Service Worker konnte nicht registriert werden', e)
+    console.warn('Could not register service worker', e)
     return null
   }
 }

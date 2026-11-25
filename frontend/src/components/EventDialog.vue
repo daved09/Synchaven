@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { t } from '@/i18n'
 import { computed, nextTick, ref, watch } from 'vue'
 import { useDisplay } from 'vuetify'
 import { api } from '@/api/client'
@@ -150,12 +151,12 @@ const liveDraft = computed<EventDraft | null>(() => {
 })
 watch(liveDraft, (d) => (draft.value = d))
 
-const endError = computed(() => (startDate.value && endDate.value && end.value < start.value ? 'Ende liegt vor dem Beginn' : ''))
+const endError = computed(() => (startDate.value && endDate.value && end.value < start.value ? t('event.endBeforeStart') : ''))
 
 /** Label of the recurrence button, e.g. "Wöchentlich am Sa" */
 const recurrenceLabel = computed(() => {
-  if (rec.value.freq === 'CUSTOM') return 'Benutzerdefiniert'
-  return describeRRule(buildRRule(rec.value, start.value), start.value) || 'Wiederholt sich nicht'
+  if (rec.value.freq === 'CUSTOM') return t('event.recurrenceCustom')
+  return describeRRule(buildRRule(rec.value, start.value), start.value) || t('recurrence.freq.NONE')
 })
 const recurrenceMenu = ref(false)
 
@@ -208,7 +209,7 @@ async function save() {
   try {
     if (props.eventId) await events.update(props.eventId, input)
     else await events.create(input)
-    notify.info(props.eventId ? 'Termin gespeichert' : 'Termin erstellt')
+    notify.info(props.eventId ? t('event.saved') : t('event.created'))
     open.value = false
   } catch (e) {
     notify.fail(e)
@@ -225,16 +226,16 @@ async function save() {
   >
     <v-card color="surface-container-high" :loading="loading">
       <div class="d-flex align-center pl-6 pr-2 pt-2">
-        <span class="text-title-medium flex-1-1">{{ eventId ? 'Termin bearbeiten' : 'Neuer Termin' }}</span>
-        <v-btn icon="mdi-close" variant="text" size="small" aria-label="Schließen" @click="open = false" />
+        <span class="text-title-medium flex-1-1">{{ eventId ? $t('event.edit') : $t('event.new') }}</span>
+        <v-btn icon="mdi-close" variant="text" size="small" :aria-label="$t('common.close')" @click="open = false" />
       </div>
       <v-card-text class="pt-2 pb-2">
         <v-form ref="formRef" :disabled="loading" @submit.prevent="save">
           <div class="row">
             <v-icon icon="mdi-text-short" class="row-icon" />
             <v-text-field
-              ref="titleRef" v-model="title" placeholder="Titel hinzufügen" aria-label="Titel" autofocus maxlength="500"
-              density="compact" hide-details="auto" :rules="[(v: string) => !!v.trim() || 'Bitte einen Titel eingeben']"
+              ref="titleRef" v-model="title" :placeholder="$t('common.addTitle')" :aria-label="$t('common.title')" autofocus maxlength="500"
+              density="compact" hide-details="auto" :rules="[(v: string) => !!v.trim() || $t('common.titleRequired')]"
             />
           </div>
 
@@ -243,27 +244,27 @@ async function save() {
             <div class="d-flex flex-column ga-2">
               <div class="d-flex ga-2">
                 <v-text-field
-                  :model-value="startDate" type="date" aria-label="Beginn" density="compact" hide-details="auto" class="flex-1-1"
-                  :rules="[(v: string) => !!v || 'Pflichtfeld']"
+                  :model-value="startDate" type="date" :aria-label="$t('event.start')" density="compact" hide-details="auto" class="flex-1-1"
+                  :rules="[(v: string) => !!v || $t('common.required')]"
                   @update:model-value="(v: string) => changeStart(v, null)"
                 />
                 <v-text-field
-                  v-if="!allDay" :model-value="startTime" type="time" aria-label="Beginn Uhrzeit" density="compact" hide-details
+                  v-if="!allDay" :model-value="startTime" type="time" :aria-label="$t('event.startTime')" density="compact" hide-details
                   class="time" @update:model-value="(v: string) => changeStart(null, v)"
                 />
               </div>
               <div class="d-flex ga-2">
                 <v-text-field
-                  v-model="endDate" type="date" aria-label="Ende" density="compact" hide-details="auto" class="flex-1-1"
-                  :error-messages="endError" :rules="[(v: string) => !!v || 'Pflichtfeld']"
+                  v-model="endDate" type="date" :aria-label="$t('event.end')" density="compact" hide-details="auto" class="flex-1-1"
+                  :error-messages="endError" :rules="[(v: string) => !!v || $t('common.required')]"
                 />
-                <v-text-field v-if="!allDay" v-model="endTime" type="time" aria-label="Ende Uhrzeit" density="compact" hide-details class="time" />
+                <v-text-field v-if="!allDay" v-model="endTime" type="time" :aria-label="$t('event.endTime')" density="compact" hide-details class="time" />
               </div>
               <div v-if="!allDay && timezone !== browserTimeZone()" class="text-body-small text-medium-emphasis">
-                <v-icon icon="mdi-earth" size="14" /> Zeitzone des Termins: {{ timezone }}
+                <v-icon icon="mdi-earth" size="14" /> {{ $t('event.timeZone', { tz: timezone }) }}
               </div>
               <div class="d-flex align-center justify-space-between flex-wrap ga-2">
-                <v-checkbox v-model="allDay" label="Ganztägig" color="primary" density="compact" hide-details class="flex-0-0" />
+                <v-checkbox v-model="allDay" :label="$t('event.allDay')" color="primary" density="compact" hide-details class="flex-0-0" />
                 <v-menu v-model="recurrenceMenu" :close-on-content-click="false" location="bottom end">
                   <template #activator="{ props: p }">
                     <v-btn v-bind="p" variant="outlined" size="small" prepend-icon="mdi-repeat" class="text-none recurrence-btn">
@@ -273,20 +274,20 @@ async function save() {
                   <v-card color="surface-container-highest" width="420" class="pa-4">
                     <RecurrenceEditor v-model="rec" :start="start" />
                     <div class="d-flex justify-end mt-3">
-                      <v-btn variant="text" @click="recurrenceMenu = false">Fertig</v-btn>
+                      <v-btn variant="text" @click="recurrenceMenu = false">{{ $t('common.done') }}</v-btn>
                     </div>
                   </v-card>
                 </v-menu>
               </div>
               <v-alert v-if="isSeries" type="info" variant="tonal" density="compact" icon="mdi-information-outline" class="text-body-medium">
-                Änderungen gelten für alle Termine dieser Serie.
+                {{ $t('event.seriesHint') }}
               </v-alert>
             </div>
           </div>
 
           <div class="row">
             <v-icon icon="mdi-calendar-outline" class="row-icon" />
-            <v-select v-model="calendarId" :items="calendarItems" aria-label="Kalender" density="compact" hide-details>
+            <v-select v-model="calendarId" :items="calendarItems" :aria-label="$t('nav.calendar')" density="compact" hide-details>
               <template #item="{ props: p, item }">
                 <v-list-item v-bind="p">
                   <template #prepend><span class="dot mr-3" :style="{ background: item.raw.color }" /></template>
@@ -303,35 +304,35 @@ async function save() {
             <div>
               <ReminderEditor v-model="reminders" :all-day="allDay" />
               <div v-if="ownReminders === null" class="text-body-small text-medium-emphasis">
-                {{ reminders.length ? 'Standard des Kalenders' : 'Keine Erinnerung' }}
+                {{ reminders.length ? $t('event.calendarDefault') : $t('event.noReminder') }}
               </div>
               <v-btn
                 v-else variant="text" size="small" class="text-none reset-btn" density="compact"
                 @click="ownReminders = null"
               >
-                Standard des Kalenders verwenden
+                {{ $t('event.useCalendarDefault') }}
               </v-btn>
             </div>
           </div>
 
           <div class="row">
             <v-icon icon="mdi-map-marker-outline" class="row-icon" />
-            <v-text-field v-model="location" placeholder="Ort hinzufügen" aria-label="Ort" density="compact" hide-details />
+            <v-text-field v-model="location" :placeholder="$t('event.addLocation')" :aria-label="$t('event.location')" density="compact" hide-details />
           </div>
 
           <div class="row">
             <v-icon icon="mdi-text" class="row-icon" />
             <v-textarea
-              v-model="description" placeholder="Beschreibung hinzufügen" aria-label="Beschreibung" density="compact" hide-details
+              v-model="description" :placeholder="$t('common.addDescription')" :aria-label="$t('common.description')" density="compact" hide-details
               rows="3" auto-grow max-rows="10"
             />
           </div>
         </v-form>
       </v-card-text>
       <v-card-actions class="px-6 pb-4">
-        <v-btn variant="outlined" @click="open = false">Abbrechen</v-btn>
+        <v-btn variant="outlined" @click="open = false">{{ $t('common.cancel') }}</v-btn>
         <v-spacer />
-        <v-btn color="primary" variant="flat" :loading="saving" :disabled="loading" @click="save">Speichern</v-btn>
+        <v-btn color="primary" variant="flat" :loading="saving" :disabled="loading" @click="save">{{ $t('common.save') }}</v-btn>
       </v-card-actions>
     </v-card>
   </v-dialog>

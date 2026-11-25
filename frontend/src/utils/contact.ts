@@ -1,29 +1,21 @@
 import type { Contact, ContactData, PostalAddress, TypedValue } from '@/api/types'
+import { LOCALE, t } from '@/i18n'
 
 export interface TypeOption {
   title: string
   value: string
 }
 
-export const PHONE_TYPES: TypeOption[] = [
-  { title: 'Mobil', value: 'mobile' },
-  { title: 'Privat', value: 'home' },
-  { title: 'Geschäftlich', value: 'work' },
-  { title: 'Fax', value: 'fax' },
-  { title: 'Pager', value: 'pager' },
-  { title: 'Sonstige', value: 'other' },
-]
+export const PHONE_TYPES: TypeOption[] = ['mobile', 'home', 'work', 'fax', 'pager', 'other']
+  .map((value) => ({ title: t(`contact.types.${value}`), value }))
 
-export const OTHER_TYPES: TypeOption[] = [
-  { title: 'Privat', value: 'home' },
-  { title: 'Geschäftlich', value: 'work' },
-  { title: 'Sonstige', value: 'other' },
-]
+export const OTHER_TYPES: TypeOption[] = ['home', 'work', 'other']
+  .map((value) => ({ title: t(`contact.types.${value}`), value }))
 
 /** Display text of a type; custom labels are shown unchanged. */
 export function typeLabel(type: string, phone = false): string {
   const known = (phone ? PHONE_TYPES : OTHER_TYPES).find((t) => t.value === type)
-  return known?.title ?? (type || 'Sonstige')
+  return known?.title ?? (type || t('contact.types.other'))
 }
 
 export function emptyContact(): ContactData {
@@ -118,7 +110,7 @@ export function sameCategory(a: string, b: string): boolean {
 
 export function formatAddress(a: PostalAddress): string[] {
   return [
-    a.po_box && `Postfach ${a.po_box}`,
+    a.po_box && t('contact.poBox', { box: a.po_box }),
     a.extended,
     a.street,
     [a.postal_code, a.locality].filter(Boolean).join(' '),
@@ -178,10 +170,10 @@ export function formatBirthday(b: string): string {
     const now = new Date()
     let age = now.getFullYear() - d.getFullYear()
     if (now.getMonth() < d.getMonth() || (now.getMonth() === d.getMonth() && now.getDate() < d.getDate())) age--
-    const text = d.toLocaleDateString('de-DE', { day: 'numeric', month: 'long', year: 'numeric' })
-    return age >= 0 && age < 130 ? `${text} (${age} Jahre)` : text
+    const text = d.toLocaleDateString(LOCALE, { day: 'numeric', month: 'long', year: 'numeric' })
+    return age >= 0 && age < 130 ? `${text} (${t('contact.age', { age })})` : text
   }
   m = /^--(\d{2})-(\d{2})$/.exec(b)
-  if (m) return new Date(2000, +m[1] - 1, +m[2]).toLocaleDateString('de-DE', { day: 'numeric', month: 'long' })
+  if (m) return new Date(2000, +m[1] - 1, +m[2]).toLocaleDateString(LOCALE, { day: 'numeric', month: 'long' })
   return b
 }

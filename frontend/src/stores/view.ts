@@ -1,3 +1,4 @@
+import { t } from '@/i18n'
 import { defineStore } from 'pinia'
 import { computed, ref, watch } from 'vue'
 import {
@@ -66,12 +67,12 @@ export const useViewStore = defineStore('view', () => {
         const label = same
           ? fmt(start, { month: 'long', year: 'numeric' })
           : `${fmt(start, { month: 'short' })} – ${fmt(last, { month: 'short', year: 'numeric' })}`
-        return `${label} · KW ${isoWeek(start)}`
+        return `${label} · ${t('views.weekNumber', { n: isoWeek(start) })}`
       }
       case 'day':
         return fmt(date.value, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
       case 'list':
-        return `Ab ${fmt(date.value, { day: 'numeric', month: 'long', year: 'numeric' })}`
+        return t('views.from', { date: fmt(date.value, { day: 'numeric', month: 'long', year: 'numeric' }) })
     }
   })
 

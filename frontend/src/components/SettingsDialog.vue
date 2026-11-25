@@ -1,10 +1,11 @@
 <script setup lang="ts">
+import { LANGUAGE_OPTIONS, browserLanguage, t } from '@/i18n'
 import { computed, ref, watch } from 'vue'
 import { SEED_COLORS } from '@/plugins/theme'
 import type { ViewMode } from '@/api/types'
 import { useAuthStore } from '@/stores/auth'
 import { useNotifyStore } from '@/stores/notify'
-import { useSettingsStore } from '@/stores/settings'
+import { useSettingsStore, type Settings } from '@/stores/settings'
 import { disablePush, enablePush, pushState, testPush, type PushState } from '@/utils/push'
 
 const open = defineModel<boolean>({ required: true })
@@ -22,13 +23,7 @@ const push = ref<PushState | null>(null)
 const pushBusy = ref(false)
 watch(open, (v) => v && pushState().then((s) => (push.value = s)), { immediate: true })
 
-const pushHint = computed(() => ({
-  unsupported: 'Dieser Browser unterstützt keine Push-Benachrichtigungen.',
-  insecure: 'Benachrichtigungen funktionieren nur, wenn Synchaven über HTTPS aufgerufen wird.',
-  denied: 'Benachrichtigungen sind für diese Seite im Browser blockiert. Bitte in den Website-Einstellungen erlauben.',
-  off: 'Erinnerungen an Termine und fällige Aufgaben erscheinen als Benachrichtigung, auch wenn Synchaven nicht geöffnet ist.',
-  on: 'Erinnerungen werden an diesen Browser gesendet. Sie werden pro Termin oder als Standard pro Kalender eingestellt; Aufgaben erinnern zur Fälligkeit (ganztägig um 09:00).',
-}[push.value ?? 'off']))
+const pushHint = computed(() => t(`settings.pushHint.${push.value ?? 'off'}`))
 
 async function togglePush(on: boolean | null) {
   pushBusy.value = true
@@ -52,7 +47,7 @@ async function sendTest() {
   pushBusy.value = true
   try {
     await testPush()
-    notify.info('Testbenachrichtigung gesendet')
+    notify.info(t('settings.testSent'))
   } catch (e) {
     notify.fail(e)
   } finally {
@@ -61,56 +56,78 @@ async function sendTest() {
 }
 
 const weekStarts = [
-  { title: 'Montag', value: 1 },
-  { title: 'Sonntag', value: 0 },
-  { title: 'Samstag', value: 6 },
+  { title: t('settings.weekdays.monday'), value: 1 },
+  { title: t('settings.weekdays.sunday'), value: 0 },
+  { title: t('settings.weekdays.saturday'), value: 6 },
 ]
 const views = [
-  { title: 'Monat', value: 'month' },
-  { title: 'Woche', value: 'week' },
-  { title: 'Tag', value: 'day' },
-  { title: 'Terminliste', value: 'list' },
+  { title: t('views.month'), value: 'month' },
+  { title: t('views.week'), value: 'week' },
+  { title: t('views.day'), value: 'day' },
+  { title: t('views.list'), value: 'list' },
 ]
+
+// ---------- Language ----------
+// Fixed for the lifetime of the page (see i18n.ts), so a change reloads it.
+const languages = [{ title: t('settings.languageAuto'), value: 'auto' }, ...LANGUAGE_OPTIONS]
+async function setLanguage(v: Settings['language']) {
+  settings.language = v
+  // The account's language decides the texts the server stores (e.g. birthday events)
+  if (auth.user) {
+    try {
+      await auth.update({ language: v === 'auto' ? browserLanguage() : v })
+    } catch (e) {
+      notify.fail(e)
+    }
+  }
+  // The settings store writes to localStorage in a watcher – it has run by now
+  location.reload()
+}
 </script>
 
 <template>
   <v-dialog v-model="open" max-width="520">
-    <v-card title="Einstellungen" color="surface-container-high">
+    <v-card :title="$t('settings.title')" color="surface-container-high">
       <v-card-text>
-        <div class="text-title-small mb-2">Erscheinungsbild</div>
+        <div class="text-title-small mb-2">{{ $t('settings.appearance') }}</div>
         <v-btn-toggle v-model="settings.themeMode" mandatory divided variant="outlined" rounded="xl" density="comfortable" class="mb-4">
-          <v-btn value="system" prepend-icon="mdi-theme-light-dark">System</v-btn>
-          <v-btn value="light" prepend-icon="mdi-white-balance-sunny">Hell</v-btn>
-          <v-btn value="dark" prepend-icon="mdi-weather-night">Dunkel</v-btn>
+          <v-btn value="system" prepend-icon="mdi-theme-light-dark">{{ $t('settings.themeSystem') }}</v-btn>
+          <v-btn value="light" prepend-icon="mdi-white-balance-sunny">{{ $t('settings.themeLight') }}</v-btn>
+          <v-btn value="dark" prepend-icon="mdi-weather-night">{{ $t('settings.themeDark') }}</v-btn>
         </v-btn-toggle>
 
-        <div class="text-title-small mb-2">Designfarbe</div>
+        <div class="text-title-small mb-2">{{ $t('settings.seedColor') }}</div>
         <div class="d-flex flex-wrap ga-2 mb-6 align-center">
           <button
-            v-for="c in SEED_COLORS" :key="c" class="swatch" :style="{ background: c }" :aria-label="`Designfarbe ${c}`"
+            v-for="c in SEED_COLORS" :key="c" class="swatch" :style="{ background: c }" :aria-label="$t('settings.seedColorNamed', { color: c })"
             @click="settings.seedColor = c"
           >
             <v-icon v-if="settings.seedColor.toUpperCase() === c" icon="mdi-check" color="white" size="20" />
           </button>
           <v-menu :close-on-content-click="false">
             <template #activator="{ props: p }">
-              <v-btn v-bind="p" icon size="36" variant="tonal" title="Eigene Farbe"><v-icon icon="mdi-palette-outline" /></v-btn>
+              <v-btn v-bind="p" icon size="36" variant="tonal" :title="$t('settings.customColor')"><v-icon icon="mdi-palette-outline" /></v-btn>
             </template>
             <v-color-picker v-model="settings.seedColor" mode="hex" :modes="['hex']" />
           </v-menu>
         </div>
 
-        <div class="text-title-small mb-2">Kalender</div>
         <v-select
-          :model-value="auth.user?.default_view ?? settings.defaultView" :items="views" label="Standardansicht"
+          :model-value="settings.language" :items="languages" :label="$t('settings.language')"
+          prepend-inner-icon="mdi-translate" class="mb-2" @update:model-value="setLanguage"
+        />
+
+        <div class="text-title-small mb-2">{{ $t('settings.calendar') }}</div>
+        <v-select
+          :model-value="auth.user?.default_view ?? settings.defaultView" :items="views" :label="$t('settings.defaultView')"
           @update:model-value="setDefaultView"
         />
-        <v-select v-model="settings.weekStartsOn" :items="weekStarts" label="Woche beginnt am" />
-        <v-switch v-model="settings.showWeekNumbers" label="Kalenderwochen anzeigen" color="primary" inset hide-details />
+        <v-select v-model="settings.weekStartsOn" :items="weekStarts" :label="$t('settings.weekStartsOn')" />
+        <v-switch v-model="settings.showWeekNumbers" :label="$t('settings.showWeekNumbers')" color="primary" inset hide-details />
 
-        <div class="text-title-small mt-4 mb-1">Benachrichtigungen</div>
+        <div class="text-title-small mt-4 mb-1">{{ $t('settings.notifications') }}</div>
         <v-switch
-          :model-value="push === 'on'" label="Erinnerungen in diesem Browser" color="primary" inset hide-details
+          :model-value="push === 'on'" :label="$t('settings.pushToggle')" color="primary" inset hide-details
           :disabled="push === null || push === 'unsupported' || push === 'insecure' || push === 'denied'"
           :loading="pushBusy" @update:model-value="togglePush"
         />
@@ -119,25 +136,25 @@ const views = [
           v-if="push === 'on'" variant="tonal" size="small" prepend-icon="mdi-bell-ring-outline" class="mt-2"
           :disabled="pushBusy" @click="sendTest"
         >
-          Testbenachrichtigung senden
+          {{ $t('settings.sendTest') }}
         </v-btn>
 
         <template v-if="auth.user?.is_admin">
-          <div class="text-title-small mt-6 mb-1">Verwaltung</div>
+          <div class="text-title-small mt-6 mb-1">{{ $t('admin.title') }}</div>
           <div class="text-body-small text-medium-emphasis mb-2">
-            Benutzer, Registrierung und Datensicherung für alle Konten.
+            {{ $t('settings.adminHint') }}
           </div>
           <v-btn
             variant="tonal" size="small" prepend-icon="mdi-shield-account-outline" :to="{ name: 'admin' }"
             @click="open = false"
           >
-            Verwaltung öffnen
+            {{ $t('settings.openAdmin') }}
           </v-btn>
         </template>
       </v-card-text>
       <template #actions>
         <v-spacer />
-        <v-btn @click="open = false">Fertig</v-btn>
+        <v-btn @click="open = false">{{ $t('common.done') }}</v-btn>
       </template>
     </v-card>
   </v-dialog>

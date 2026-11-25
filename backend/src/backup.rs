@@ -13,6 +13,7 @@
 //! Push subscriptions are missing as well (`NOT_EXPORTED`): they belong to individual browsers and to the VAPID key
 //! in the data directory. The web UI re-registers a subscription that is still enabled the next time it is opened.
 
+use crate::i18n::tr;
 use std::{collections::BTreeMap, io::Write, path::Path, str::FromStr, time::Duration};
 
 use anyhow::{bail, Context};
@@ -40,13 +41,13 @@ pub struct Export {
     tables: BTreeMap<String, Vec<Map<String, Value>>>,
 }
 
-const USAGE: &str = "Verwendung:
-  synchaven export [DATEI]             Datenbank als JSON exportieren (ohne DATEI auf die Standardausgabe)
-  synchaven import [--replace] DATEI   JSON-Export importieren (DATEI \"-\" = Standardeingabe)
+const USAGE: &str = "Usage:
+  synchaven export [FILE]             Export the database as JSON (to standard output without FILE)
+  synchaven import [--replace] FILE   Import a JSON export (FILE \"-\" = standard input)
 
-Die Datenbank liegt in $DATA_DIR/synchaven.db. Der Import legt sie bei Bedarf an und bringt sie auf
-das aktuelle Schema. Er verweigert eine Datenbank, die schon Daten enthält – außer mit --replace, das
-vorher alle vorhandenen Daten löscht. Während des Imports darf der Server nicht laufen.";
+The database is located at $DATA_DIR/synchaven.db. The import creates it if needed and brings it up
+to the current schema. It refuses a database that already contains data – unless --replace is given,
+which deletes all existing data first. The server must not be running during the import.";
 
 /// Runs `export`/`import`. `None` if `cmd` is neither of these commands.
 pub async fn run_cli(cmd: &str, args: &[String]) -> Option<anyhow::Result<()>> {
@@ -60,11 +61,11 @@ pub async fn run_cli(cmd: &str, args: &[String]) -> Option<anyhow::Result<()>> {
 async fn open(create: bool) -> anyhow::Result<SqlitePool> {
     let path = crate::config::data_dir_from_env().join("synchaven.db");
     if !create && !path.is_file() {
-        bail!("Keine Datenbank unter {} gefunden (DATA_DIR prüfen)", path.display());
+        bail!("No database found at {} (check DATA_DIR)", path.display());
     }
     if create {
         if let Some(dir) = path.parent() {
-            std::fs::create_dir_all(dir).with_context(|| format!("{} kann nicht angelegt werden", dir.display()))?;
+            std::fs::create_dir_all(dir).with_context(|| format!("Cannot create {}", dir.display()))?;
         }
     }
     let options = SqliteConnectOptions::from_str(&format!("sqlite://{}", path.display()))?
@@ -76,7 +77,7 @@ async fn open(create: bool) -> anyhow::Result<SqlitePool> {
         .max_connections(1)
         .connect_with(options)
         .await
-        .with_context(|| format!("Datenbank {} kann nicht geöffnet werden", path.display()))
+        .with_context(|| format!("Cannot open database {}", path.display()))
 }
 
 /// The application's tables in creation order (without SQLite-internal and sqlx tables).
@@ -129,7 +130,7 @@ pub async fn export_db(db: &SqlitePool) -> anyhow::Result<(Export, Vec<String>)>
                         "INTEGER" => Value::from(row.try_get::<i64, _>(i)?),
                         "REAL" => Value::from(row.try_get::<f64, _>(i)?),
                         "TEXT" => Value::from(row.try_get::<String, _>(i)?),
-                        other => bail!("Tabelle {table}, Spalte {}: Typ {other} wird nicht unterstützt", col.name()),
+                        other => bail!("Table {table}, column {}: type {other} is not supported", col.name()),
                     }
                 };
                 obj.insert(col.name().to_string(), value);
@@ -167,16 +168,16 @@ async fn export_cli(args: &[String]) -> anyhow::Result<()> {
         Some(file) => {
             // Write to a temporary file first, so an abort doesn't leave a half-written export behind
             let tmp = format!("{file}.tmp");
-            std::fs::write(&tmp, &json).with_context(|| format!("{tmp} kann nicht geschrieben werden"))?;
-            std::fs::rename(&tmp, file).with_context(|| format!("{file} kann nicht geschrieben werden"))?;
-            eprintln!("Export nach {file} geschrieben ({})", summary.join(", "));
+            std::fs::write(&tmp, &json).with_context(|| format!("Cannot write {tmp}"))?;
+            std::fs::rename(&tmp, file).with_context(|| format!("Cannot write {file}"))?;
+            eprintln!("Export written to {file} ({})", summary.join(", "));
         }
         None => {
             let mut stdout = std::io::stdout().lock();
             stdout.write_all(&json)?;
             stdout.write_all(b"\n")?;
             stdout.flush()?;
-            eprintln!("Export abgeschlossen ({})", summary.join(", "));
+            eprintln!("Export finished ({})", summary.join(", "));
         }
     }
     Ok(())
@@ -199,11 +200,11 @@ async fn import_cli(args: &[String]) -> anyhow::Result<()> {
         std::io::Read::read_to_end(&mut std::io::stdin().lock(), &mut buf)?;
         buf
     } else {
-        std::fs::read(Path::new(file)).with_context(|| format!("{file} kann nicht gelesen werden"))?
+        std::fs::read(Path::new(file)).with_context(|| format!("Cannot read {file}"))?
     };
     let export = parse(&json)?;
     eprintln!(
-        "Importiere Export von Synchaven {} vom {} (Migration {})",
+        "Importing export from Synchaven {} of {} (migration {})",
         export.app_version,
         export.exported_at,
         export.migration.map_or("?".into(), |m| m.to_string())
@@ -211,28 +212,29 @@ async fn import_cli(args: &[String]) -> anyhow::Result<()> {
 
     let db = open(true).await?;
     sqlx::migrate!("./migrations").run(&db).await.context(
-        "Migration fehlgeschlagen – für den Import die bestehende Datenbank zur Seite legen \
-         (synchaven.db, synchaven.db-wal, synchaven.db-shm umbenennen), dann wird eine neue angelegt",
+        "Migration failed – for the import, move the existing database aside \
+         (rename synchaven.db, synchaven.db-wal, synchaven.db-shm), then a new one is created",
     )?;
     let report = import_db(&db, &export, replace).await?;
     for w in &report.warnings {
-        eprintln!("Warnung: {w}");
+        eprintln!("Warning: {w}");
     }
-    eprintln!("Import abgeschlossen ({})", report.summary.join(", "));
+    eprintln!("Import finished ({})", report.summary.join(", "));
     Ok(())
 }
 
 /// Reads and validates an export.
 pub fn parse(json: &[u8]) -> Result<Export, ImportError> {
     let export: Export = serde_json::from_slice(json)
-        .map_err(|e| ImportError::Invalid(format!("Datei ist kein gültiger Synchaven-Export: {e}")))?;
+        .map_err(|e| ImportError::Invalid(tr!("backup.invalid_file", error = e)))?;
     if export.format != FORMAT {
-        return Err(ImportError::Invalid(format!("Datei ist kein Synchaven-Export (format = {:?})", export.format)));
+        return Err(ImportError::Invalid(tr!("backup.wrong_format", format = format!("{:?}", export.format))));
     }
     if export.format_version > FORMAT_VERSION {
-        return Err(ImportError::Invalid(format!(
-            "Exportformat {} ist neuer als diese Version unterstützt ({FORMAT_VERSION})",
-            export.format_version
+        return Err(ImportError::Invalid(tr!(
+            "backup.newer_version",
+            version = export.format_version,
+            supported = FORMAT_VERSION
         )));
     }
     Ok(export)
@@ -275,7 +277,7 @@ pub async fn import_db(db: &SqlitePool, export: &Export, replace: bool) -> Resul
             Ok(_) => Ok(report),
             Err(e) => {
                 let _ = sqlx::query("ROLLBACK").execute(&mut *conn).await;
-                Err(ImportError::Invalid(format!("Import abgebrochen, die Daten sind nicht stimmig: {e}")))
+                Err(ImportError::Invalid(tr!("backup.inconsistent", error = e)))
             }
         },
         Err(e) => {
@@ -299,9 +301,9 @@ async fn import_rows(conn: &mut SqliteConnection, export: &Export, replace: bool
     }
     if !non_empty.is_empty() {
         if !replace {
-            return Err(ImportError::NotEmpty(format!(
-                "Die Datenbank enthält bereits Daten ({}). Sie müssen vor dem Import gelöscht werden (Kommandozeile: --replace).",
-                non_empty.join(", ")
+            return Err(ImportError::NotEmpty(tr!(
+                "backup.not_empty",
+                tables = non_empty.join(", ")
             )));
         }
         for table in &target_tables {
@@ -310,13 +312,13 @@ async fn import_rows(conn: &mut SqliteConnection, export: &Export, replace: bool
     }
 
     for table in export.tables.keys().filter(|t| !target_tables.contains(t) && !NOT_EXPORTED.contains(&t.as_str())) {
-        warnings.push(format!("Tabelle {table} gibt es nicht mehr – {} Einträge übersprungen", export.tables[table].len()));
+        warnings.push(tr!("backup.table_gone", table = table, count = export.tables[table].len()));
     }
 
     let mut summary = Vec::new();
     for table in target_tables.iter().filter(|t| !NOT_EXPORTED.contains(&t.as_str())) {
         let Some(rows) = export.tables.get(table) else {
-            warnings.push(format!("Tabelle {table} fehlt im Export"));
+            warnings.push(tr!("backup.table_missing", table = table));
             continue;
         };
         let target_cols = columns(conn, table).await?;
@@ -350,12 +352,13 @@ async fn import_rows(conn: &mut SqliteConnection, export: &Export, replace: bool
             query
                 .execute(&mut *conn)
                 .await
-                .map_err(|e| ImportError::Invalid(format!("Tabelle {table}, Eintrag {}: Einfügen fehlgeschlagen: {e}", n + 1)))?;
+                .map_err(|e| ImportError::Invalid(tr!("backup.insert_failed", table = table, row = n + 1, error = e)))?;
         }
         if !skipped.is_empty() {
-            warnings.push(format!(
-                "Spalten von {table} gibt es nicht mehr, ihre Werte wurden übersprungen: {}",
-                skipped.into_iter().collect::<Vec<_>>().join(", ")
+            warnings.push(tr!(
+                "backup.columns_gone",
+                table = table,
+                columns = skipped.into_iter().collect::<Vec<_>>().join(", ")
             ));
         }
         summary.push(format!("{table}: {}", rows.len()));
@@ -372,7 +375,7 @@ async fn import_rows(conn: &mut SqliteConnection, export: &Export, replace: bool
         .execute(&mut *conn)
         .await?;
         if promoted.rows_affected() > 0 {
-            warnings.push("Der Export enthielt keinen Administrator – das älteste Konto ist jetzt Administrator".into());
+            warnings.push(tr!("backup.admin_promoted"));
         }
     }
 
@@ -381,12 +384,12 @@ async fn import_rows(conn: &mut SqliteConnection, export: &Export, replace: bool
     for id in &contacts {
         crate::birthdays::sync_contact(conn, id)
             .await
-            .map_err(|e| ImportError::Other(anyhow::anyhow!("Geburtstagskalender: {e}")))?;
+            .map_err(|e| ImportError::Other(anyhow::anyhow!("Birthday calendar: {e}")))?;
     }
     let birthdays: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM events WHERE contact_id IS NOT NULL")
         .fetch_one(&mut *conn)
         .await?;
-    summary.push(format!("Geburtstage: {birthdays}"));
+    summary.push(tr!("backup.birthdays_summary", count = birthdays));
 
     Ok(ImportReport { summary, warnings })
 }

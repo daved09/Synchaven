@@ -2,7 +2,11 @@
 
 Base URL: `http://<host>:8080/api` · Format: JSON (UTF-8) · Times: RFC 3339 / ISO 8601.
 
-The server's user-facing texts (error messages, names of default calendars, lists and address books) are in German.
+The server's user-facing texts (error messages, import reports) are in the language of the request's `Accept-Language`
+header – currently English (`en`, the default) or German (`de`). Log output is always English. Texts the server
+stores for a user (names of default calendars, lists and address books, birthday events) use the language saved with
+the account (`language` in `User`): chosen on registration, changeable with `PUT /auth/me`. The texts are in
+`backend/locales/` (one JSON file per language).
 
 ## Authentication
 
@@ -19,7 +23,7 @@ This also applies when an administrator has disabled the account, signed it out 
 ## Error format
 
 ```json
-{ "error": "bad_request", "message": "Der Titel muss 1–500 Zeichen lang sein" }
+{ "error": "bad_request", "message": "The title must be 1–500 characters long" }
 ```
 
 | HTTP | `error`        | Meaning                                    |
@@ -57,21 +61,25 @@ This also applies when an administrator has disabled the account, signed it out 
 
 ### `POST /auth/register` → `201`
 ```json
-{ "email": "anna@example.com", "password": "at least 8 characters", "name": "Anna" }
+{ "email": "anna@example.com", "password": "at least 8 characters", "name": "Anna", "language": "de" }
 ```
+`language` (`de` or `en`, optional) is the language of the account's initial data; without it, the request's
+`Accept-Language` decides. Another value gives `400`.
+
 Response (also for login):
 ```json
 {
   "token": "eyJ…",
   "token_type": "Bearer",
   "expires_at": "2026-12-22T18:56:04Z",
-  "user": { "id": "…", "email": "anna@example.com", "name": "Anna", "default_view": "month", "created_at": "…", "is_admin": false }
+  "user": { "id": "…", "email": "anna@example.com", "name": "Anna", "default_view": "month", "language": "de", "created_at": "…", "is_admin": false }
 }
 ```
 `default_view` is the calendar's default view (`month`, `week`, `day` or `list`). The web UI and the app
 store the last selected view there. `is_admin` is `true` for administrators – initially the first registered
-account; further ones are granted in the admin page. For new accounts the calendar "Persönlich" (personal) is created
-automatically. If registration is closed (admin page or `ALLOW_REGISTRATION=false`), only the first account of an
+account; further ones are granted in the admin page. New accounts get their initial data in `language`: a calendar
+("Persönlich" / "Personal"), a task list ("Meine Aufgaben" / "My tasks"), an address book ("Kontakte" / "Contacts")
+and the birthday calendar ("Geburtstage" / "Birthdays"). If registration is closed (admin page or `ALLOW_REGISTRATION=false`), only the first account of an
 empty database can be registered (`allow_registration` in `/info` shows whether it is currently possible). A disabled
 account gets `403` when signing in with the correct password.
 
@@ -89,8 +97,10 @@ to renew the token of its sync without storing the password.
 ### `PUT /auth/me` → `User`
 All fields optional. `current_password` is required for changing `email` or `new_password`.
 ```json
-{ "name": "Anna B.", "email": "new@example.com", "current_password": "…", "new_password": "…", "default_view": "week" }
+{ "name": "Anna B.", "email": "new@example.com", "current_password": "…", "new_password": "…", "default_view": "week", "language": "en" }
 ```
+Changing `language` updates the texts of the birthday events; existing calendars, lists and address books keep their
+names.
 
 ## Calendars
 
@@ -426,8 +436,8 @@ All accounts, oldest first:
 notifications.
 
 ### `POST /admin/users` → `201`
-`{ "email": "…", "password": "at least 8 characters", "name": "…", "is_admin": false }` – creates an account with the calendar
-"Persönlich", even if registration is closed. Response like an entry from `GET /admin/users`.
+`{ "email": "…", "password": "at least 8 characters", "name": "…", "is_admin": false, "language": "de" }` – creates an
+account with its initial data in `language` (optional, like for registration), even if registration is closed. Response like an entry from `GET /admin/users`.
 
 ### `PUT /admin/users/{id}`
 Optional `name`, `email`, `password`, `is_admin`, `disabled`; only the given fields are changed. A new password
@@ -448,7 +458,7 @@ in memory only. With `after` only entries with a greater `id`, for polling; `sta
 after which the ids start again at 1. `DELETE` empties the buffer (the console output is unaffected).
 ```json
 { "entries": [ { "id": 41, "time": "…", "level": "INFO", "target": "synchaven::routes::admin",
-                 "message": "Konto anna@example.com von der Verwaltung angelegt" } ],
+                 "message": "Account 3f2a… created by administrator 9c41…" } ],
   "started_at": "…", "capacity": 2000 }
 ```
 `level` is one of `ERROR`, `WARN`, `INFO`, `DEBUG`, `TRACE`; further fields of an entry are appended to `message` as `key=value`.

@@ -13,6 +13,7 @@
 //!
 //! Clients detect changes via `getctag` (change counter per address book) and `getetag`.
 
+use crate::i18n::tr;
 use std::{
     collections::HashMap,
     sync::Mutex,
@@ -93,11 +94,11 @@ async fn authenticate(state: &AppState, headers: &HeaderMap) -> AppResult<Option
         .fetch_optional(&state.db)
         .await?
     else {
-        tracing::warn!("CardDAV: Anmeldung mit unbekannter E-Mail-Adresse abgewiesen");
+        tracing::warn!("CardDAV: rejected sign-in with unknown email address");
         return Ok(None);
     };
     if user.disabled {
-        tracing::warn!("CardDAV: Anmeldung an gesperrtem Konto {} abgewiesen", user.id);
+        tracing::warn!("CardDAV: rejected sign-in to disabled account {}", user.id);
         return Ok(None);
     }
 
@@ -110,10 +111,10 @@ async fn authenticate(state: &AppState, headers: &HeaderMap) -> AppResult<Option
         let (password, hash) = (password.to_string(), user.password_hash.clone());
         let ok = tokio::task::spawn_blocking(move || verify_password(&password, &hash)).await.unwrap_or(false);
         if !ok {
-            tracing::warn!("CardDAV: Fehlgeschlagene Anmeldung für Konto {}: falsches Passwort", user.id);
+            tracing::warn!("CardDAV: failed sign-in for account {}: wrong password", user.id);
             return Ok(None);
         }
-        tracing::debug!("CardDAV: Konto {} angemeldet", user.id);
+        tracing::debug!("CardDAV: account {} signed in", user.id);
         let mut map = state.dav_auth.0.lock().unwrap();
         let now = Instant::now();
         if map.len() > 1000 {
@@ -128,7 +129,7 @@ fn unauthorized() -> Response {
     (
         StatusCode::UNAUTHORIZED,
         [(header::WWW_AUTHENTICATE, "Basic realm=\"Synchaven\", charset=\"UTF-8\"")],
-        "Anmeldung erforderlich",
+        tr!("auth.required"),
     )
         .into_response()
 }
@@ -323,7 +324,7 @@ impl Ctx<'_> {
             (NS_DAV, "displayname") => match res {
                 Res::Root => Some("Synchaven".into()),
                 Res::Principal => Some(esc(&self.user.name)),
-                Res::Home => Some("Adressbücher".into()),
+                Res::Home => Some(esc(&tr!("contacts.address_books"))),
                 Res::Book(b) => Some(esc(&b.name)),
                 Res::Object(_) => None,
             },
@@ -558,7 +559,7 @@ async fn handle_inner(state: AppState, req: Request) -> AppResult<Response> {
     };
     let body = axum::body::to_bytes(body, MAX_BODY)
         .await
-        .map_err(|_| AppError::BadRequest("Anfrage zu groß".into()))?;
+        .map_err(|_| AppError::BadRequest(tr!("error.request_too_large")))?;
     let path = parts.uri.path().to_string();
     let headers = &parts.headers;
     let ctx = Ctx { user: &user };
@@ -589,7 +590,7 @@ async fn handle_inner(state: AppState, req: Request) -> AppResult<Response> {
         ("GET" | "HEAD", Target::Book(_, b)) => get_book(&state, &ctx, b).await,
         ("GET" | "HEAD", _) => Ok((
             [(header::CONTENT_TYPE, "text/plain; charset=utf-8")],
-            "CardDAV-Server von Synchaven. In DAVx⁵ diese Adresse mit E-Mail-Adresse und Passwort verwenden.",
+            tr!("dav.info"),
         )
             .into_response()),
         ("PUT", Target::Object(_, b, o)) => put_object(&state, &ctx, b, o, headers, &body).await,
@@ -597,7 +598,7 @@ async fn handle_inner(state: AppState, req: Request) -> AppResult<Response> {
         ("DELETE", Target::Book(_, b)) => {
             contacts::owned_book(&state.db, &user.id, b).await?;
             sqlx::query("DELETE FROM addressbooks WHERE id = ?").bind(b).execute(&state.db).await?;
-            tracing::info!("CardDAV: Adressbuch {b} von Konto {} gelöscht", user.id);
+            tracing::info!("CardDAV: address book {b} deleted by account {}", user.id);
             Ok(status(StatusCode::NO_CONTENT))
         }
         ("PUT" | "DELETE" | "MKCOL" | "PROPPATCH", _) => Ok(status(StatusCode::FORBIDDEN)),
@@ -800,7 +801,7 @@ async fn mkcol(state: &AppState, ctx: &Ctx<'_>, id: &str, body: &[u8]) -> AppRes
     if exists.is_some() {
         return Ok(status(StatusCode::METHOD_NOT_ALLOWED));
     }
-    let mut name = "Adressbuch".to_string();
+    let mut name = tr!("contacts.new_book_name");
     let mut description = String::new();
     if !body.iter().all(|b| b.is_ascii_whitespace()) {
         let Some(root) = parse_xml(body) else {

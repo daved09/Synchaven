@@ -46,11 +46,11 @@ fn layer_formats_message_and_fields() {
     let buf: &'static LogBuffer = Box::leak(Box::default());
     let subscriber = tracing_subscriber::registry().with(buf);
     tracing::subscriber::with_default(subscriber, || {
-        tracing::warn!(user = "anna", count = 3, "Hallo {}", "Welt");
+        tracing::warn!(user = "anna", count = 3, "Hello {}", "world");
         tracing::info!(status = 200);
     });
     let all = buf.since(0);
     assert_eq!(all[0].level, "WARN");
-    assert_eq!(all[0].message, "Hallo Welt user=anna count=3");
+    assert_eq!(all[0].message, "Hello world user=anna count=3");
     assert_eq!(all[1].message, "status=200");
 }

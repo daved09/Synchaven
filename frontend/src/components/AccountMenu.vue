@@ -41,7 +41,7 @@ defineExpose({ dialogOpen: computed(() => profileOpen.value || settingsOpen.valu
 <template>
   <v-menu location="bottom end">
     <template #activator="{ props: p }">
-      <v-btn v-bind="p" icon class="mr-2" title="Konto">
+      <v-btn v-bind="p" icon class="mr-2" :title="$t('account.title')">
         <v-avatar color="primary" size="34"><span class="text-label-large">{{ initials }}</span></v-avatar>
       </v-btn>
     </template>
@@ -49,12 +49,12 @@ defineExpose({ dialogOpen: computed(() => profileOpen.value || settingsOpen.valu
       <v-card-item :title="auth.user?.name" :subtitle="auth.user?.email" />
       <v-divider />
       <v-list density="compact" bg-color="transparent">
-        <v-list-item prepend-icon="mdi-account-outline" title="Profil" @click="profileOpen = true" />
-        <v-list-item prepend-icon="mdi-cog-outline" title="Einstellungen" @click="settingsOpen = true" />
+        <v-list-item prepend-icon="mdi-account-outline" :title="$t('profile.title')" @click="profileOpen = true" />
+        <v-list-item prepend-icon="mdi-cog-outline" :title="$t('settings.title')" @click="settingsOpen = true" />
         <v-list-item
-          v-if="auth.user?.is_admin" prepend-icon="mdi-shield-account-outline" title="Verwaltung" :to="{ name: 'admin' }"
+          v-if="auth.user?.is_admin" prepend-icon="mdi-shield-account-outline" :title="$t('admin.title')" :to="{ name: 'admin' }"
         />
-        <v-list-item prepend-icon="mdi-logout" title="Abmelden" @click="logout" />
+        <v-list-item prepend-icon="mdi-logout" :title="$t('account.signOut')" @click="logout" />
       </v-list>
     </v-card>
   </v-menu>

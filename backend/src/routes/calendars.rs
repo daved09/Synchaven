@@ -1,3 +1,4 @@
+use crate::i18n::tr;
 use axum::{
     extract::{Path, State},
     http::StatusCode,
@@ -15,9 +16,7 @@ use crate::{
 /// Events in this calendar are generated automatically and must not be changed by hand.
 pub fn ensure_writable(cal: &CalendarRow) -> AppResult<()> {
     if cal.kind == birthdays::KIND {
-        return Err(AppError::BadRequest(
-            "Der Geburtstagskalender wird automatisch aus den Kontakten erstellt".into(),
-        ));
+        return Err(AppError::BadRequest(tr!("calendar.birthdays_read_only")));
     }
     Ok(())
 }
@@ -45,7 +44,7 @@ fn validate_defaults(input: &CalendarInput) -> AppResult<(Option<String>, Option
 fn validate(input: &CalendarInput) -> AppResult<(String, Option<String>)> {
     let name = input.name.trim();
     if name.is_empty() || name.chars().count() > 100 {
-        return Err(AppError::BadRequest("Der Name muss 1–100 Zeichen lang sein".into()));
+        return Err(AppError::BadRequest(tr!("validation.name_length")));
     }
     Ok((name.to_string(), parse_color(input.color.as_deref())?))
 }
@@ -57,12 +56,15 @@ pub fn parse_color(color: Option<&str>) -> AppResult<Option<String>> {
         Some(c) if c.len() == 7 && c.starts_with('#') && c[1..].chars().all(|ch| ch.is_ascii_hexdigit()) => {
             Ok(Some(c.to_uppercase()))
         }
-        Some(_) => Err(AppError::BadRequest("Farbe muss im Format #RRGGBB angegeben werden".into())),
+        Some(_) => Err(AppError::BadRequest(tr!("validation.color_format"))),
     }
 }
 
 pub async fn list(State(state): State<AppState>, auth: AuthUser) -> AppResult<Json<Vec<Calendar>>> {
-    birthdays::ensure_calendar(&mut *state.db.acquire().await?, &auth.id).await?;
+    let mut conn = state.db.acquire().await?;
+    let lang = crate::i18n::user_lang(&mut conn, &auth.id).await?;
+    birthdays::ensure_calendar(&mut conn, &auth.id, lang).await?;
+    drop(conn);
     let rows = sqlx::query_as::<_, CalendarRow>("SELECT * FROM calendars WHERE user_id = ? ORDER BY created_at, name")
         .bind(&auth.id)
         .fetch_all(&state.db)
@@ -128,12 +130,10 @@ pub async fn update(
 pub async fn delete(State(state): State<AppState>, auth: AuthUser, Path(id): Path<String>) -> AppResult<StatusCode> {
     let cal = owned_calendar(&state, &auth.id, &id).await?;
     if cal.kind == birthdays::KIND {
-        return Err(AppError::BadRequest(
-            "Der Geburtstagskalender kann nicht gelöscht, aber ausgeblendet werden".into(),
-        ));
+        return Err(AppError::BadRequest(tr!("calendar.birthdays_not_deletable")));
     }
     // Events are deleted along with it via ON DELETE CASCADE.
     sqlx::query("DELETE FROM calendars WHERE id = ?").bind(&id).execute(&state.db).await?;
-    tracing::info!("Kalender „{}“ ({id}) von Konto {} gelöscht", cal.name, auth.id);
+    tracing::info!("Calendar \"{}\" ({id}) deleted by account {}", cal.name, auth.id);
     Ok(StatusCode::NO_CONTENT)
 }

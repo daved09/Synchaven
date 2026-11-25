@@ -1,3 +1,4 @@
+use crate::i18n::{tr, tr_in, Lang};
 use axum::{extract::State, http::StatusCode, Json};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -15,6 +16,8 @@ pub struct RegisterInput {
     password: String,
     #[serde(default)]
     name: String,
+    /// Language for the initial data (`de`, `en`); default: the request's language
+    language: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -30,6 +33,7 @@ pub struct UpdateMeInput {
     current_password: Option<String>,
     new_password: Option<String>,
     default_view: Option<String>,
+    language: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -45,7 +49,7 @@ pub(super) fn normalize_email(email: &str) -> AppResult<String> {
     let valid = email.len() <= 254
         && email.split_once('@').is_some_and(|(l, d)| !l.is_empty() && d.contains('.') && !d.starts_with('.'));
     if !valid {
-        return Err(AppError::BadRequest("Ungültige E-Mail-Adresse".into()));
+        return Err(AppError::BadRequest(tr!("auth.invalid_email")));
     }
     Ok(email)
 }
@@ -54,10 +58,10 @@ const VIEW_MODES: [&str; 4] = ["month", "week", "day", "list"];
 
 pub(super) fn check_password(pw: &str) -> AppResult<()> {
     if pw.chars().count() < 8 {
-        return Err(AppError::BadRequest("Das Passwort muss mindestens 8 Zeichen lang sein".into()));
+        return Err(AppError::BadRequest(tr!("auth.password_too_short")));
     }
     if pw.len() > 1024 {
-        return Err(AppError::BadRequest("Das Passwort ist zu lang".into()));
+        return Err(AppError::BadRequest(tr!("auth.password_too_long")));
     }
     Ok(())
 }
@@ -107,20 +111,22 @@ pub async fn register(
     Json(input): Json<RegisterInput>,
 ) -> AppResult<(StatusCode, Json<AuthResponse>)> {
     if !registration_open(&state).await? {
-        return Err(AppError::Forbidden("Registrierung ist deaktiviert".into()));
+        return Err(AppError::Forbidden(tr!("auth.registration_disabled")));
     }
-    let id = create_user(&state, &input.email, &input.name, &input.password, None).await?;
+    let lang = crate::i18n::parse_choice(input.language.as_deref())?.unwrap_or_else(crate::i18n::current);
+    let id = create_user(&state, &input.email, &input.name, &input.password, None, lang).await?;
     touch_login(&state, &id).await?;
     let user = load_user(&state, &id).await?;
     if user.is_admin {
-        tracing::info!("Konto {} registriert (Administrator)", user.id);
+        tracing::info!("Account {} registered (administrator)", user.id);
     } else {
-        tracing::info!("Konto {} registriert", user.id);
+        tracing::info!("Account {} registered", user.id);
     }
     Ok((StatusCode::CREATED, respond(&state, user)?))
 }
 
-/// Creates an account with a default calendar and task list and returns its ID.
+/// Creates an account with its initial data – a calendar, a task list, an address book and the birthday
+/// calendar, named in `lang` – and returns its ID.
 /// `is_admin = None`: it only becomes administrator if it is the first account (initial setup).
 pub(super) async fn create_user(
     state: &AppState,
@@ -128,6 +134,7 @@ pub(super) async fn create_user(
     name: &str,
     password: &str,
     is_admin: Option<bool>,
+    lang: Lang,
 ) -> AppResult<String> {
     let email = normalize_email(email)?;
     check_password(password)?;
@@ -141,7 +148,7 @@ pub(super) async fn create_user(
         .fetch_optional(&state.db)
         .await?;
     if exists.is_some() {
-        return Err(AppError::Conflict("Diese E-Mail-Adresse ist bereits registriert".into()));
+        return Err(AppError::Conflict(tr!("auth.email_taken")));
     }
 
     let password = password.to_string();
@@ -152,8 +159,8 @@ pub(super) async fn create_user(
     // Initial setup: the first account becomes administrator. The check is part of the INSERT itself,
     // so two concurrent registrations don't both become administrator.
     sqlx::query(
-        "INSERT INTO users (id, email, name, password_hash, created_at, updated_at, is_admin) \
-         VALUES (?, ?, ?, ?, ?, ?, COALESCE(?, NOT EXISTS (SELECT 1 FROM users)))",
+        "INSERT INTO users (id, email, name, password_hash, created_at, updated_at, is_admin, language) \
+         VALUES (?, ?, ?, ?, ?, ?, COALESCE(?, NOT EXISTS (SELECT 1 FROM users)), ?)",
     )
     .bind(&id)
     .bind(&email)
@@ -162,18 +169,22 @@ pub(super) async fn create_user(
     .bind(&now)
     .bind(&now)
     .bind(is_admin)
+    .bind(lang.code())
     .execute(&mut *tx)
     .await?;
     // Every new user gets a default calendar.
-    sqlx::query("INSERT INTO calendars (id, user_id, name, color, description, visible, created_at, updated_at) VALUES (?, ?, 'Persönlich', '#6750A4', '', 1, ?, ?)")
+    sqlx::query("INSERT INTO calendars (id, user_id, name, color, description, visible, created_at, updated_at) VALUES (?, ?, ?, '#6750A4', '', 1, ?, ?)")
         .bind(uuid::Uuid::new_v4().to_string())
         .bind(&id)
+        .bind(tr_in!(lang, "calendar.default_name"))
         .bind(&now)
         .bind(&now)
         .execute(&mut *tx)
         .await?;
     super::tasks::ensure_list(&mut tx, &id).await?;
+    crate::birthdays::ensure_calendar(&mut tx, &id, lang).await?;
     tx.commit().await?;
+    crate::contacts::ensure_default_book(&state.db, &id).await?;
     Ok(id)
 }
 
@@ -197,21 +208,21 @@ pub async fn login(State(state): State<AppState>, Json(input): Json<LoginInput>)
     match user {
         // Only reveal that the account is disabled after the correct password
         Some(u) if ok && u.disabled => {
-            tracing::warn!("Anmeldung an gesperrtem Konto {} abgewiesen", u.id);
-            Err(AppError::Forbidden("Dieses Konto ist gesperrt".into()))
+            tracing::warn!("Rejected sign-in to disabled account {}", u.id);
+            Err(AppError::Forbidden(tr!("auth.account_disabled")))
         }
         Some(u) if ok => {
             touch_login(&state, &u.id).await?;
-            tracing::info!("Anmeldung: Konto {}", u.id);
+            tracing::info!("Sign-in: account {}", u.id);
             respond(&state, u)
         }
         Some(u) => {
-            tracing::warn!("Fehlgeschlagene Anmeldung für Konto {}: falsches Passwort", u.id);
-            Err(AppError::Unauthorized("E-Mail-Adresse oder Passwort falsch".into()))
+            tracing::warn!("Failed sign-in for account {}: wrong password", u.id);
+            Err(AppError::Unauthorized(tr!("auth.wrong_credentials")))
         }
         None => {
-            tracing::warn!("Fehlgeschlagene Anmeldung: unbekannte E-Mail-Adresse");
-            Err(AppError::Unauthorized("E-Mail-Adresse oder Passwort falsch".into()))
+            tracing::warn!("Failed sign-in: unknown email address");
+            Err(AppError::Unauthorized(tr!("auth.wrong_credentials")))
         }
     }
 }
@@ -240,8 +251,8 @@ pub async fn update_me(
     if wants_email || wants_password {
         let current = input.current_password.as_deref().unwrap_or("");
         if !verify_password(current, &user.password_hash) {
-            tracing::warn!("Konto {}: Änderung von E-Mail/Passwort mit falschem Passwort abgewiesen", user.id);
-            return Err(AppError::Unauthorized("Aktuelles Passwort ist falsch".into()));
+            tracing::warn!("Account {}: rejected email/password change with wrong password", user.id);
+            return Err(AppError::Unauthorized(tr!("auth.current_password_wrong")));
         }
     }
     if wants_email {
@@ -252,12 +263,13 @@ pub async fn update_me(
             .fetch_optional(&state.db)
             .await?;
         if taken.is_some() {
-            return Err(AppError::Conflict("Diese E-Mail-Adresse ist bereits registriert".into()));
+            return Err(AppError::Conflict(tr!("auth.email_taken")));
         }
     }
+    let language = crate::i18n::parse_choice(input.language.as_deref())?;
     if let Some(v) = input.default_view.as_deref() {
         if !VIEW_MODES.contains(&v) {
-            return Err(AppError::BadRequest("Ungültige Standardansicht".into()));
+            return Err(AppError::BadRequest(tr!("auth.invalid_default_view")));
         }
         default_view = v.to_string();
     }
@@ -267,20 +279,39 @@ pub async fn update_me(
         hash = hash_password(pw)?;
     }
 
-    sqlx::query("UPDATE users SET name = ?, email = ?, password_hash = ?, default_view = ?, updated_at = ? WHERE id = ?")
-        .bind(&name)
-        .bind(&email)
-        .bind(&hash)
-        .bind(&default_view)
-        .bind(time::to_db(time::now()))
+    let language_changed = language.is_some_and(|l| l.code() != user.language);
+    let mut tx = state.db.begin().await?;
+    sqlx::query(
+        "UPDATE users SET name = ?, email = ?, password_hash = ?, default_view = ?, language = ?, updated_at = ? WHERE id = ?",
+    )
+    .bind(&name)
+    .bind(&email)
+    .bind(&hash)
+    .bind(&default_view)
+    .bind(language.map_or(user.language.as_str(), |l| l.code()))
+    .bind(time::to_db(time::now()))
+    .bind(&user.id)
+    .execute(&mut *tx)
+    .await?;
+    if language_changed {
+        // Birthday events carry texts in the user's language ("Born on …")
+        let ids: Vec<(String,)> = sqlx::query_as(
+            "SELECT c.id FROM contacts c JOIN addressbooks b ON b.id = c.addressbook_id WHERE b.user_id = ?",
+        )
         .bind(&user.id)
-        .execute(&state.db)
+        .fetch_all(&mut *tx)
         .await?;
+        for (id,) in &ids {
+            crate::birthdays::sync_contact(&mut tx, id).await?;
+        }
+        tracing::info!("Account {}: language changed to {}", user.id, language.unwrap().code());
+    }
+    tx.commit().await?;
     if wants_email {
-        tracing::info!("Konto {}: E-Mail-Adresse geändert", user.id);
+        tracing::info!("Account {}: email address changed", user.id);
     }
     if wants_password {
-        tracing::info!("Konto {}: Passwort geändert", user.id);
+        tracing::info!("Account {}: password changed", user.id);
     }
     Ok(Json(load_user(&state, &auth.id).await?.into()))
 }

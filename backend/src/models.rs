@@ -15,6 +15,8 @@ pub struct UserRow {
     pub name: String,
     pub password_hash: String,
     pub default_view: String,
+    /// Language of stored texts such as default names and birthday events (`de`, `en`)
+    pub language: String,
     pub created_at: String,
     /// May open the admin page (users, settings, backup); initially the first registered account
     pub is_admin: bool,
@@ -29,6 +31,8 @@ pub struct User {
     pub name: String,
     /// The calendar's default view: `month`, `week`, `day` or `list`
     pub default_view: String,
+    /// Language of the texts the server stores for the account (`de`, `en`)
+    pub language: String,
     pub created_at: DateTime<Utc>,
     /// May open the admin page (initially the first registered account)
     pub is_admin: bool,
@@ -41,6 +45,7 @@ impl From<UserRow> for User {
             email: r.email,
             name: r.name,
             default_view: r.default_view,
+            language: r.language,
             created_at: from_db(&r.created_at),
             is_admin: r.is_admin,
         }

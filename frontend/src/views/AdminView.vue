@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { t } from '@/i18n'
 import { computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useDisplay } from 'vuetify'
@@ -18,11 +19,11 @@ const auth = useAuthStore()
 const notify = useNotifyStore()
 
 const tabs = [
-  { value: 'overview', title: 'Übersicht', icon: 'mdi-view-dashboard-outline' },
-  { value: 'users', title: 'Benutzer', icon: 'mdi-account-multiple-outline' },
-  { value: 'settings', title: 'Einstellungen', icon: 'mdi-tune-variant' },
-  { value: 'backup', title: 'Datensicherung', icon: 'mdi-database-outline' },
-  { value: 'logs', title: 'Protokoll', icon: 'mdi-text-box-search-outline' },
+  { value: 'overview', title: t('admin.tabs.overview'), icon: 'mdi-view-dashboard-outline' },
+  { value: 'users', title: t('admin.tabs.users'), icon: 'mdi-account-multiple-outline' },
+  { value: 'settings', title: t('admin.tabs.settings'), icon: 'mdi-tune-variant' },
+  { value: 'backup', title: t('admin.tabs.backup'), icon: 'mdi-database-outline' },
+  { value: 'logs', title: t('admin.tabs.logs'), icon: 'mdi-text-box-search-outline' },
 ] as const
 type Tab = (typeof tabs)[number]['value']
 
@@ -39,7 +40,7 @@ onMounted(async () => {
     return
   }
   if (!auth.user?.is_admin) {
-    notify.fail(new Error('Die Verwaltung ist nur für Administratoren'))
+    notify.fail(new Error(t('admin.onlyAdmins')))
     router.replace({ name: 'calendar' })
   }
 })
@@ -52,14 +53,14 @@ function back() {
 
 <template>
   <v-app-bar flat color="surface" density="comfortable">
-    <v-btn icon="mdi-arrow-left" title="Zurück" @click="back" />
+    <v-btn icon="mdi-arrow-left" :title="$t('common.back')" @click="back" />
     <div class="d-flex align-center ml-1">
       <v-icon icon="mdi-shield-account-outline" color="primary" size="28" class="mr-2" />
-      <span class="text-title-large">Verwaltung</span>
+      <span class="text-title-large">{{ $t('admin.title') }}</span>
     </div>
     <v-spacer />
-    <v-btn icon="mdi-calendar-month-outline" title="Kalender" :to="{ name: 'calendar' }" />
-    <v-btn icon="mdi-account-box-multiple-outline" title="Kontakte" :to="{ name: 'contacts' }" />
+    <v-btn icon="mdi-calendar-month-outline" :title="$t('nav.calendar')" :to="{ name: 'calendar' }" />
+    <v-btn icon="mdi-account-box-multiple-outline" :title="$t('nav.contacts')" :to="{ name: 'contacts' }" />
     <AccountMenu />
   </v-app-bar>
 

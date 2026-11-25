@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { t as tr } from '@/i18n'
 import { computed, ref, watch } from 'vue'
 import type { Task } from '@/api/types'
 import { useNotifyStore } from '@/stores/notify'
@@ -17,7 +18,7 @@ const list = computed(() => (task.value ? tasks.listById.get(task.value.list_id)
 const due = computed(() => {
   const t = task.value
   const d = t && taskDueDate(t)
-  if (!t || !d) return 'Ohne Datum'
+  if (!t || !d) return tr('task.noDate')
   const day = fmt(d, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
   return t.all_day ? day : `${day} · ${fmtTime(d)}`
 })
@@ -67,9 +68,9 @@ const completedAt = computed(() => {
   <v-dialog v-model="open" max-width="480">
     <v-card v-if="task" color="surface-container-high" class="pb-2">
       <div class="d-flex justify-end pa-2 ga-1">
-        <v-btn icon="mdi-pencil-outline" variant="text" title="Bearbeiten" @click="emit('edit', task)" />
-        <v-btn icon="mdi-delete-outline" variant="text" title="Löschen" @click="emit('delete', task)" />
-        <v-btn icon="mdi-close" variant="text" title="Schließen" @click="open = false" />
+        <v-btn icon="mdi-pencil-outline" variant="text" :title="$t('common.edit')" @click="emit('edit', task)" />
+        <v-btn icon="mdi-delete-outline" variant="text" :title="$t('common.delete')" @click="emit('delete', task)" />
+        <v-btn icon="mdi-close" variant="text" :title="$t('common.close')" @click="open = false" />
       </div>
       <div class="px-6">
         <div class="d-flex ga-4 align-start">
@@ -79,11 +80,11 @@ const completedAt = computed(() => {
           />
           <div class="flex-grow-1" style="min-width: 0">
             <button v-if="parent" class="parent text-body-medium text-medium-emphasis" @click="emit('open', parent)">
-              <v-icon icon="mdi-subdirectory-arrow-right" size="16" /> Unteraufgabe von „{{ parent.title }}“
+              <v-icon icon="mdi-subdirectory-arrow-right" size="16" /> {{ $t('task.subtaskOf', { title: parent.title }) }}
             </button>
             <div class="text-headline-small title" :class="{ done: task.completed }">{{ task.title }}</div>
             <div class="text-body-medium text-medium-emphasis mt-1">{{ due }}</div>
-            <div v-if="task.completed" class="text-body-medium text-medium-emphasis">Erledigt am {{ completedAt }}</div>
+            <div v-if="task.completed" class="text-body-medium text-medium-emphasis">{{ $t('task.completedOn', { date: completedAt }) }}</div>
           </div>
         </div>
         <div v-if="task.notes" class="d-flex ga-4 mt-4 align-start">
@@ -99,7 +100,7 @@ const completedAt = computed(() => {
             >
               <v-btn
                 icon size="small" variant="text" density="comfortable" :color="list?.color"
-                :title="s.completed ? 'Als offen markieren' : 'Als erledigt markieren'" @click.stop="toggleSub(s)"
+                :title="s.completed ? $t('task.markOpen') : $t('task.markDone')" @click.stop="toggleSub(s)"
               >
                 <v-icon :icon="s.completed ? 'mdi-check-circle' : 'mdi-checkbox-blank-circle-outline'" />
               </v-btn>
@@ -107,7 +108,7 @@ const completedAt = computed(() => {
               <span v-if="s.due" class="text-body-small text-medium-emphasis ml-auto pl-2">{{ subDue(s) }}</span>
             </div>
             <v-text-field
-              v-model="subTitle" placeholder="Unteraufgabe hinzufügen" aria-label="Neue Unteraufgabe" density="compact"
+              v-model="subTitle" :placeholder="$t('task.addSubtask')" :aria-label="$t('task.newSubtask')" density="compact"
               variant="underlined" hide-details maxlength="500" prepend-inner-icon="mdi-plus" :loading="adding"
               @keydown.enter="addSubtask"
             />
@@ -122,7 +123,7 @@ const completedAt = computed(() => {
             color="primary" :variant="task.completed ? 'outlined' : 'flat'"
             :prepend-icon="task.completed ? 'mdi-undo' : 'mdi-check'" @click="emit('toggle', task)"
           >
-            {{ task.completed ? 'Als offen markieren' : 'Als erledigt markieren' }}
+            {{ task.completed ? $t('task.markOpen') : $t('task.markDone') }}
           </v-btn>
         </div>
       </div>

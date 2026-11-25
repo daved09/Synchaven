@@ -39,7 +39,6 @@ pub struct ContactRow {
     pub updated_at: String,
 }
 
-pub const DEFAULT_BOOK_NAME: &str = "Kontakte";
 
 pub fn etag_of(vcard: &str) -> String {
     Sha256::digest(vcard.as_bytes())[..16].iter().map(|b| format!("{b:02x}")).collect()
@@ -80,14 +79,16 @@ pub fn index(card: &Card, fallback_uid: &str) -> Indexed {
     }
 }
 
-/// Every user has at least one address book.
+/// Every user has at least one address book (the first one named in the user's language).
 pub async fn ensure_default_book(db: &SqlitePool, user_id: &str) -> AppResult<()> {
     let (count,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM addressbooks WHERE user_id = ?")
         .bind(user_id)
         .fetch_one(db)
         .await?;
     if count == 0 {
-        create_book(db, user_id, &uuid::Uuid::new_v4().to_string(), DEFAULT_BOOK_NAME, "").await?;
+        let lang = crate::i18n::user_lang(&mut *db.acquire().await?, user_id).await?;
+        let name = crate::i18n::tr_in!(lang, "contacts.default_book_name");
+        create_book(db, user_id, &uuid::Uuid::new_v4().to_string(), &name, "").await?;
     }
     Ok(())
 }

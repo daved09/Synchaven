@@ -27,11 +27,11 @@ pub fn data_dir_from_env() -> PathBuf {
 
 impl Config {
     pub fn from_env() -> anyhow::Result<Self> {
-        let bind = env_or("BIND_ADDR", "0.0.0.0:8080").parse().context("BIND_ADDR ungültig")?;
+        let bind = env_or("BIND_ADDR", "0.0.0.0:8080").parse().context("Invalid BIND_ADDR")?;
         let data_dir = data_dir_from_env();
-        std::fs::create_dir_all(&data_dir).context("DATA_DIR kann nicht angelegt werden")?;
+        std::fs::create_dir_all(&data_dir).context("Cannot create DATA_DIR")?;
         let static_dir = PathBuf::from(env_or("STATIC_DIR", "./static"));
-        let token_ttl_days = env_or("TOKEN_TTL_DAYS", "30").parse().context("TOKEN_TTL_DAYS ungültig")?;
+        let token_ttl_days = env_or("TOKEN_TTL_DAYS", "30").parse().context("Invalid TOKEN_TTL_DAYS")?;
         let allow_registration = matches!(
             env_or("ALLOW_REGISTRATION", "true").to_lowercase().as_str(),
             "1" | "true" | "yes" | "ja"
@@ -44,8 +44,8 @@ impl Config {
 
         if std::env::var("ADMIN_EMAILS").is_ok_and(|v| !v.trim().is_empty()) {
             tracing::warn!(
-                "ADMIN_EMAILS wird nicht mehr ausgewertet: Administrator ist das erste registrierte Konto \
-                 (bei bestehenden Datenbanken das älteste)"
+                "ADMIN_EMAILS is no longer evaluated: the administrator is the first registered account \
+                 (the oldest one for existing databases)"
             );
         }
 
@@ -79,8 +79,8 @@ fn load_or_create_secret(data_dir: &std::path::Path) -> anyhow::Result<String> {
     let secret: String = bytes.iter().map(|b| format!("{b:02x}")).collect();
     std::fs::write(&path, &secret).with_context(|| {
         format!(
-            "{} kann nicht gespeichert werden – hat der Prozess Schreibrechte für {}? \
-             (Docker: PUID/PGID auf den Besitzer des Datenverzeichnisses setzen)",
+            "Cannot save {} – does the process have write permission for {}? \
+             (Docker: set PUID/PGID to the owner of the data directory)",
             path.display(),
             data_dir.display()
         )
@@ -90,6 +90,6 @@ fn load_or_create_secret(data_dir: &std::path::Path) -> anyhow::Result<String> {
         use std::os::unix::fs::PermissionsExt;
         let _ = std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600));
     }
-    tracing::info!("Neues JWT-Secret in {} erzeugt", path.display());
+    tracing::info!("Generated new JWT secret in {}", path.display());
     Ok(secret)
 }

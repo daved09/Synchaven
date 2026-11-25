@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { t } from '@/i18n'
 import { ref, watch } from 'vue'
 import type { Calendar } from '@/api/types'
 import { CALENDAR_COLORS } from '@/plugins/theme'
@@ -43,7 +44,7 @@ async function save() {
     }
     if (props.calendar) await calendars.update(props.calendar.id, { ...data, visible: props.calendar.visible })
     else await calendars.create(data)
-    notify.info(props.calendar ? 'Kalender gespeichert' : 'Kalender erstellt')
+    notify.info(props.calendar ? t('calendar.saved') : t('calendar.created'))
     open.value = false
   } catch (e) {
     notify.fail(e)
@@ -55,49 +56,49 @@ async function save() {
 
 <template>
   <v-dialog v-model="open" max-width="480">
-    <v-card :title="calendar ? 'Kalender bearbeiten' : 'Neuer Kalender'" color="surface-container-high">
+    <v-card :title="calendar ? $t('calendar.edit') : $t('calendar.new')" color="surface-container-high">
       <v-card-text>
         <v-form ref="formRef" @submit.prevent="save">
           <v-text-field
-            v-model="name" label="Name" autofocus maxlength="100"
-            :rules="[(v: string) => !!v.trim() || 'Bitte einen Namen eingeben']"
+            v-model="name" :label="$t('common.name')" autofocus maxlength="100"
+            :rules="[(v: string) => !!v.trim() || $t('common.nameRequired')]"
           />
-          <div class="text-label-large mb-2">Farbe</div>
+          <div class="text-label-large mb-2">{{ $t('common.color') }}</div>
           <div class="d-flex flex-wrap ga-2 mb-4 align-center">
             <button
               v-for="c in CALENDAR_COLORS" :key="c" type="button" class="swatch" :style="{ background: c }"
-              :aria-label="`Farbe ${c}`" @click="color = c"
+              :aria-label="$t('common.colorNamed', { color: c })" @click="color = c"
             >
               <v-icon v-if="color.toUpperCase() === c" icon="mdi-check" color="white" size="18" />
             </button>
             <v-menu :close-on-content-click="false">
               <template #activator="{ props: p }">
-                <v-btn v-bind="p" icon size="32" variant="tonal" title="Eigene Farbe">
+                <v-btn v-bind="p" icon size="32" variant="tonal" :title="$t('settings.customColor')">
                   <v-icon icon="mdi-palette-outline" size="18" />
                 </v-btn>
               </template>
               <v-color-picker v-model="color" mode="hex" :modes="['hex']" />
             </v-menu>
           </div>
-          <v-textarea v-model="description" label="Beschreibung (optional)" rows="2" auto-grow />
+          <v-textarea v-model="description" :label="$t('common.descriptionOptional')" rows="2" auto-grow />
           <div class="text-label-large mt-2 d-flex align-center ga-2">
-            <v-icon icon="mdi-bell-outline" size="18" /> Standard-Erinnerungen
+            <v-icon icon="mdi-bell-outline" size="18" /> {{ $t('calendar.defaultReminders') }}
           </div>
           <div class="text-body-small text-medium-emphasis mb-2">
-            Gelten für alle Termine dieses Kalenders, die keine eigenen Erinnerungen haben.
+            {{ $t('calendar.defaultRemindersHint') }}
           </div>
           <template v-if="calendar?.kind !== 'birthdays'">
-            <div class="text-body-medium mt-1">Termine mit Uhrzeit</div>
+            <div class="text-body-medium mt-1">{{ $t('calendar.timedEvents') }}</div>
             <ReminderEditor v-model="defaults" :all-day="false" class="mb-2" />
-            <div class="text-body-medium mt-1">Ganztägige Termine</div>
+            <div class="text-body-medium mt-1">{{ $t('calendar.allDayEvents') }}</div>
           </template>
           <ReminderEditor v-model="allDayDefaults" :all-day="true" />
         </v-form>
       </v-card-text>
       <template #actions>
         <v-spacer />
-        <v-btn @click="open = false">Abbrechen</v-btn>
-        <v-btn color="primary" variant="flat" :loading="saving" @click="save">Speichern</v-btn>
+        <v-btn @click="open = false">{{ $t('common.cancel') }}</v-btn>
+        <v-btn color="primary" variant="flat" :loading="saving" @click="save">{{ $t('common.save') }}</v-btn>
       </template>
     </v-card>
   </v-dialog>

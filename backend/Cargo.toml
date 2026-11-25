@@ -2,7 +2,7 @@
 name = "synchaven"
 version = "0.0.0" # Placeholder – the version is in version.properties (see build.rs)
 edition = "2021"
-description = "Synchaven – Kalender- und Kontakt-Backend mit REST API und CardDAV"
+description = "Synchaven – calendar and contacts backend with REST API and CardDAV"
 
 [dependencies]
 aes-gcm = "0.11.1"
@@ -19,6 +19,7 @@ quick-xml = "0.42.0"
 rand = "0.8"
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "http2"] }
 rrule = "0.14"
+rust-i18n = "4"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.11.1"

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { t } from '@/i18n'
 import { computed } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useNotifyStore } from '@/stores/notify'
@@ -13,55 +14,52 @@ const insecure = window.location.protocol !== 'https:' && !['localhost', '127.0.
 async function copy(text: string) {
   try {
     await navigator.clipboard.writeText(text)
-    notify.info('In die Zwischenablage kopiert')
+    notify.info(t('dav.copied'))
   } catch {
-    notify.fail(new Error('Kopieren nicht möglich – bitte den Text markieren'))
+    notify.fail(new Error(t('dav.copyFailed')))
   }
 }
 </script>
 
 <template>
   <v-dialog v-model="open" max-width="560" scrollable>
-    <v-card title="Mit DAVx⁵ synchronisieren" color="surface-container-high">
+    <v-card :title="$t('dav.title')" color="surface-container-high">
       <v-card-text>
         <p class="text-body-medium mb-4">
-          Die Kontakte lassen sich per CardDAV mit Android (DAVx⁵), Thunderbird oder iPhone/iPad abgleichen.
-          Änderungen auf dem Handy erscheinen hier und umgekehrt.
+          {{ $t('dav.intro') }}
         </p>
 
-        <v-text-field :model-value="url" label="Basis-URL" readonly variant="outlined" class="mb-1">
+        <v-text-field :model-value="url" :label="$t('dav.baseUrl')" readonly variant="outlined" class="mb-1">
           <template #append-inner>
-            <v-btn icon="mdi-content-copy" size="small" variant="text" title="Kopieren" @click="copy(url)" />
+            <v-btn icon="mdi-content-copy" size="small" variant="text" :title="$t('dav.copy')" @click="copy(url)" />
           </template>
         </v-text-field>
-        <v-text-field :model-value="auth.user?.email" label="Benutzername" readonly variant="outlined" class="mb-1">
+        <v-text-field :model-value="auth.user?.email" :label="$t('dav.username')" readonly variant="outlined" class="mb-1">
           <template #append-inner>
-            <v-btn icon="mdi-content-copy" size="small" variant="text" title="Kopieren" @click="copy(auth.user?.email ?? '')" />
+            <v-btn icon="mdi-content-copy" size="small" variant="text" :title="$t('dav.copy')" @click="copy(auth.user?.email ?? '')" />
           </template>
         </v-text-field>
-        <v-text-field model-value="Ihr Anmeldepasswort" label="Passwort" readonly variant="outlined" disabled />
+        <v-text-field :model-value="$t('dav.yourPassword')" :label="$t('common.password')" readonly variant="outlined" disabled />
 
         <v-alert v-if="insecure" type="warning" variant="tonal" density="compact" class="mb-4">
-          Die Verbindung ist nicht verschlüsselt. Für die Synchronisierung über das Internet sollte ein
-          Reverse-Proxy mit HTTPS vorgeschaltet werden, da das Passwort bei jeder Anfrage übertragen wird.
+          {{ $t('dav.insecure') }}
         </v-alert>
 
-        <div class="text-title-small mb-2">So geht’s in DAVx⁵</div>
+        <div class="text-title-small mb-2">{{ $t('dav.howTo') }}</div>
         <ol class="text-body-medium steps">
-          <li>DAVx⁵ öffnen und unten rechts auf <b>+</b> tippen.</li>
-          <li><b>Mit URL und Benutzername anmelden</b> wählen.</li>
-          <li>Basis-URL, Benutzername und Passwort von oben eintragen und <b>Anmelden</b> tippen.</li>
-          <li>Kontonamen bestätigen (am besten die E-Mail-Adresse) und <b>Konto anlegen</b>.</li>
-          <li>Im Reiter <b>CardDAV</b> die gewünschten Adressbücher aktivieren.</li>
+          <i18n-t keypath="dav.step1" tag="li"><template #plus><b>+</b></template></i18n-t>
+          <i18n-t keypath="dav.step2" tag="li"><template #option><b>{{ $t('dav.step2Option') }}</b></template></i18n-t>
+          <i18n-t keypath="dav.step3" tag="li"><template #login><b>{{ $t('dav.step3Login') }}</b></template></i18n-t>
+          <i18n-t keypath="dav.step4" tag="li"><template #create><b>{{ $t('dav.step4Create') }}</b></template></i18n-t>
+          <i18n-t keypath="dav.step5" tag="li"><template #tab><b>CardDAV</b></template></i18n-t>
         </ol>
         <p class="text-body-small text-medium-emphasis mt-3">
-          Thunderbird und iOS finden die Adressbücher mit derselben Adresse automatisch
-          (iOS: Einstellungen → Kontakte → Accounts → Andere → CardDAV-Account).
+          {{ $t('dav.otherClients') }}
         </p>
       </v-card-text>
       <template #actions>
         <v-spacer />
-        <v-btn @click="open = false">Fertig</v-btn>
+        <v-btn @click="open = false">{{ $t('common.done') }}</v-btn>
       </template>
     </v-card>
   </v-dialog>

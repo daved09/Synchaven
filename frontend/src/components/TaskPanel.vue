@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { t as tr } from '@/i18n'
 import { computed, ref, watch } from 'vue'
 import type { Task } from '@/api/types'
 import { useNotifyStore } from '@/stores/notify'
@@ -31,9 +32,9 @@ function dueText(t: Task) {
   const d = taskDueDate(t)
   if (!d) return ''
   const today = startOfDay(new Date())
-  const day = isSameDay(d, today) ? 'Heute'
-    : isSameDay(d, addDays(today, 1)) ? 'Morgen'
-    : isSameDay(d, addDays(today, -1)) ? 'Gestern'
+  const day = isSameDay(d, today) ? tr('common.today')
+    : isSameDay(d, addDays(today, 1)) ? tr('common.tomorrow')
+    : isSameDay(d, addDays(today, -1)) ? tr('common.yesterday')
     : fmt(d, { weekday: 'short', day: 'numeric', month: 'short', ...(d.getFullYear() !== today.getFullYear() ? { year: 'numeric' } : {}) })
   return t.all_day ? day : `${day}, ${fmtTime(d)}`
 }
@@ -89,7 +90,7 @@ async function toggle(t: Task) {
 async function clearCompleted() {
   try {
     const n = await tasks.clearCompleted(listId.value)
-    notify.info(n === 1 ? '1 erledigte Aufgabe gelöscht' : `${n} erledigte Aufgaben gelöscht`)
+    notify.info(tr('tasks.completedDeleted', n))
   } catch (e) {
     notify.fail(e)
   }
@@ -99,23 +100,23 @@ async function clearCompleted() {
 <template>
   <div class="panel">
     <div class="d-flex align-center pl-4 pr-1 pt-2">
-      <span class="text-title-medium flex-1-1">Aufgaben</span>
+      <span class="text-title-medium flex-1-1">{{ $t('tasks.title') }}</span>
       <v-menu location="bottom end">
         <template #activator="{ props: p }">
-          <v-btn v-bind="p" icon="mdi-dots-vertical" size="small" variant="text" title="Weitere Aktionen" />
+          <v-btn v-bind="p" icon="mdi-dots-vertical" size="small" variant="text" :title="$t('common.moreActions')" />
         </template>
         <v-list density="compact" rounded="lg">
           <v-list-item
-            prepend-icon="mdi-delete-sweep-outline" title="Erledigte Aufgaben löschen" :disabled="!completed.length"
+            prepend-icon="mdi-delete-sweep-outline" :title="$t('tasks.deleteCompleted')" :disabled="!completed.length"
             @click="clearCompleted"
           />
         </v-list>
       </v-menu>
-      <v-btn icon="mdi-close" size="small" variant="text" title="Schließen" @click="emit('close')" />
+      <v-btn icon="mdi-close" size="small" variant="text" :title="$t('common.close')" @click="emit('close')" />
     </div>
     <div class="px-4 pt-2">
       <v-select
-        v-model="listId" :items="listItems" aria-label="Liste" density="compact" variant="outlined" hide-details
+        v-model="listId" :items="listItems" :aria-label="$t('task.list')" density="compact" variant="outlined" hide-details
         class="mb-3"
       >
         <template #item="{ props: p, item }">
@@ -128,7 +129,7 @@ async function clearCompleted() {
         </template>
       </v-select>
       <v-text-field
-        v-model="quickTitle" placeholder="Aufgabe hinzufügen" aria-label="Neue Aufgabe" density="compact"
+        v-model="quickTitle" :placeholder="$t('tasks.add')" :aria-label="$t('task.new')" density="compact"
         variant="solo-filled" flat rounded="lg" hide-details prepend-inner-icon="mdi-plus" maxlength="500"
         bg-color="surface-container-high" :loading="adding" @keydown.enter="quickAdd"
       />
@@ -137,12 +138,12 @@ async function clearCompleted() {
     <div class="items">
       <div v-if="!open.length" class="empty text-body-medium">
         <v-icon icon="mdi-check-all" size="40" color="outline" />
-        <div class="mt-2">Keine offenen Aufgaben</div>
+        <div class="mt-2">{{ $t('tasks.noneOpen') }}</div>
       </div>
       <template v-for="t in open" :key="t.id">
         <div class="task" role="button" tabindex="0" @click="emit('open', t)" @keydown.enter="emit('open', t)">
           <v-btn
-            icon size="small" variant="text" class="check" title="Als erledigt markieren" :color="list?.color"
+            icon size="small" variant="text" class="check" :title="$t('task.markDone')" :color="list?.color"
             @click.stop="toggle(t)"
           >
             <v-icon icon="mdi-checkbox-blank-circle-outline" class="off" />
@@ -160,7 +161,7 @@ async function clearCompleted() {
           </div>
           <v-btn
             v-if="!t.parent_id" icon="mdi-subdirectory-arrow-right" size="small" variant="text" class="add-sub"
-            title="Unteraufgabe hinzufügen" @click.stop="startSubtask(t)"
+            :title="$t('task.addSubtask')" @click.stop="startSubtask(t)"
           />
         </div>
         <template v-if="!t.parent_id">
@@ -169,7 +170,7 @@ async function clearCompleted() {
             tabindex="0" @click="emit('open', s)" @keydown.enter="emit('open', s)"
           >
             <v-btn
-              icon size="small" variant="text" class="check" title="Als erledigt markieren" :color="list?.color"
+              icon size="small" variant="text" class="check" :title="$t('task.markDone')" :color="list?.color"
               @click.stop="toggle(s)"
             >
               <v-icon icon="mdi-checkbox-blank-circle-outline" class="off" />
@@ -187,7 +188,7 @@ async function clearCompleted() {
           </div>
           <div v-if="subFor === t.id" class="sub-input">
             <v-text-field
-              v-model="subTitle" placeholder="Unteraufgabe hinzufügen" aria-label="Neue Unteraufgabe" density="compact"
+              v-model="subTitle" :placeholder="$t('task.addSubtask')" :aria-label="$t('task.newSubtask')" density="compact"
               variant="underlined" hide-details autofocus maxlength="500" :loading="adding"
               @keydown.enter="addSubtask(t)" @keydown.esc="subFor = null" @blur="!subTitle.trim() && (subFor = null)"
             />
@@ -206,7 +207,7 @@ async function clearCompleted() {
             @click="emit('open', t)" @keydown.enter="emit('open', t)"
           >
             <v-btn
-              icon="mdi-check" size="small" variant="text" class="check" title="Als offen markieren" :color="list?.color"
+              icon="mdi-check" size="small" variant="text" class="check" :title="$t('task.markOpen')" :color="list?.color"
               @click.stop="toggle(t)"
             />
             <div class="body">

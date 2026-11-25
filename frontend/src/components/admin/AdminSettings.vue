@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { t } from '@/i18n'
 import { computed, onMounted, ref } from 'vue'
 import { api } from '@/api/client'
 import type { AdminSettings, AdminSettingsValues } from '@/api/types'
@@ -10,11 +11,8 @@ const ttl = ref<number | string>(30)
 const saving = ref<keyof AdminSettingsValues | null>(null)
 
 const ttlPresets = [
-  { title: '1 Tag', value: 1 },
-  { title: '7 Tage', value: 7 },
-  { title: '30 Tage', value: 30 },
-  { title: '90 Tage', value: 90 },
-  { title: '1 Jahr', value: 365 },
+  ...[1, 7, 30, 90].map((value) => ({ title: t('adminSettings.daysValue', value), value })),
+  { title: t('adminSettings.oneYear'), value: 365 },
 ]
 
 onMounted(async () => {
@@ -31,7 +29,7 @@ async function save(data: Partial<AdminSettingsValues>) {
   try {
     settings.value = await api.updateAdminSettings(data)
     ttl.value = settings.value.token_ttl_days
-    notify.info('Einstellung gespeichert')
+    notify.info(t('adminSettings.saved'))
   } catch (e) {
     notify.fail(e)
   } finally {
@@ -45,46 +43,53 @@ const ttlValid = computed(() => {
 })
 const ttlChanged = computed(() => ttlValid.value && Number(ttl.value) !== settings.value?.token_ttl_days)
 
-const yesNo = (b: boolean) => (b ? 'erlaubt' : 'geschlossen')
+const yesNo = (b: boolean) => (b ? t('adminSettings.open') : t('adminSettings.closed'))
 </script>
 
 <template>
   <div v-if="!settings" class="d-flex justify-center pa-8"><v-progress-circular indeterminate color="primary" /></div>
   <template v-else>
     <v-card variant="flat" color="surface-container-low" rounded="xl" class="pa-2">
-      <v-card-item title="Registrierung" />
+      <v-card-item :title="$t('adminSettings.registration')" />
       <v-card-text>
         <v-switch
-          :model-value="settings.allow_registration" label="Neue Konten dürfen sich registrieren" color="primary" inset
+          :model-value="settings.allow_registration" :label="$t('adminSettings.allowRegistration')" color="primary" inset
           hide-details :loading="saving === 'allow_registration'" :disabled="!!saving"
           @update:model-value="(v) => save({ allow_registration: !!v })"
         />
         <div class="text-body-small text-medium-emphasis">
-          Ist die Registrierung geschlossen, legst du neue Konten unter <em>Benutzer</em> an. Für den Betrieb im
-          Internet empfiehlt es sich, sie nach dem Anlegen der eigenen Konten zu schließen.
-          Standard aus <code>ALLOW_REGISTRATION</code>: {{ yesNo(settings.defaults.allow_registration) }}.
+          <i18n-t keypath="adminSettings.registrationHint">
+            <template #users><em>{{ $t('admin.tabs.users') }}</em></template>
+          </i18n-t>
+          <i18n-t keypath="adminSettings.default">
+            <template #variable><code>ALLOW_REGISTRATION</code></template>
+            <template #value>{{ yesNo(settings.defaults.allow_registration) }}</template>
+          </i18n-t>
         </div>
       </v-card-text>
     </v-card>
 
     <v-card variant="flat" color="surface-container-low" rounded="xl" class="pa-2 mt-4">
-      <v-card-item title="Gültigkeit der Anmeldung" />
+      <v-card-item :title="$t('adminSettings.tokenTtl')" />
       <v-card-text>
         <div class="d-flex align-start ga-2">
           <v-combobox
-            v-model="ttl" :items="ttlPresets" :return-object="false" label="Tage" type="number" min="1" max="3650"
-            :rules="[() => ttlValid || '1 bis 3650 Tage']" class="ttl" @keydown.enter="ttlChanged && save({ token_ttl_days: Number(ttl) })"
+            v-model="ttl" :items="ttlPresets" :return-object="false" :label="$t('adminSettings.days')" type="number" min="1" max="3650"
+            :rules="[() => ttlValid || $t('adminSettings.ttlRange')]" class="ttl" @keydown.enter="ttlChanged && save({ token_ttl_days: Number(ttl) })"
           />
           <v-btn
             color="primary" variant="flat" class="mt-2" :disabled="!ttlChanged || !!saving"
             :loading="saving === 'token_ttl_days'" @click="save({ token_ttl_days: Number(ttl) })"
           >
-            Speichern
+            {{ $t('common.save') }}
           </v-btn>
         </div>
         <div class="text-body-small text-medium-emphasis">
-          So lange bleiben Weboberfläche und App angemeldet; die App verlängert die Anmeldung beim Synchronisieren.
-          Gilt für neue Anmeldungen. Standard aus <code>TOKEN_TTL_DAYS</code>: {{ settings.defaults.token_ttl_days }} Tage.
+          {{ $t('adminSettings.tokenTtlHint') }}
+          <i18n-t keypath="adminSettings.default">
+            <template #variable><code>TOKEN_TTL_DAYS</code></template>
+            <template #value>{{ $t('adminSettings.daysValue', settings.defaults.token_ttl_days) }}</template>
+          </i18n-t>
         </div>
       </v-card-text>
     </v-card>

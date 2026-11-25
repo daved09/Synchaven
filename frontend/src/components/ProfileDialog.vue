@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { t } from '@/i18n'
 import { ref, watch } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useNotifyStore } from '@/stores/notify'
@@ -35,7 +36,7 @@ async function save() {
       current_password: currentPassword.value || undefined,
       new_password: newPassword.value || undefined,
     })
-    notify.info('Profil gespeichert')
+    notify.info(t('profile.saved'))
     open.value = false
   } catch (e) {
     notify.fail(e)
@@ -47,28 +48,28 @@ async function save() {
 
 <template>
   <v-dialog v-model="open" max-width="480">
-    <v-card title="Profil" color="surface-container-high">
+    <v-card :title="$t('profile.title')" color="surface-container-high">
       <v-card-text>
         <v-form ref="formRef" @submit.prevent="save">
-          <v-text-field v-model="name" label="Name" prepend-inner-icon="mdi-account-outline" />
-          <v-text-field v-model="email" label="E-Mail" type="email" prepend-inner-icon="mdi-email-outline" />
+          <v-text-field v-model="name" :label="$t('common.name')" prepend-inner-icon="mdi-account-outline" />
+          <v-text-field v-model="email" :label="$t('common.email')" type="email" prepend-inner-icon="mdi-email-outline" />
           <v-divider class="mb-4" />
           <v-text-field
-            v-model="newPassword" label="Neues Passwort (optional)" type="password" autocomplete="new-password"
-            prepend-inner-icon="mdi-lock-reset" :rules="[(v: string) => !v || v.length >= 8 || 'Mindestens 8 Zeichen']"
+            v-model="newPassword" :label="$t('profile.newPassword')" type="password" autocomplete="new-password"
+            prepend-inner-icon="mdi-lock-reset" :rules="[(v: string) => !v || v.length >= 8 || $t('common.minPassword')]"
           />
           <v-text-field
-            v-model="currentPassword" label="Aktuelles Passwort" type="password" autocomplete="current-password"
+            v-model="currentPassword" :label="$t('profile.currentPassword')" type="password" autocomplete="current-password"
             prepend-inner-icon="mdi-lock-outline"
-            :hint="'Erforderlich zum Ändern von E-Mail oder Passwort'" persistent-hint
-            :rules="[(v: string) => !needsPassword() || !!v || 'Bitte aktuelles Passwort eingeben']"
+            :hint="$t('profile.currentPasswordHint')" persistent-hint
+            :rules="[(v: string) => !needsPassword() || !!v || $t('profile.currentPasswordRequired')]"
           />
         </v-form>
       </v-card-text>
       <template #actions>
         <v-spacer />
-        <v-btn @click="open = false">Abbrechen</v-btn>
-        <v-btn color="primary" variant="flat" :loading="saving" @click="save">Speichern</v-btn>
+        <v-btn @click="open = false">{{ $t('common.cancel') }}</v-btn>
+        <v-btn color="primary" variant="flat" :loading="saving" @click="save">{{ $t('common.save') }}</v-btn>
       </template>
     </v-card>
   </v-dialog>

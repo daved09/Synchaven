@@ -1,12 +1,15 @@
-// Form model for RFC 5545 recurrence rules and German description.
+// Form model for RFC 5545 recurrence rules and their description.
+import { t } from '@/i18n'
 import { fmt, fmtDateShort } from './date'
 
 export type Freq = 'NONE' | 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY' | 'CUSTOM'
 export const WEEKDAYS = ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU'] as const
-export const WEEKDAY_LABELS: Record<string, string> = {
-  MO: 'Montag', TU: 'Dienstag', WE: 'Mittwoch', TH: 'Donnerstag', FR: 'Freitag', SA: 'Samstag', SU: 'Sonntag',
-}
-const SHORT: Record<string, string> = { MO: 'Mo', TU: 'Di', WE: 'Mi', TH: 'Do', FR: 'Fr', SA: 'Sa', SU: 'So' }
+/** Weekday names in the UI language, from a week starting on Monday, 2026-01-05 */
+const weekdayNames = (style: 'long' | 'short') => Object.fromEntries(
+  WEEKDAYS.map((code, i) => [code, fmt(new Date(2026, 0, 5 + i), { weekday: style }).replace(/\.$/, '')]),
+) as Record<string, string>
+export const WEEKDAY_LABELS = weekdayNames('long')
+const SHORT = weekdayNames('short')
 
 export interface RecurrenceForm {
   freq: Freq
@@ -101,9 +104,10 @@ export function buildRRule(form: RecurrenceForm, start: Date): string | null {
   return r.join(';')
 }
 
-const ordinalText = (n: number) => (n === -1 ? 'letzten' : `${n}.`)
+/** "first" … "fourth", or "last" for -1 */
+export const ordinalText = (n: number) => t(`recurrence.ordinal.${n === -1 ? 'last' : n}`)
 
-/** Short German description, e.g. "Alle 2 Wochen am Mo, Mi bis 31.12.2026" */
+/** Short description, e.g. "Every 2 weeks on Mon, Wed until 12/31/2026" */
 export function describeRRule(rule: string | null, start: Date): string {
   if (!rule) return ''
   const p = parts(rule)
@@ -113,31 +117,33 @@ export function describeRRule(rule: string | null, start: Date): string {
   let text: string
   switch (freq) {
     case 'DAILY':
-      text = n === 1 ? 'Täglich' : `Alle ${n} Tage`
+      text = t('recurrence.daily', n)
       break
     case 'WEEKLY': {
       const days = (byday ?? jsDayToCode(start)).split(',').map((d) => SHORT[d] ?? d).join(', ')
-      text = `${n === 1 ? 'Wöchentlich' : `Alle ${n} Wochen`} am ${days}`
+      text = t('recurrence.weekly', { n, days }, n)
       break
     }
     case 'MONTHLY': {
       const m = byday && /^(-?\d)([A-Z]{2})$/.exec(byday)
-      const on = m ? `am ${ordinalText(+m[1])} ${WEEKDAY_LABELS[m[2]]}` : `am ${p.get('BYMONTHDAY') ?? start.getDate()}.`
-      text = `${n === 1 ? 'Monatlich' : `Alle ${n} Monate`} ${on}`
+      const on = m
+        ? t('recurrence.onWeekday', { ordinal: ordinalText(+m[1]), weekday: WEEKDAY_LABELS[m[2]] })
+        : t('recurrence.onDay', { day: p.get('BYMONTHDAY') ?? start.getDate() })
+      text = t('recurrence.monthly', { n, on }, n)
       break
     }
     case 'YEARLY':
-      text = `${n === 1 ? 'Jährlich' : `Alle ${n} Jahre`} am ${fmt(start, { day: 'numeric', month: 'long' })}`
+      text = t('recurrence.yearly', { n, date: fmt(start, { day: 'numeric', month: 'long' }) }, n)
       break
     default:
-      return `Wiederholung: ${rule}`
+      return t('recurrence.custom', { rule })
   }
   if (p.has('UNTIL')) {
     const d = untilToDate(p.get('UNTIL')!)
     const [y, mo, da] = d.split('-').map(Number)
-    if (y) text += ` bis ${fmtDateShort(new Date(y, mo - 1, da))}`
+    if (y) text += ' ' + t('recurrence.until', { date: fmtDateShort(new Date(y, mo - 1, da)) })
   } else if (p.has('COUNT')) {
-    text += `, ${p.get('COUNT')} Mal`
+    text += ', ' + t('recurrence.times', Number(p.get('COUNT')))
   }
   return text
 }

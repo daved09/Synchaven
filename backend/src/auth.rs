@@ -1,5 +1,6 @@
 //! Password hashing, JWT creation and the `AuthUser` extractor.
 
+use crate::i18n::tr;
 use argon2::{
     password_hash::{rand_core::OsRng, PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
     Argon2,
@@ -45,7 +46,7 @@ impl JwtKeys {
     fn verify(&self, token: &str) -> Result<(String, i64), AppError> {
         decode::<Claims>(token, &self.decoding, &Validation::default())
             .map(|d| (d.claims.sub, d.claims.iat))
-            .map_err(|_| AppError::Unauthorized("Token ungültig oder abgelaufen".into()))
+            .map_err(|_| AppError::Unauthorized(tr!("auth.token_invalid")))
     }
 }
 
@@ -54,7 +55,7 @@ pub fn hash_password(password: &str) -> Result<String, AppError> {
     Argon2::default()
         .hash_password(password.as_bytes(), &salt)
         .map(|h| h.to_string())
-        .map_err(|e| AppError::Internal(anyhow::anyhow!("Hashing fehlgeschlagen: {e}")))
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("Hashing failed: {e}")))
 }
 
 pub fn verify_password(password: &str, hash: &str) -> bool {
@@ -76,11 +77,11 @@ impl FromRequestParts<AppState> for AuthUser {
             .headers
             .get(axum::http::header::AUTHORIZATION)
             .and_then(|v| v.to_str().ok())
-            .ok_or_else(|| AppError::Unauthorized("Anmeldung erforderlich".into()))?;
+            .ok_or_else(|| AppError::Unauthorized(tr!("auth.required")))?;
         let token = header
             .strip_prefix("Bearer ")
             .or_else(|| header.strip_prefix("bearer "))
-            .ok_or_else(|| AppError::Unauthorized("Bearer-Token erwartet".into()))?;
+            .ok_or_else(|| AppError::Unauthorized(tr!("auth.bearer_expected")))?;
         let (id, issued_at) = state.jwt.verify(token.trim())?;
 
         // Make sure the user still exists (e.g. after deletion), is not disabled
@@ -91,10 +92,10 @@ impl FromRequestParts<AppState> for AuthUser {
                 .fetch_optional(&state.db)
                 .await?;
         match row {
-            None => Err(AppError::Unauthorized("Benutzer existiert nicht mehr".into())),
-            Some((true, _)) => Err(AppError::Unauthorized("Dieses Konto ist gesperrt".into())),
+            None => Err(AppError::Unauthorized(tr!("auth.user_gone"))),
+            Some((true, _)) => Err(AppError::Unauthorized(tr!("auth.account_disabled"))),
             Some((false, Some(after))) if issued_at < after => {
-                Err(AppError::Unauthorized("Die Anmeldung wurde beendet, bitte neu anmelden".into()))
+                Err(AppError::Unauthorized(tr!("auth.session_ended")))
             }
             Some(_) => Ok(AuthUser { id }),
         }

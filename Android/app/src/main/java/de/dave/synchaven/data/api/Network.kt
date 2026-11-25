@@ -3,6 +3,7 @@ package de.dave.synchaven.data.api
 import de.dave.synchaven.data.model.ApiErrorBody
 import de.dave.synchaven.data.store.SessionStore
 import java.io.IOException
+import java.util.Locale
 import java.util.concurrent.TimeUnit
 import kotlinx.serialization.json.Json
 import okhttp3.HttpUrl
@@ -78,6 +79,18 @@ class ServerInterceptor(
     }
 }
 
+/**
+ * Sends the device language as `Accept-Language`, so the server answers with messages
+ * (and creates default names) in that language. Read per request, since it can change.
+ */
+class LanguageInterceptor : Interceptor {
+    override fun intercept(chain: Interceptor.Chain): Response {
+        val request = chain.request()
+        if (request.header("Accept-Language") != null) return chain.proceed(request)
+        return chain.proceed(request.newBuilder().header("Accept-Language", Locale.getDefault().toLanguageTag()).build())
+    }
+}
+
 /** Places the path of a Retrofit URL (relative to the placeholder) under the server's address. */
 fun rebaseUrl(server: HttpUrl, requestUrl: HttpUrl): HttpUrl = server.newBuilder()
     .encodedPath(server.encodedPath.trimEnd('/') + requestUrl.encodedPath)
@@ -90,6 +103,7 @@ object NetworkFactory {
             .connectTimeout(10, TimeUnit.SECONDS) // short, so the offline cache kicks in quickly without a server
             .readTimeout(60, TimeUnit.SECONDS)
             .addInterceptor(ServerInterceptor(sessionStore, onUnauthorized))
+            .addInterceptor(LanguageInterceptor())
             .apply {
                 if (debug) {
                     addInterceptor(HttpLoggingInterceptor().apply {

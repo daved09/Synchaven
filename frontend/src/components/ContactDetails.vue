@@ -39,9 +39,9 @@ const empty = computed(
 <template>
   <div class="details">
     <div class="d-flex justify-end ga-1 pa-2">
-      <v-btn icon="mdi-pencil-outline" variant="text" title="Bearbeiten" @click="$emit('edit')" />
-      <v-btn icon="mdi-delete-outline" variant="text" title="Löschen" @click="$emit('delete')" />
-      <v-btn v-if="closable" icon="mdi-close" variant="text" title="Schließen" @click="$emit('close')" />
+      <v-btn icon="mdi-pencil-outline" variant="text" :title="$t('common.edit')" @click="$emit('edit')" />
+      <v-btn icon="mdi-delete-outline" variant="text" :title="$t('common.delete')" @click="$emit('delete')" />
+      <v-btn v-if="closable" icon="mdi-close" variant="text" :title="$t('common.close')" @click="$emit('close')" />
     </div>
 
     <div class="d-flex flex-column align-center text-center px-6 pb-4">
@@ -63,16 +63,16 @@ const empty = computed(
 
       <div class="d-flex ga-6 mt-5">
         <div v-if="c.phones[0]" class="quick">
-          <v-btn icon="mdi-phone-outline" color="secondary-container" :href="telHref(c.phones[0].value)" title="Anrufen" />
-          <span class="text-label-medium">Anrufen</span>
+          <v-btn icon="mdi-phone-outline" color="secondary-container" :href="telHref(c.phones[0].value)" :title="$t('contact.call')" />
+          <span class="text-label-medium">{{ $t('contact.call') }}</span>
         </div>
         <div v-if="c.phones[0]" class="quick">
-          <v-btn icon="mdi-message-text-outline" color="secondary-container" :href="`sms:${c.phones[0].value.replace(/[^\d+]/g, '')}`" title="Nachricht" />
+          <v-btn icon="mdi-message-text-outline" color="secondary-container" :href="`sms:${c.phones[0].value.replace(/[^\d+]/g, '')}`" :title="$t('contact.message')" />
           <span class="text-label-medium">SMS</span>
         </div>
         <div v-if="c.emails[0]" class="quick">
-          <v-btn icon="mdi-email-outline" color="secondary-container" :href="`mailto:${c.emails[0].value}`" title="E-Mail schreiben" />
-          <span class="text-label-medium">E-Mail</span>
+          <v-btn icon="mdi-email-outline" color="secondary-container" :href="`mailto:${c.emails[0].value}`" :title="$t('contact.writeEmail')" />
+          <span class="text-label-medium">{{ $t('common.email') }}</span>
         </div>
       </div>
     </div>
@@ -97,10 +97,10 @@ const empty = computed(
         >
           <template #prepend><v-icon :icon="i === 0 ? 'mdi-web' : undefined" /></template>
         </v-list-item>
-        <v-list-item v-if="c.birthday" :title="formatBirthday(c.birthday)" subtitle="Geburtstag">
+        <v-list-item v-if="c.birthday" :title="formatBirthday(c.birthday)" :subtitle="$t('contact.birthday')">
           <template #prepend><v-icon icon="mdi-cake-variant-outline" /></template>
         </v-list-item>
-        <v-list-item v-if="c.note" subtitle="Notiz">
+        <v-list-item v-if="c.note" :subtitle="$t('contact.note')">
           <template #prepend><v-icon icon="mdi-text" /></template>
           <div class="text-body-large note">{{ c.note }}</div>
         </v-list-item>

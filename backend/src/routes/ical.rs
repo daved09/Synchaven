@@ -4,6 +4,7 @@ use axum::{
     response::IntoResponse,
     Json,
 };
+use crate::i18n::tr;
 use serde::Deserialize;
 use serde_json::{json, Value};
 
@@ -97,7 +98,7 @@ pub async fn import(
             Ok(d) => d,
             Err(_) => match EventData::validate(to_input(e, None)) {
                 Ok(d) => {
-                    skipped.push(format!("{}: Wiederholungsregel ignoriert", e.title));
+                    skipped.push(tr!("ical.rrule_ignored", title = e.title));
                     d
                 }
                 Err(err) => {
@@ -143,11 +144,11 @@ pub async fn import(
     }
 
     tracing::info!(
-        "Kalender {id}: {imported} Termin(e) aus .ics importiert, {} übersprungen",
+        "Calendar {id}: imported {imported} event(s) from .ics, {} skipped",
         skipped.len()
     );
     for s in &skipped {
-        tracing::debug!("Kalender {id}: Import übersprungen/angepasst – {s}");
+        tracing::debug!("Calendar {id}: import skipped/adjusted – {s}");
     }
     Ok(Json(json!({ "imported": imported, "skipped": skipped })))
 }

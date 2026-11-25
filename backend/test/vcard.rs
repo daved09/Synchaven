@@ -63,7 +63,7 @@ fn custom_label_and_removal() {
     new.phones = vec![TypedValue { kind: "Ferienhaus".into(), value: "040 1".into() }];
     apply(&mut card, &old, &new);
     let text = card.serialize();
-    assert!(!text.contains("Zentrale"), "verwaiste Bezeichnung muss entfernt werden: {text}");
+    assert!(!text.contains("Zentrale"), "orphaned label must be removed: {text}");
     assert_eq!(extract(&parse_cards(&text)[0]).phones, new.phones);
 }
 

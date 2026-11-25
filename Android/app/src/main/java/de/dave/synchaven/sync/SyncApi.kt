@@ -3,6 +3,7 @@ package de.dave.synchaven.sync
 import android.accounts.Account
 import de.dave.synchaven.data.api.AppJson
 import de.dave.synchaven.data.api.InvalidServerUrlException
+import de.dave.synchaven.data.api.LanguageInterceptor
 import de.dave.synchaven.data.api.NetworkFactory
 import de.dave.synchaven.data.api.NoServerConfiguredException
 import de.dave.synchaven.data.api.SyncHavenApi
@@ -99,6 +100,7 @@ fun syncApi(accounts: SyncAccounts, account: Account): SyncHavenApi {
     val loginClient = OkHttpClient.Builder()
         .connectTimeout(20, TimeUnit.SECONDS)
         .readTimeout(60, TimeUnit.SECONDS)
+        .addInterceptor(LanguageInterceptor())
         .build()
     val client = loginClient.newBuilder()
         .readTimeout(120, TimeUnit.SECONDS)

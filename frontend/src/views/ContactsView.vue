@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { t as tr } from '@/i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { useDisplay } from 'vuetify'
 import type { AddressBook, Contact } from '@/api/types'
@@ -119,11 +120,11 @@ function onSaved(c: Contact) {
   setTimeout(() => select(c))
 }
 async function deleteContact(c: Contact) {
-  if (!(await confirmRef.value!.ask('Kontakt löschen?', `„${displayName(c)}“ wird gelöscht – auch auf synchronisierten Geräten.`))) return
+  if (!(await confirmRef.value!.ask(tr('contactsView.deleteContactTitle'), tr('contactsView.deleteContactText', { name: displayName(c) })))) return
   try {
     await contacts.remove(c.id)
     select(null)
-    notify.info('Kontakt gelöscht')
+    notify.info(tr('contactsView.contactDeleted'))
   } catch (e) {
     notify.fail(e)
   }
@@ -139,11 +140,11 @@ function openBook(b: AddressBook) {
   bookDialog.value = true
 }
 async function deleteBook(b: AddressBook) {
-  if (!(await confirmRef.value!.ask('Adressbuch löschen?', `„${b.name}“ und alle ${b.contact_count} Kontakte darin werden unwiderruflich gelöscht.`))) return
+  if (!(await confirmRef.value!.ask(tr('contactsView.deleteBookTitle'), tr('contactsView.deleteBookText', { name: b.name, n: b.contact_count }, b.contact_count)))) return
   try {
     await contacts.removeBook(b.id)
     if (bookFilter.value === b.id) filterBook(null)
-    notify.info('Adressbuch gelöscht')
+    notify.info(tr('contactsView.bookDeleted'))
   } catch (e) {
     notify.fail(e)
   }
@@ -176,12 +177,12 @@ async function importFiles(files: File[], book: AddressBook | null) {
       skipped += r.skipped.length
     }
     const parts = [
-      `${created} neu`,
-      updated ? `${updated} aktualisiert` : '',
-      unchanged ? `${unchanged} unverändert` : '',
-      skipped ? `${skipped} übersprungen` : '',
+      tr('contactsView.importNew', { n: created }),
+      updated ? tr('contactsView.importUpdated', { n: updated }) : '',
+      unchanged ? tr('contactsView.importUnchanged', { n: unchanged }) : '',
+      skipped ? tr('contactsView.importSkipped', { n: skipped }) : '',
     ]
-    notify.info(`Import in „${book.name}“: ${parts.filter(Boolean).join(', ')}`)
+    notify.info(tr('contactsView.importResult', { name: book.name, parts: parts.filter(Boolean).join(', ') }))
   } catch (e) {
     notify.fail(e)
   }
@@ -193,7 +194,7 @@ function onDrop(e: DragEvent) {
   dragOver.value = false
   const files = [...(e.dataTransfer?.files ?? [])].filter((f) => /\.vcf$|\.vcard$/i.test(f.name) || f.type.includes('vcard'))
   if (!files.length) {
-    notify.fail(new Error('Bitte eine .vcf-Datei ablegen'))
+    notify.fail(new Error(tr('contactsView.dropVcf')))
     return
   }
   importFiles(files, currentBook.value ?? contacts.books[0] ?? null)
@@ -216,7 +217,7 @@ async function renameCategory() {
     await contacts.rewriteCategory(renameFrom.value, to)
     if (categoryFilter.value && sameCategory(categoryFilter.value, renameFrom.value)) setFilter({ category: to })
     renameOpen.value = false
-    notify.info('Kategorie umbenannt')
+    notify.info(tr('contactsView.categoryRenamed'))
   } catch (e) {
     notify.fail(e)
   } finally {
@@ -224,12 +225,13 @@ async function renameCategory() {
   }
 }
 async function deleteCategory(name: string, count: number) {
-  const who = count === 1 ? 'einem Kontakt' : `${count} Kontakten`
-  if (!(await confirmRef.value!.ask('Kategorie löschen?', `„${name}“ wird bei ${who} entfernt. Die Kontakte selbst bleiben erhalten.`))) return
+  if (!(await confirmRef.value!.ask(
+    tr('contactsView.deleteCategoryTitle'), tr('contactsView.deleteCategoryText', { name, n: count }, count),
+  ))) return
   try {
     await contacts.rewriteCategory(name, null)
     if (categoryFilter.value && sameCategory(categoryFilter.value, name)) filterBook(null)
-    notify.info('Kategorie gelöscht')
+    notify.info(tr('contactsView.categoryDeleted'))
   } catch (e) {
     notify.fail(e)
   }
@@ -264,20 +266,20 @@ function onKey(e: KeyboardEvent) {
         color="primary-container" size="x-large" rounded="lg" class="create-btn" prepend-icon="mdi-account-plus-outline"
         elevation="1" @click="newContact"
       >
-        Neuer Kontakt
+        {{ $t('contact.new') }}
       </v-btn>
     </div>
     <v-list nav density="comfortable" bg-color="transparent">
       <v-list-item
-        rounded="xl" prepend-icon="mdi-account-multiple-outline" title="Alle Kontakte" :active="!bookFilter && !categoryFilter"
+        rounded="xl" prepend-icon="mdi-account-multiple-outline" :title="$t('contactsView.all')" :active="!bookFilter && !categoryFilter"
         color="secondary" @click="filterBook(null)"
       >
         <template #append><span class="text-label-medium">{{ totalCount }}</span></template>
       </v-list-item>
 
       <div class="d-flex align-center pl-4 pr-2 mt-2">
-        <v-list-subheader class="flex-grow-1 px-0">Adressbücher</v-list-subheader>
-        <v-btn icon="mdi-plus" size="small" variant="text" title="Neues Adressbuch" @click="newBook" />
+        <v-list-subheader class="flex-grow-1 px-0">{{ $t('overview.addressBooks') }}</v-list-subheader>
+        <v-btn icon="mdi-plus" size="small" variant="text" :title="$t('addressBook.new')" @click="newBook" />
       </div>
       <v-list-item
         v-for="b in contacts.books" :key="b.id" rounded="xl" prepend-icon="mdi-book-account-outline" :title="b.name"
@@ -290,11 +292,11 @@ function onKey(e: KeyboardEvent) {
               <v-btn v-bind="p" icon="mdi-dots-vertical" size="small" variant="text" class="book-menu" @click.stop />
             </template>
             <v-list density="compact" rounded="lg">
-              <v-list-item prepend-icon="mdi-pencil-outline" title="Bearbeiten" @click="openBook(b)" />
-              <v-list-item prepend-icon="mdi-upload-outline" title="Importieren (.vcf)" @click="startImport(b)" />
-              <v-list-item prepend-icon="mdi-download-outline" title="Exportieren (.vcf)" @click="exportBook(b)" />
+              <v-list-item prepend-icon="mdi-pencil-outline" :title="$t('common.edit')" @click="openBook(b)" />
+              <v-list-item prepend-icon="mdi-upload-outline" :title="$t('contactsView.importVcf')" @click="startImport(b)" />
+              <v-list-item prepend-icon="mdi-download-outline" :title="$t('contactsView.exportVcf')" @click="exportBook(b)" />
               <v-divider />
-              <v-list-item prepend-icon="mdi-delete-outline" title="Löschen" base-color="error" @click="deleteBook(b)" />
+              <v-list-item prepend-icon="mdi-delete-outline" :title="$t('common.delete')" base-color="error" @click="deleteBook(b)" />
             </v-list>
           </v-menu>
         </template>
@@ -302,7 +304,7 @@ function onKey(e: KeyboardEvent) {
 
       <template v-if="contacts.categories.length">
         <div class="pl-4 pr-2 mt-2">
-          <v-list-subheader class="px-0">Kategorien</v-list-subheader>
+          <v-list-subheader class="px-0">{{ $t('contact.categories') }}</v-list-subheader>
         </div>
         <v-list-item
           v-for="cat in contacts.categories" :key="cat.name.toLowerCase()" rounded="xl" prepend-icon="mdi-label-outline"
@@ -316,10 +318,10 @@ function onKey(e: KeyboardEvent) {
                 <v-btn v-bind="p" icon="mdi-dots-vertical" size="small" variant="text" class="book-menu" @click.stop />
               </template>
               <v-list density="compact" rounded="lg">
-                <v-list-item prepend-icon="mdi-pencil-outline" title="Umbenennen" @click="openRename(cat.name)" />
+                <v-list-item prepend-icon="mdi-pencil-outline" :title="$t('contactsView.rename')" @click="openRename(cat.name)" />
                 <v-divider />
                 <v-list-item
-                  prepend-icon="mdi-delete-outline" title="Löschen" base-color="error" @click="deleteCategory(cat.name, cat.count)"
+                  prepend-icon="mdi-delete-outline" :title="$t('common.delete')" base-color="error" @click="deleteCategory(cat.name, cat.count)"
                 />
               </v-list>
             </v-menu>
@@ -328,26 +330,26 @@ function onKey(e: KeyboardEvent) {
       </template>
 
       <v-divider class="my-3 mx-4" />
-      <v-list-item rounded="xl" prepend-icon="mdi-sync" title="Mit DAVx⁵ synchronisieren" @click="davOpen = true" />
-      <v-list-item rounded="xl" prepend-icon="mdi-calendar-month-outline" title="Kalender" :to="{ name: 'calendar' }" />
+      <v-list-item rounded="xl" prepend-icon="mdi-sync" :title="$t('dav.title')" @click="davOpen = true" />
+      <v-list-item rounded="xl" prepend-icon="mdi-calendar-month-outline" :title="$t('nav.calendar')" :to="{ name: 'calendar' }" />
     </v-list>
     <input ref="importInput" type="file" accept=".vcf,.vcard,text/vcard,text/x-vcard" multiple hidden @change="onImportFile" />
   </v-navigation-drawer>
 
   <v-app-bar flat color="surface" density="comfortable">
-    <v-app-bar-nav-icon title="Menü" @click="drawer = !drawer" />
+    <v-app-bar-nav-icon :title="$t('common.menu')" @click="drawer = !drawer" />
     <div v-if="lgAndUp" class="d-flex align-center mr-6 brand">
       <v-icon icon="mdi-account-box-multiple" color="primary" size="28" class="mr-2" />
-      <span class="text-title-large">Kontakte</span>
+      <span class="text-title-large">{{ $t('nav.contacts') }}</span>
     </div>
     <v-text-field
-      ref="searchField" v-model="search" placeholder="Kontakte durchsuchen" density="compact" variant="solo-filled"
+      ref="searchField" v-model="search" :placeholder="$t('contactsView.search')" density="compact" variant="solo-filled"
       flat rounded="xl" hide-details clearable prepend-inner-icon="mdi-magnify" class="search mx-2"
       bg-color="surface-container-high" @keydown.esc="search = ''"
     />
     <v-progress-circular v-if="contacts.loading" indeterminate size="20" width="2" color="primary" class="mx-2" />
-    <v-btn v-if="!smAndDown" icon="mdi-upload-outline" title="Kontakte importieren (.vcf)" @click="startImport()" />
-    <v-btn icon="mdi-calendar-month-outline" title="Kalender" :to="{ name: 'calendar' }" />
+    <v-btn v-if="!smAndDown" icon="mdi-upload-outline" :title="$t('contactsView.importContacts')" @click="startImport()" />
+    <v-btn icon="mdi-calendar-month-outline" :title="$t('nav.calendar')" :to="{ name: 'calendar' }" />
     <AccountMenu ref="accountMenu" />
   </v-app-bar>
 
@@ -358,25 +360,25 @@ function onKey(e: KeyboardEvent) {
     >
       <div class="list-pane" :class="{ narrow: mdAndUp }">
         <div class="px-4 pt-4 pb-1 text-title-small text-medium-emphasis">
-          {{ currentBook?.name ?? categoryFilter ?? 'Alle Kontakte' }}
+          {{ currentBook?.name ?? categoryFilter ?? $t('contactsView.all') }}
           <span v-if="search"> · {{ filtered.length }} Treffer</span>
         </div>
 
         <div v-if="!contacts.loading && !filtered.length" class="empty pa-8 text-center">
           <template v-if="search || categoryFilter">
             <v-icon icon="mdi-account-search-outline" size="56" class="mb-3 text-medium-emphasis" />
-            <div class="text-body-large">Keine Kontakte gefunden</div>
+            <div class="text-body-large">{{ $t('contactsView.noneFound') }}</div>
           </template>
           <template v-else>
             <v-icon icon="mdi-account-box-multiple-outline" size="64" class="mb-3 text-medium-emphasis" />
-            <div class="text-title-medium mb-1">Noch keine Kontakte</div>
+            <div class="text-title-medium mb-1">{{ $t('contactsView.empty') }}</div>
             <div class="text-body-medium text-medium-emphasis mb-5">
-              Kontakt anlegen, eine .vcf-Datei importieren (auch per Drag &amp; Drop) oder mit DAVx⁵ synchronisieren.
+              {{ $t('contactsView.emptyHint') }}
             </div>
             <div class="d-flex flex-wrap justify-center ga-2">
-              <v-btn color="primary" variant="flat" prepend-icon="mdi-account-plus-outline" @click="newContact">Kontakt erstellen</v-btn>
-              <v-btn variant="tonal" prepend-icon="mdi-upload-outline" @click="startImport()">.vcf importieren</v-btn>
-              <v-btn variant="text" prepend-icon="mdi-sync" @click="davOpen = true">DAVx⁵ einrichten</v-btn>
+              <v-btn color="primary" variant="flat" prepend-icon="mdi-account-plus-outline" @click="newContact">{{ $t('contactsView.createContact') }}</v-btn>
+              <v-btn variant="tonal" prepend-icon="mdi-upload-outline" @click="startImport()">{{ $t('contactsView.importVcfButton') }}</v-btn>
+              <v-btn variant="text" prepend-icon="mdi-sync" @click="davOpen = true">{{ $t('contactsView.setUpDav') }}</v-btn>
             </div>
           </template>
         </div>
@@ -407,18 +409,18 @@ function onKey(e: KeyboardEvent) {
         />
         <div v-else-if="contacts.list.length" class="empty fill-height d-flex flex-column align-center justify-center text-medium-emphasis">
           <v-icon icon="mdi-card-account-details-outline" size="72" class="mb-3" />
-          <div class="text-body-large">Kontakt auswählen</div>
+          <div class="text-body-large">{{ $t('contactsView.select') }}</div>
         </div>
       </div>
       <div v-if="dragOver" class="drop-hint">
         <v-icon icon="mdi-file-upload-outline" size="48" class="mb-2" />
         <div class="text-title-medium">.vcf-Datei hier ablegen</div>
-        <div class="text-body-medium">Import in „{{ currentBook?.name ?? contacts.books[0]?.name }}“</div>
+        <div class="text-body-medium">{{ $t('contactsView.dropTarget', { name: currentBook?.name ?? contacts.books[0]?.name }) }}</div>
       </div>
     </div>
     <v-btn
       v-if="smAndDown" class="fab" color="primary-container" size="x-large" icon="mdi-account-plus-outline" rounded="lg"
-      elevation="3" title="Kontakt erstellen" @click="newContact"
+      elevation="3" :title="$t('contactsView.createContact')" @click="newContact"
     />
   </v-main>
 
@@ -433,19 +435,19 @@ function onKey(e: KeyboardEvent) {
 
   <ContactDialog v-model="editorOpen" :contact-id="editId" :book-id="bookFilter" :category="categoryFilter" @saved="onSaved" />
   <v-dialog v-model="renameOpen" max-width="400">
-    <v-card title="Kategorie umbenennen" color="surface-container-high">
+    <v-card :title="$t('contactsView.renameCategory')" color="surface-container-high">
       <v-card-text>
         <v-text-field
-          v-model="renameTo" label="Name" autofocus hide-details maxlength="100" @keydown.enter="renameCategory"
+          v-model="renameTo" :label="$t('common.name')" autofocus hide-details maxlength="100" @keydown.enter="renameCategory"
         />
         <div class="text-body-small text-medium-emphasis mt-3">
-          Gilt für alle Kontakte. Gibt es den neuen Namen schon, werden beide Kategorien zusammengeführt.
+          {{ $t('contactsView.renameHint') }}
         </div>
       </v-card-text>
       <v-card-actions>
         <v-spacer />
-        <v-btn @click="renameOpen = false">Abbrechen</v-btn>
-        <v-btn color="primary" :loading="renaming" :disabled="!renameTo.trim()" @click="renameCategory">Umbenennen</v-btn>
+        <v-btn @click="renameOpen = false">{{ $t('common.cancel') }}</v-btn>
+        <v-btn color="primary" :loading="renaming" :disabled="!renameTo.trim()" @click="renameCategory">{{ $t('contactsView.rename') }}</v-btn>
       </v-card-actions>
     </v-card>
   </v-dialog>

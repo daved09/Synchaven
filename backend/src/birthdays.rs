@@ -1,5 +1,8 @@
 //! Automatic birthday calendar: for each contact with a birthday there is a
-//! yearly, all-day event in the user's "Geburtstage" calendar.
+//! yearly, all-day event in the user's birthday calendar.
+//!
+//! Names and descriptions use the language saved for the user, since they are also
+//! generated without a request (on startup).
 //!
 //! The events are updated on every contact change (REST and CardDAV) and are
 //! read-only. Deleted contacts take their event with them via `ON DELETE CASCADE`.
@@ -9,29 +12,30 @@ use sqlx::{SqliteConnection, SqlitePool};
 
 use crate::{
     error::AppResult,
+    i18n::{tr_in, Lang},
     models::EventRow,
     time,
     vcard::{self},
 };
 
 pub const KIND: &str = "birthdays";
-const NAME: &str = "Geburtstage";
 const COLOR: &str = "#D81B60";
 /// Year for birthdays without a year (a leap year, so Feb 29 is valid too)
 const NO_YEAR: i32 = 2000;
 
 /// Returns the ID of the birthday calendar and creates it if needed.
-pub async fn ensure_calendar(conn: &mut SqliteConnection, user_id: &str) -> AppResult<String> {
+pub async fn ensure_calendar(conn: &mut SqliteConnection, user_id: &str, lang: Lang) -> AppResult<String> {
     let now = time::to_db(time::now());
     sqlx::query(
         "INSERT INTO calendars (id, user_id, name, color, description, visible, kind, created_at, updated_at)
-         VALUES (?, ?, ?, ?, 'Wird automatisch aus den Kontakten erstellt', 1, ?, ?, ?)
+         VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?)
          ON CONFLICT DO NOTHING",
     )
     .bind(uuid::Uuid::new_v4().to_string())
     .bind(user_id)
-    .bind(NAME)
+    .bind(tr_in!(lang, "birthdays.calendar_name"))
     .bind(COLOR)
+    .bind(tr_in!(lang, "birthdays.calendar_description"))
     .bind(KIND)
     .bind(&now)
     .bind(&now)
@@ -77,11 +81,15 @@ pub fn occurrence_title(title: &str, birth_year: Option<i64>, occurrence_year: i
     }
 }
 
-fn description_for(date: NaiveDate, year: Option<i32>) -> String {
-    match year {
-        Some(_) => format!("Geboren am {}", date.format("%d.%m.%Y")),
-        None => String::new(),
+pub fn description_for(date: NaiveDate, year: Option<i32>, lang: Lang) -> String {
+    if year.is_none() {
+        return String::new();
     }
+    let date = match lang {
+        Lang::En => date.format("%B %-d, %Y"),
+        Lang::De => date.format("%d.%m.%Y"),
+    };
+    tr_in!(lang, "birthdays.born_on", date = date)
 }
 
 fn uid_for(contact_id: &str) -> String {
@@ -90,13 +98,14 @@ fn uid_for(contact_id: &str) -> String {
 
 /// Create, update or remove a contact's birthday event.
 pub async fn sync_contact(conn: &mut SqliteConnection, contact_id: &str) -> AppResult<()> {
-    let row: Option<(String, String, String)> = sqlx::query_as(
-        "SELECT c.vcard, c.kind, b.user_id FROM contacts c JOIN addressbooks b ON b.id = c.addressbook_id WHERE c.id = ?",
+    let row: Option<(String, String, String, String)> = sqlx::query_as(
+        "SELECT c.vcard, c.kind, b.user_id, u.language FROM contacts c
+         JOIN addressbooks b ON b.id = c.addressbook_id JOIN users u ON u.id = b.user_id WHERE c.id = ?",
     )
     .bind(contact_id)
     .fetch_optional(&mut *conn)
     .await?;
-    let Some((text, kind, user_id)) = row else {
+    let Some((text, kind, user_id, language)) = row else {
         return Ok(());
     };
     let wanted = if kind == "group" {
@@ -118,9 +127,10 @@ pub async fn sync_contact(conn: &mut SqliteConnection, contact_id: &str) -> AppR
         return Ok(());
     };
 
-    let calendar_id = ensure_calendar(conn, &user_id).await?;
+    let lang = Lang::from_tag(&language).unwrap_or_default();
+    let calendar_id = ensure_calendar(conn, &user_id, lang).await?;
     let title = title_for(&name);
-    let description = description_for(date, year);
+    let description = description_for(date, year, lang);
     let start = time::to_db(time::midnight_utc(date));
     let end = time::to_db(time::midnight_utc(date + Duration::days(1)));
     let rrule = rrule_for(date);
@@ -185,7 +195,7 @@ pub async fn sync_all(db: &SqlitePool) -> AppResult<()> {
         sync_contact(&mut tx, id).await?;
     }
     tx.commit().await?;
-    tracing::info!("Geburtstagskalender mit {} Kontakt(en) abgeglichen", ids.len());
+    tracing::info!("Synced birthday calendar with {} contact(s)", ids.len());
     Ok(())
 }
 

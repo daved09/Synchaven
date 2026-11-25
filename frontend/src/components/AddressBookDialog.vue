@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { t } from '@/i18n'
 import { ref, watch } from 'vue'
 import type { AddressBook } from '@/api/types'
 import { useContactsStore } from '@/stores/contacts'
@@ -28,7 +29,7 @@ async function save() {
     const data = { name: name.value, description: description.value }
     if (props.book) await contacts.updateBook(props.book.id, data)
     else await contacts.createBook(data)
-    notify.info(props.book ? 'Adressbuch gespeichert' : 'Adressbuch erstellt')
+    notify.info(props.book ? t('addressBook.saved') : t('addressBook.created'))
     open.value = false
   } catch (e) {
     notify.fail(e)
@@ -40,20 +41,20 @@ async function save() {
 
 <template>
   <v-dialog v-model="open" max-width="480">
-    <v-card :title="book ? 'Adressbuch bearbeiten' : 'Neues Adressbuch'" color="surface-container-high">
+    <v-card :title="book ? $t('addressBook.edit') : $t('addressBook.new')" color="surface-container-high">
       <v-card-text>
         <v-form ref="formRef" @submit.prevent="save">
           <v-text-field
-            v-model="name" label="Name" autofocus maxlength="100"
-            :rules="[(v: string) => !!v.trim() || 'Bitte einen Namen eingeben']"
+            v-model="name" :label="$t('common.name')" autofocus maxlength="100"
+            :rules="[(v: string) => !!v.trim() || $t('common.nameRequired')]"
           />
-          <v-textarea v-model="description" label="Beschreibung (optional)" rows="2" auto-grow />
+          <v-textarea v-model="description" :label="$t('common.descriptionOptional')" rows="2" auto-grow />
         </v-form>
       </v-card-text>
       <template #actions>
         <v-spacer />
-        <v-btn @click="open = false">Abbrechen</v-btn>
-        <v-btn color="primary" variant="flat" :loading="saving" @click="save">Speichern</v-btn>
+        <v-btn @click="open = false">{{ $t('common.cancel') }}</v-btn>
+        <v-btn color="primary" variant="flat" :loading="saving" @click="save">{{ $t('common.save') }}</v-btn>
       </template>
     </v-card>
   </v-dialog>

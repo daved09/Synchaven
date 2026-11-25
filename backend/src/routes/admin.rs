@@ -1,5 +1,6 @@
 //! Administration for administrators: overview, users, settings as well as export and import of the whole database.
 
+use crate::i18n::tr;
 use axum::{
     body::Bytes,
     extract::{Path, Query, State},
@@ -27,7 +28,7 @@ async fn require_admin(state: &AppState, auth: &AuthUser) -> AppResult<()> {
         .fetch_one(&state.db)
         .await?;
     if !is_admin {
-        return Err(AppError::Forbidden("Nur für Administratoren".into()));
+        return Err(AppError::Forbidden(tr!("admin.only_admins")));
     }
     Ok(())
 }
@@ -72,7 +73,7 @@ pub async fn import(
     // Cached CardDAV sign-ins and settings belong to the old data
     state.dav_auth.clear();
     state.settings.reload(&state.db).await?;
-    tracing::info!("Datenbank aus Export importiert ({})", report.summary.join(", "));
+    tracing::info!("Database imported from export ({})", report.summary.join(", "));
     Ok(Json(report))
 }
 
@@ -194,14 +195,14 @@ pub async fn update_settings(
 ) -> AppResult<Json<SettingsResponse>> {
     require_admin(&state, &auth).await?;
     if input.token_ttl_days.is_some_and(|d| !TOKEN_TTL_RANGE.contains(&d)) {
-        return Err(AppError::BadRequest(format!(
-            "Die Gültigkeit der Anmeldung muss zwischen {} und {} Tagen liegen",
-            TOKEN_TTL_RANGE.start(),
-            TOKEN_TTL_RANGE.end()
+        return Err(AppError::BadRequest(tr!(
+            "admin.token_ttl_range",
+            min = TOKEN_TTL_RANGE.start(),
+            max = TOKEN_TTL_RANGE.end()
         )));
     }
     state.settings.update(&state.db, input.allow_registration, input.token_ttl_days).await?;
-    tracing::info!("Einstellungen geändert: {:?}", state.settings.get());
+    tracing::info!("Settings changed: {:?}", state.settings.get());
     Ok(settings_response(&state))
 }
 
@@ -295,6 +296,8 @@ pub struct CreateUserInput {
     name: String,
     #[serde(default)]
     is_admin: bool,
+    /// Language for the initial data (`de`, `en`); default: the administrator's request language
+    language: Option<String>,
 }
 
 /// `POST /api/admin/users` – create an account, even if registration is closed
@@ -304,8 +307,9 @@ pub async fn create(
     Json(input): Json<CreateUserInput>,
 ) -> AppResult<(StatusCode, Json<AdminUser>)> {
     require_admin(&state, &auth).await?;
-    let id = create_user(&state, &input.email, &input.name, &input.password, Some(input.is_admin)).await?;
-    tracing::info!("Konto {id} von Administrator {} angelegt", auth.id);
+    let lang = crate::i18n::parse_choice(input.language.as_deref())?.unwrap_or_else(crate::i18n::current);
+    let id = create_user(&state, &input.email, &input.name, &input.password, Some(input.is_admin), lang).await?;
+    tracing::info!("Account {id} created by administrator {}", auth.id);
     Ok((StatusCode::CREATED, Json(load_admin_user(&state, &id).await?)))
 }
 
@@ -331,14 +335,14 @@ pub async fn update(
     let own = id == auth.id;
     // Anyone who revokes their own rights or disables themselves might lock everyone out
     if own && input.is_admin == Some(false) {
-        return Err(AppError::BadRequest("Du kannst dir die Administratorrechte nicht selbst entziehen".into()));
+        return Err(AppError::BadRequest(tr!("admin.cannot_demote_self")));
     }
     if own && input.disabled == Some(true) {
-        return Err(AppError::BadRequest("Du kannst dein eigenes Konto nicht sperren".into()));
+        return Err(AppError::BadRequest(tr!("admin.cannot_disable_self")));
     }
 
     let name = match input.name.as_deref().map(str::trim) {
-        Some("") => return Err(AppError::BadRequest("Der Name darf nicht leer sein".into())),
+        Some("") => return Err(AppError::BadRequest(tr!("admin.name_empty"))),
         Some(n) => n.chars().take(100).collect(),
         None => user.name.clone(),
     };
@@ -351,7 +355,7 @@ pub async fn update(
                 .fetch_optional(&state.db)
                 .await?;
             if taken.is_some() {
-                return Err(AppError::Conflict("Diese E-Mail-Adresse ist bereits registriert".into()));
+                return Err(AppError::Conflict(tr!("auth.email_taken")));
             }
             email
         }
@@ -383,7 +387,7 @@ pub async fn update(
     .bind(&id)
     .execute(&state.db)
     .await?;
-    tracing::info!("Konto {id} von Administrator {} geändert", auth.id);
+    tracing::info!("Account {id} changed by administrator {}", auth.id);
     Ok(Json(load_admin_user(&state, &id).await?))
 }
 
@@ -395,7 +399,7 @@ pub async fn logout_everywhere(
 ) -> AppResult<Json<AdminUser>> {
     require_admin(&state, &auth).await?;
     if id == auth.id {
-        return Err(AppError::BadRequest("Für das eigene Konto bitte normal abmelden".into()));
+        return Err(AppError::BadRequest(tr!("admin.sign_out_self")));
     }
     let res = sqlx::query("UPDATE users SET tokens_valid_after = ? WHERE id = ?")
         .bind(Utc::now().timestamp())
@@ -412,12 +416,12 @@ pub async fn logout_everywhere(
 pub async fn delete(State(state): State<AppState>, auth: AuthUser, Path(id): Path<String>) -> AppResult<StatusCode> {
     require_admin(&state, &auth).await?;
     if id == auth.id {
-        return Err(AppError::BadRequest("Du kannst dein eigenes Konto nicht löschen".into()));
+        return Err(AppError::BadRequest(tr!("admin.cannot_delete_self")));
     }
     let res = sqlx::query("DELETE FROM users WHERE id = ?").bind(&id).execute(&state.db).await?;
     if res.rows_affected() == 0 {
         return Err(AppError::NotFound);
     }
-    tracing::info!("Konto {id} von Administrator {} gelöscht", auth.id);
+    tracing::info!("Account {id} deleted by administrator {}", auth.id);
     Ok(StatusCode::NO_CONTENT)
 }

@@ -1,5 +1,6 @@
 //! REST endpoints for address books and contacts incl. vCard import/export.
 
+use crate::i18n::tr;
 use std::collections::HashMap;
 
 use axum::{
@@ -116,9 +117,9 @@ fn touch(card: &mut vcard::Card) {
 
 fn apply_photo(card: &mut vcard::Card, photo: Option<&str>) -> AppResult<()> {
     match photo {
-        Some(p) if p.len() > 5_000_000 => Err(AppError::BadRequest("Das Foto ist zu groß (max. 3,5 MB)".into())),
+        Some(p) if p.len() > 5_000_000 => Err(AppError::BadRequest(tr!("contacts.photo_too_large"))),
         Some(p) if !vcard::set_photo(card, p) => {
-            Err(AppError::BadRequest("Das Foto muss als data:-URL (Base64) übergeben werden".into()))
+            Err(AppError::BadRequest(tr!("contacts.photo_format")))
         }
         _ => Ok(()),
     }
@@ -129,7 +130,7 @@ fn apply_photo(card: &mut vcard::Card, photo: Option<&str>) -> AppResult<()> {
 fn validate_book(input: &AddressBookInput) -> AppResult<String> {
     let name = input.name.trim();
     if name.is_empty() || name.chars().count() > 100 {
-        return Err(AppError::BadRequest("Der Name muss 1–100 Zeichen lang sein".into()));
+        return Err(AppError::BadRequest(tr!("validation.name_length")));
     }
     Ok(name.to_string())
 }
@@ -198,7 +199,7 @@ pub async fn delete_book(State(state): State<AppState>, auth: AuthUser, Path(id)
     contacts::owned_book(&state.db, &auth.id, &id).await?;
     // Contacts are deleted along with it via ON DELETE CASCADE.
     sqlx::query("DELETE FROM addressbooks WHERE id = ?").bind(&id).execute(&state.db).await?;
-    tracing::info!("Adressbuch {id} von Konto {} gelöscht", auth.id);
+    tracing::info!("Address book {id} deleted by account {}", auth.id);
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -242,7 +243,7 @@ pub async fn import_book(
     contacts::owned_book(&state.db, &auth.id, &id).await?;
     let cards = vcard::parse_cards(&body);
     if cards.is_empty() {
-        return Err(AppError::BadRequest("Keine vCards gefunden (BEGIN:VCARD fehlt)".into()));
+        return Err(AppError::BadRequest(tr!("contacts.no_vcards")));
     }
     let (mut created, mut updated, mut unchanged) = (0usize, 0usize, 0usize);
     let mut skipped = Vec::new();
@@ -256,7 +257,7 @@ pub async fn import_book(
         let text = card.serialize();
         let idx = contacts::index(&card, "");
         if idx.uid.len() > 500 {
-            skipped.push(format!("{}: UID zu lang", idx.full_name));
+            skipped.push(tr!("contacts.uid_too_long", name = idx.full_name));
             continue;
         }
         match contacts::find_by_uid(&mut tx, &id, &idx.uid).await? {
@@ -276,7 +277,7 @@ pub async fn import_book(
     }
     tx.commit().await?;
     tracing::info!(
-        "Adressbuch {id}: vCard-Import – {created} neu, {updated} aktualisiert, {unchanged} unverändert, {} übersprungen",
+        "Address book {id}: vCard import – {created} new, {updated} updated, {unchanged} unchanged, {} skipped",
         skipped.len()
     );
     Ok(Json(json!({
@@ -304,15 +305,13 @@ async fn owned_contact(state: &AppState, user_id: &str, id: &str) -> AppResult<C
 fn validate_contact(mut data: ContactData) -> AppResult<ContactData> {
     data.normalize();
     if data.full_name.is_empty() {
-        return Err(AppError::BadRequest(
-            "Bitte einen Namen, eine Firma, E-Mail-Adresse oder Telefonnummer angeben".into(),
-        ));
+        return Err(AppError::BadRequest(tr!("contacts.name_required")));
     }
     if data.full_name.chars().count() > 500 || data.note.chars().count() > 20_000 {
-        return Err(AppError::BadRequest("Name oder Notiz ist zu lang".into()));
+        return Err(AppError::BadRequest(tr!("contacts.too_long")));
     }
     if data.categories.len() > 100 || data.categories.iter().any(|c| c.chars().count() > 100) {
-        return Err(AppError::BadRequest("Zu viele oder zu lange Kategorien".into()));
+        return Err(AppError::BadRequest(tr!("contacts.categories")));
     }
     let b = &data.birthday;
     let valid_bday = b.is_empty()
@@ -321,7 +320,7 @@ fn validate_contact(mut data: ContactData) -> AppResult<ContactData> {
             chrono::NaiveDate::parse_from_str(&format!("2000-{md}"), "%Y-%m-%d").is_ok()
         });
     if !valid_bday {
-        return Err(AppError::BadRequest("Ungültiger Geburtstag".into()));
+        return Err(AppError::BadRequest(tr!("contacts.invalid_birthday")));
     }
     Ok(data)
 }
@@ -404,7 +403,7 @@ pub async fn update(
         // Move to another address book
         contacts::owned_book(&state.db, &auth.id, &input_book).await?;
         if contacts::find_by_uid(&mut tx, &input_book, &idx.uid).await?.is_some() {
-            return Err(AppError::Conflict("Der Kontakt existiert im Ziel-Adressbuch bereits".into()));
+            return Err(AppError::Conflict(tr!("contacts.exists_in_target")));
         }
         let (taken,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM contacts WHERE addressbook_id = ? AND href = ?")
             .bind(&input_book)
@@ -449,10 +448,10 @@ pub struct CategoryInput {
 async fn rewrite_category(state: &AppState, user_id: &str, name: &str, new_name: Option<&str>) -> AppResult<Json<Value>> {
     let name = name.trim().to_lowercase();
     if name.is_empty() {
-        return Err(AppError::BadRequest("Kategorie fehlt".into()));
+        return Err(AppError::BadRequest(tr!("contacts.category_missing")));
     }
     if new_name.is_some_and(|n| n.trim().is_empty() || n.trim().chars().count() > 100) {
-        return Err(AppError::BadRequest("Der Name muss 1–100 Zeichen lang sein".into()));
+        return Err(AppError::BadRequest(tr!("validation.name_length")));
     }
     // The categories are part of the search text – a pre-selection, the actual check is done on the card.
     let pattern = format!("%{}%", name.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_"));

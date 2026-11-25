@@ -23,11 +23,14 @@ Material 3 design** (Vuetify), a **REST API** for custom clients such as an Andr
 * **Contacts:** multiple address books, search, phone/email/addresses/websites with types and custom labels,
   birthday (also without year), notes, categories (for filtering, renamable; contact groups in DAVx⁵), photos from imported or synced contacts
 * **Birthday calendar:** birthdays of all contacts automatically appear as yearly events in a separate
-  "Geburtstage" calendar (with age, if the birth year is known) – also for contacts synced via DAVx⁵
+  birthday calendar (with age, if the birth year is known) – also for contacts synced via DAVx⁵
 * vCard import and export (.vcf, also via drag & drop) – vCard 2.1, 3.0 and 4.0, e.g. from Android, iPhone,
   Google Contacts, Outlook, Thunderbird; importing again does not create duplicates
 * **Sync via CardDAV** with DAVx⁵ (Android), Thunderbird and iOS – in both directions
 * Material 3 with a dynamic color scheme from a freely selectable base color, light/dark/system
+* **German and English** – the web UI follows the browser language (English for other languages); it can be
+  chosen on registration – which also decides the language of the initial calendar, task list and address book –
+  and in the settings. The server answers in the language of the request
 * Keyboard shortcuts: `M` `W` `T` `L` (view), `H` (today), `←`/`→` (previous/next), `C` (new event), `A` (new task), `/` (search)
 
 ## Running with Docker
@@ -292,11 +295,25 @@ cd backend && cargo test
 cd frontend && npm run typecheck && npm run build
 ```
 
+### Translations
+
+Every text exists once per language, in JSON files with the same keys:
+
+* Web UI: `frontend/src/locales/de.json`, `en.json` (vue-i18n, placeholders `{name}`, plural forms
+  separated by ` | `). Used as `$t('key')` in templates and `t('key')` in code.
+* Backend: `backend/locales/de.json`, `en.json` (rust-i18n, placeholders `%{name}`). Used as `tr!("key")`;
+  the language comes from the request's `Accept-Language` header, see `src/i18n.rs`.
+
+`npm run build` (or `npm run check:i18n`) and `cargo test` fail if a key is missing in a language, the
+placeholders differ, or a key is unknown or unused. A new language needs one more file on each side plus an entry
+in `LANGUAGES` (`frontend/src/i18n.ts`) and in `Lang` (`backend/src/i18n.rs`).
+
 ## Project structure
 
 ```
 backend/            Rust (axum, sqlx/SQLite, rrule, jsonwebtoken, argon2, quick-xml)
   migrations/       SQL schema (applied automatically on startup)
+  locales/          Texts of API messages and default names per language
   src/routes/       REST endpoints (auth, calendars, events, ical, contacts)
   src/recurrence.rs Expansion of recurring events
   src/ical.rs       iCalendar import/export
@@ -309,6 +326,7 @@ frontend/           Vue 3 + Vuetify 3 (Material 3) + Pinia
   src/components/   Month, week/day and list views, contact details, dialogs
   src/views/        Sign-in, calendar, contacts
   src/plugins/      Vuetify setup and M3 color scheme generator
+  src/locales/      Texts of the web UI per language
 Android/            Android app (Kotlin, Jetpack Compose, Material 3, MVVM)
 docs/API.md         API reference
 Dockerfile          Multi-stage build → slim Debian image

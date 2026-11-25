@@ -43,9 +43,9 @@ function setType(i: number, t: string | null) {
       />
       <v-combobox
         :model-value="item.type" :items="options" item-title="title" item-value="value" :return-object="false"
-        label="Typ" class="type-field" @update:model-value="(t: string | null) => setType(i, t)"
+        :label="$t('contact.type')" class="type-field" @update:model-value="(t: string | null) => setType(i, t)"
       />
-      <v-btn icon="mdi-close" variant="text" size="small" class="mt-2" :title="`${label} entfernen`" @click="remove(i)" />
+      <v-btn icon="mdi-close" variant="text" size="small" class="mt-2" :title="$t('common.removeNamed', { name: label })" @click="remove(i)" />
     </div>
     <v-btn variant="text" prepend-icon="mdi-plus" class="ml-8" size="small" @click="add">{{ addText }}</v-btn>
   </div>

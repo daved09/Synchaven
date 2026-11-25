@@ -1,3 +1,4 @@
+use crate::i18n::tr;
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
@@ -36,11 +37,11 @@ impl EventData {
     pub fn validate(input: EventInput) -> AppResult<Self> {
         let title = input.title.trim().to_string();
         if title.is_empty() || title.chars().count() > 500 {
-            return Err(AppError::BadRequest("Der Titel muss 1–500 Zeichen lang sein".into()));
+            return Err(AppError::BadRequest(tr!("validation.title_length")));
         }
         let tz_name = input.timezone.as_deref().map(str::trim).filter(|t| !t.is_empty()).unwrap_or("UTC");
         let tz = time::parse_tz(tz_name)
-            .ok_or_else(|| AppError::BadRequest(format!("Unbekannte Zeitzone: {tz_name}")))?;
+            .ok_or_else(|| AppError::BadRequest(tr!("event.unknown_time_zone", tz = tz_name)))?;
 
         let (start, end) = if input.all_day {
             // All-day: midnight UTC, end exclusive
@@ -49,7 +50,7 @@ impl EventData {
             (s, if e <= s { s + Duration::days(1) } else { e })
         } else {
             if input.end < input.start {
-                return Err(AppError::BadRequest("Das Ende darf nicht vor dem Beginn liegen".into()));
+                return Err(AppError::BadRequest(tr!("event.end_before_start")));
             }
             (input.start, input.end)
         };
@@ -151,7 +152,7 @@ async fn owned_event(state: &AppState, user_id: &str, id: &str) -> AppResult<Eve
 async fn editable_event(state: &AppState, user_id: &str, id: &str) -> AppResult<EventRow> {
     let row = owned_event(state, user_id, id).await?;
     if row.contact_id.is_some() {
-        return Err(AppError::BadRequest("Geburtstage werden über den Kontakt bearbeitet".into()));
+        return Err(AppError::BadRequest(tr!("event.birthday_read_only")));
     }
     Ok(row)
 }
@@ -173,10 +174,10 @@ pub async fn list(
     Query(q): Query<ListQuery>,
 ) -> AppResult<Json<Vec<Occurrence>>> {
     if q.end <= q.start {
-        return Err(AppError::BadRequest("`end` muss nach `start` liegen".into()));
+        return Err(AppError::BadRequest(tr!("event.range_end_before_start")));
     }
     if q.end - q.start > Duration::days(800) {
-        return Err(AppError::BadRequest("Der Zeitraum darf höchstens 800 Tage umfassen".into()));
+        return Err(AppError::BadRequest(tr!("event.range_too_long")));
     }
     let (from, to) = (time::to_db(q.start), time::to_db(q.end));
 
@@ -311,7 +312,7 @@ pub async fn update(
     .await
     .map_err(|e| match &e {
         sqlx::Error::Database(db) if db.is_unique_violation() => {
-            AppError::Conflict("Im Zielkalender existiert bereits ein Termin mit derselben UID".into())
+            AppError::Conflict(tr!("event.uid_exists"))
         }
         _ => e.into(),
     })?;
@@ -339,7 +340,7 @@ pub async fn add_exdate(
 ) -> AppResult<Json<Event>> {
     let mut ev: Event = editable_event(&state, &auth.id, &id).await?.into();
     if ev.rrule.is_none() {
-        return Err(AppError::BadRequest("Der Termin ist keine Serie".into()));
+        return Err(AppError::BadRequest(tr!("event.not_recurring")));
     }
     if !ev.exdates.contains(&input.occurrence_start) {
         ev.exdates.push(input.occurrence_start);

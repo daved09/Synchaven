@@ -1,5 +1,6 @@
 //! Manage the browsers' Web Push subscriptions.
 
+use crate::i18n::tr;
 use std::time::Duration;
 
 use axum::{extract::State, http::StatusCode, Json};
@@ -36,7 +37,7 @@ pub struct SubscribeInput {
 
 /// The server calls the endpoint itself – only allow HTTPS addresses of public hosts.
 fn validate_endpoint(endpoint: &str) -> AppResult<()> {
-    let bad = || AppError::BadRequest("Ungültiger Push-Endpunkt".into());
+    let bad = || AppError::BadRequest(tr!("push.invalid_endpoint"));
     let url = reqwest::Url::parse(endpoint).map_err(|_| bad())?;
     if url.scheme() != "https" || endpoint.len() > 2000 {
         return Err(bad());
@@ -56,7 +57,7 @@ pub async fn subscribe(
 ) -> AppResult<StatusCode> {
     validate_endpoint(&input.endpoint)?;
     if input.keys.p256dh.len() > 200 || input.keys.auth.len() > 100 {
-        return Err(AppError::BadRequest("Ungültige Schlüssel".into()));
+        return Err(AppError::BadRequest(tr!("push.invalid_keys")));
     }
     let tz = input
         .timezone
@@ -141,13 +142,13 @@ pub async fn test(
                 sqlx::query("DELETE FROM push_subscriptions WHERE id = ?").bind(id).execute(&state.db).await?;
             }
             Err(e) => {
-                tracing::warn!("Test-Push fehlgeschlagen: {e:#}");
-                return Err(AppError::BadRequest(format!("Der Push-Dienst hat die Nachricht abgelehnt: {e}")));
+                tracing::warn!("Test push failed: {e:#}");
+                return Err(AppError::BadRequest(tr!("push.rejected", error = e)));
             }
         }
     }
     if sent == 0 {
-        return Err(AppError::BadRequest("Für diesen Browser sind keine Benachrichtigungen eingerichtet".into()));
+        return Err(AppError::BadRequest(tr!("push.not_subscribed")));
     }
     Ok(Json(json!({ "sent": sent })))
 }

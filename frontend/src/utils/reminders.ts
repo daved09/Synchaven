@@ -1,3 +1,4 @@
+import { t } from '@/i18n'
 /**
  * Reminders: minutes before the start. For all-day events the value refers to
  * midnight; negative values are a time on the day itself (-540 = 09:00).
@@ -27,10 +28,6 @@ export const ALL_DAY_PRESETS = [
   allDayMinutes(7, 9),
 ]
 
-function plural(n: number, one: string, many: string) {
-  return `${n} ${n === 1 ? one : many}`
-}
-
 /** Splits a reminder for an all-day event into days before and time. */
 export function splitAllDay(minutes: number): { days: number; hour: number; minute: number } {
   const days = Math.max(0, Math.ceil(minutes / DAY))
@@ -42,16 +39,16 @@ export function describeReminder(minutes: number, allDay: boolean): string {
   if (allDay) {
     const { days, hour, minute } = splitAllDay(minutes)
     const time = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`
-    if (days === 0) return `Am selben Tag um ${time}`
-    if (days === 1) return `Am Vortag um ${time}`
-    if (days % 7 === 0) return `${plural(days / 7, 'Woche', 'Wochen')} vorher um ${time}`
-    return `${days} Tage vorher um ${time}`
+    if (days === 0) return t('reminders.sameDayAt', { time })
+    if (days === 1) return t('reminders.dayBeforeAt', { time })
+    if (days % 7 === 0) return t('reminders.weeksBeforeAt', { n: days / 7, time }, days / 7)
+    return t('reminders.daysBeforeAt', { n: days, time }, days)
   }
-  if (minutes === 0) return 'Zum Beginn'
-  if (minutes % (7 * DAY) === 0) return `${plural(minutes / (7 * DAY), 'Woche', 'Wochen')} vorher`
-  if (minutes % DAY === 0) return `${plural(minutes / DAY, 'Tag', 'Tage')} vorher`
-  if (minutes % 60 === 0) return `${plural(minutes / 60, 'Stunde', 'Stunden')} vorher`
-  return `${plural(minutes, 'Minute', 'Minuten')} vorher`
+  if (minutes === 0) return t('reminders.atStart')
+  if (minutes % (7 * DAY) === 0) return t('reminders.weeksBefore', minutes / (7 * DAY))
+  if (minutes % DAY === 0) return t('reminders.daysBefore', minutes / DAY)
+  if (minutes % 60 === 0) return t('reminders.hoursBefore', minutes / 60)
+  return t('reminders.minutesBefore', minutes)
 }
 
 /** Valid for the kind of event? */

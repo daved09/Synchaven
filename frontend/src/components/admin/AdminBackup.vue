@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { t } from '@/i18n'
 import { ref } from 'vue'
 import { api } from '@/api/client'
 import type { DbImportReport } from '@/api/types'
@@ -37,10 +38,9 @@ async function onFile(e: Event) {
   const file = (e.target as HTMLInputElement).files?.[0]
   if (!file) return
   const ok = await confirmRef.value!.ask(
-    'Datenbank ersetzen?',
-    `Alle Daten aller Benutzer werden gelöscht und durch den Inhalt von „${file.name}“ ersetzt – auch Konten und `
-      + 'Passwörter. Das lässt sich nicht rückgängig machen. Gibt es dein Konto im Export nicht, wirst du abgemeldet.',
-    'Ersetzen',
+    t('backup.replaceTitle'),
+    t('backup.replaceText', { file: file.name }),
+    t('backup.replace'),
   )
   if (!ok) return
   busy.value = 'import'
@@ -61,10 +61,9 @@ function reload() {
 
 <template>
   <v-card variant="flat" color="surface-container-low" rounded="xl" class="pa-2">
-    <v-card-item title="Datenbank exportieren und importieren">
+    <v-card-item :title="$t('backup.title')">
       <v-card-subtitle class="text-wrap">
-        Die ganze Datenbank mit allen Benutzern, Passwort-Hashes und Einstellungen (ohne Push-Abonnements) als JSON sichern, z. B. vor einem
-        Update. Der Import ersetzt alle vorhandenen Daten.
+        {{ $t('backup.intro') }}
       </v-card-subtitle>
     </v-card-item>
     <v-card-text>
@@ -73,28 +72,28 @@ function reload() {
           variant="tonal" prepend-icon="mdi-database-export-outline" :loading="busy === 'export'"
           :disabled="!!busy" @click="exportDb"
         >
-          Datenbank exportieren
+          {{ $t('backup.export') }}
         </v-btn>
         <v-btn
           variant="tonal" color="error" prepend-icon="mdi-database-import-outline"
           :loading="busy === 'import'" :disabled="!!busy" @click="pickFile"
         >
-          Datenbank importieren
+          {{ $t('backup.import') }}
         </v-btn>
       </div>
       <input ref="fileInput" type="file" accept=".json,application/json" hidden @change="onFile" />
 
       <v-alert v-if="report" type="success" variant="tonal" class="mt-4" density="compact">
-        <div>Import abgeschlossen: {{ report.summary.join(', ') }}</div>
+        <div>{{ $t('backup.done', { summary: report.summary.join(', ') }) }}</div>
         <div v-for="w in report.warnings" :key="w" class="text-body-small mt-1">⚠ {{ w }}</div>
-        <v-btn size="small" variant="text" class="mt-1" prepend-icon="mdi-refresh" @click="reload">Neu laden</v-btn>
+        <v-btn size="small" variant="text" class="mt-1" prepend-icon="mdi-refresh" @click="reload">{{ $t('backup.reload') }}</v-btn>
       </v-alert>
     </v-card-text>
   </v-card>
 
   <v-card variant="flat" color="surface-container-low" rounded="xl" class="pa-2 mt-4">
-    <v-card-item title="Auf der Kommandozeile">
-      <v-card-subtitle class="text-wrap">Der Export geht auch bei laufendem Server, z. B. für eine regelmäßige Sicherung:</v-card-subtitle>
+    <v-card-item :title="$t('backup.cliTitle')">
+      <v-card-subtitle class="text-wrap">{{ $t('backup.cliHint') }}</v-card-subtitle>
     </v-card-item>
     <v-card-text>
       <code class="cli">docker exec synchaven synchaven export &gt; synchaven-export.json</code>

@@ -1,40 +1,38 @@
 <script setup lang="ts">
+import { t } from '@/i18n'
 import { computed } from 'vue'
 import { fmt } from '@/utils/date'
-import { WEEKDAYS, WEEKDAY_LABELS, jsDayToCode, weekdayOrdinal, type RecurrenceForm } from '@/utils/rrule'
+import { WEEKDAYS, WEEKDAY_LABELS, jsDayToCode, ordinalText, weekdayOrdinal, type RecurrenceForm } from '@/utils/rrule'
 
 const form = defineModel<RecurrenceForm>({ required: true })
 const props = defineProps<{ start: Date }>()
 
-const freqItems = [
-  { title: 'Wiederholt sich nicht', value: 'NONE' },
-  { title: 'Täglich', value: 'DAILY' },
-  { title: 'Wöchentlich', value: 'WEEKLY' },
-  { title: 'Monatlich', value: 'MONTHLY' },
-  { title: 'Jährlich', value: 'YEARLY' },
-  { title: 'Benutzerdefiniert (RRULE)', value: 'CUSTOM' },
-]
+const freqItems = (['NONE', 'DAILY', 'WEEKLY', 'MONTHLY', 'YEARLY', 'CUSTOM'] as const)
+  .map((value) => ({ title: t(`recurrence.freq.${value}`), value }))
 const unit = computed(() => {
-  const n = form.value.interval
-  return { DAILY: n === 1 ? 'Tag' : 'Tage', WEEKLY: n === 1 ? 'Woche' : 'Wochen', MONTHLY: n === 1 ? 'Monat' : 'Monate', YEARLY: n === 1 ? 'Jahr' : 'Jahre' }[
-    form.value.freq as 'DAILY'
-  ] ?? ''
+  const freq = form.value.freq
+  return ['DAILY', 'WEEKLY', 'MONTHLY', 'YEARLY'].includes(freq) ? t(`recurrence.unit.${freq}`, form.value.interval) : ''
 })
-const short: Record<string, string> = { MO: 'Mo', TU: 'Di', WE: 'Mi', TH: 'Do', FR: 'Fr', SA: 'Sa', SU: 'So' }
-const ordinal = computed(() => {
-  const n = weekdayOrdinal(props.start)
-  return `${n === -1 ? 'letzten' : `${n}.`} ${WEEKDAY_LABELS[jsDayToCode(props.start)]}`
-})
+const short = Object.fromEntries(
+  WEEKDAYS.map((d, i) => [d, fmt(new Date(2026, 0, 5 + i), { weekday: 'short' }).replace(/\.$/, '')]),
+)
+const monthlyOnDay = computed(() => t('recurrence.monthly', { on: t('recurrence.onDay', { day: props.start.getDate() }) }, 1))
+const monthlyOnWeekday = computed(() => t('recurrence.monthly', {
+  on: t('recurrence.onWeekday', {
+    ordinal: ordinalText(weekdayOrdinal(props.start)),
+    weekday: WEEKDAY_LABELS[jsDayToCode(props.start)],
+  }),
+}, 1))
 const simple = computed(() => !['NONE', 'CUSTOM'].includes(form.value.freq))
 </script>
 
 <template>
   <div>
-    <v-select v-model="form.freq" :items="freqItems" label="Wiederholung" prepend-inner-icon="mdi-repeat" hide-details class="mb-3" />
+    <v-select v-model="form.freq" :items="freqItems" :label="$t('recurrence.label')" prepend-inner-icon="mdi-repeat" hide-details class="mb-3" />
 
     <template v-if="simple">
       <div class="d-flex align-center ga-3 mb-3">
-        <span class="text-body-large">Alle</span>
+        <span class="text-body-large">{{ $t('recurrence.every') }}</span>
         <v-text-field
           v-model.number="form.interval" type="number" min="1" max="999" density="compact"
           hide-details style="max-width: 96px"
@@ -43,24 +41,24 @@ const simple = computed(() => !['NONE', 'CUSTOM'].includes(form.value.freq))
       </div>
 
       <div v-if="form.freq === 'WEEKLY'" class="mb-3">
-        <div class="text-label-large mb-1">An folgenden Tagen</div>
+        <div class="text-label-large mb-1">{{ $t('recurrence.onDays') }}</div>
         <v-chip-group v-model="form.byday" multiple selected-class="text-primary" column>
           <v-chip v-for="d in WEEKDAYS" :key="d" :value="d" filter variant="outlined" rounded="lg" :text="short[d]" />
         </v-chip-group>
       </div>
 
       <v-radio-group v-if="form.freq === 'MONTHLY'" v-model="form.monthlyMode" hide-details density="compact" class="mb-3">
-        <v-radio value="day" :label="`Monatlich am ${start.getDate()}.`" />
-        <v-radio value="weekday" :label="`Monatlich am ${ordinal}`" />
+        <v-radio value="day" :label="monthlyOnDay" />
+        <v-radio value="weekday" :label="monthlyOnWeekday" />
       </v-radio-group>
 
-      <div class="text-label-large mb-1">Endet</div>
+      <div class="text-label-large mb-1">{{ $t('recurrence.ends') }}</div>
       <v-radio-group v-model="form.endMode" hide-details density="compact">
-        <v-radio value="never" label="Nie" />
+        <v-radio value="never" :label="$t('recurrence.never')" />
         <v-radio value="until">
           <template #label>
             <div class="d-flex align-center ga-3">
-              <span>Am</span>
+              <span>{{ $t('recurrence.endOn') }}</span>
               <v-text-field
                 v-model="form.until" type="date" density="compact" hide-details style="min-width: 170px"
                 :disabled="form.endMode !== 'until'" @click.stop="form.endMode = 'until'"
@@ -71,27 +69,27 @@ const simple = computed(() => !['NONE', 'CUSTOM'].includes(form.value.freq))
         <v-radio value="count">
           <template #label>
             <div class="d-flex align-center ga-3">
-              <span>Nach</span>
+              <span>{{ $t('recurrence.endAfter') }}</span>
               <v-text-field
                 v-model.number="form.count" type="number" min="1" density="compact" hide-details style="max-width: 96px"
                 :disabled="form.endMode !== 'count'"
               />
-              <span>Terminen</span>
+              <span>{{ $t('recurrence.occurrences') }}</span>
             </div>
           </template>
         </v-radio>
       </v-radio-group>
       <div v-if="form.freq === 'YEARLY'" class="text-body-small text-medium-emphasis mt-2">
-        Jedes Jahr am {{ fmt(start, { day: 'numeric', month: 'long' }) }}
+        {{ $t('recurrence.everyYearOn', { date: fmt(start, { day: 'numeric', month: 'long' }) }) }}
       </div>
     </template>
 
     <v-text-field
       v-if="form.freq === 'CUSTOM'"
       v-model="form.raw"
-      label="RRULE nach RFC 5545"
+      :label="$t('recurrence.rruleLabel')"
       placeholder="FREQ=MONTHLY;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=-1"
-      hint="z. B. letzter Werktag im Monat – siehe RFC 5545, Abschnitt 3.3.10"
+      :hint="$t('recurrence.rruleHint')"
       persistent-hint
     />
   </div>

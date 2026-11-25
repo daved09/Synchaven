@@ -167,7 +167,7 @@ const today = new Date()
     <!-- Header row with weekdays -->
     <div class="tg-head">
       <div class="gutter text-label-small kw">
-        <template v-if="days.length > 1">KW {{ isoWeek(days[0]) }}</template>
+        <template v-if="days.length > 1">{{ $t('views.weekNumber', { n: isoWeek(days[0]) }) }}</template>
       </div>
       <div v-for="d in days" :key="d.getTime()" class="head-day" :class="{ today: isSameDay(d, today) }">
         <div class="wd text-label-medium">{{ fmt(d, { weekday: 'short' }) }}</div>
@@ -179,7 +179,7 @@ const today = new Date()
 
     <!-- All-day and multi-day events -->
     <div class="tg-allday">
-      <div class="gutter text-label-small allday-label">ganztägig</div>
+      <div class="gutter text-label-small allday-label">{{ $t('event.allDayLower') }}</div>
       <div
         ref="allday"
         class="allday-area"
@@ -206,7 +206,7 @@ const today = new Date()
         >
           <span
             v-if="it.ev.task" class="task-check" role="button"
-            :title="it.ev.task.completed ? 'Als offen markieren' : 'Als erledigt markieren'"
+            :title="it.ev.task.completed ? $t('task.markOpen') : $t('task.markDone')"
             @click.stop="emit('toggle', it.ev)"
           ><v-icon :icon="taskIcon(it.ev.task)" size="14" /></span>
           <span class="bar-title">{{ it.ev.title }}</span>
@@ -268,7 +268,7 @@ const today = new Date()
             <div class="ev-title">
               <span
                 v-if="it.ev.task" class="task-check" role="button"
-                :title="it.ev.task.completed ? 'Als offen markieren' : 'Als erledigt markieren'"
+                :title="it.ev.task.completed ? $t('task.markOpen') : $t('task.markDone')"
                 @click.stop="emit('toggle', it.ev)"
               ><v-icon :icon="taskIcon(it.ev.task)" size="14" /></span>
               <span class="ev-name">{{ it.ev.title }}</span><span v-if="it.height < 55" class="ev-time">, {{ fmtTime(it.ev.startDate) }}</span>

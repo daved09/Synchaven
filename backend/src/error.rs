@@ -3,6 +3,7 @@ use axum::{
     response::{IntoResponse, Response},
     Json,
 };
+use crate::i18n::tr;
 use serde_json::json;
 
 #[derive(Debug, thiserror::Error)]
@@ -13,11 +14,11 @@ pub enum AppError {
     Unauthorized(String),
     #[error("{0}")]
     Forbidden(String),
-    #[error("Nicht gefunden")]
+    #[error("Not found")]
     NotFound,
     #[error("{0}")]
     Conflict(String),
-    #[error("Interner Fehler")]
+    #[error("Internal error")]
     Internal(#[from] anyhow::Error),
 }
 
@@ -41,10 +42,15 @@ impl IntoResponse for AppError {
             AppError::NotFound => (StatusCode::NOT_FOUND, "not_found"),
             AppError::Conflict(_) => (StatusCode::CONFLICT, "conflict"),
             AppError::Internal(e) => {
-                tracing::error!("Interner Fehler: {e:#}");
+                tracing::error!("Internal error: {e:#}");
                 (StatusCode::INTERNAL_SERVER_ERROR, "internal")
             }
         };
-        (status, Json(json!({ "error": code, "message": self.to_string() }))).into_response()
+        let message = match self {
+            AppError::NotFound => tr!("error.not_found"),
+            AppError::Internal(_) => tr!("error.internal"),
+            other => other.to_string(),
+        };
+        (status, Json(json!({ "error": code, "message": message }))).into_response()
     }
 }

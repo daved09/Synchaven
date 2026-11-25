@@ -1,6 +1,8 @@
 // Date helpers – all computations in the browser's local time zone.
 
-export const LOCALE = 'de-DE'
+import { LOCALE, t } from '@/i18n'
+
+export { LOCALE }
 export const browserTimeZone = () => Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
 
 export function startOfDay(d: Date): Date {
@@ -92,7 +94,7 @@ export function describeSpan(start: Date, end: Date, allDay: boolean): string {
   const day = (d: Date) => fmt(d, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
   if (allDay) {
     const last = addDays(end, -1)
-    return isSameDay(start, last) ? `${day(start)} · ganztägig` : `${day(start)} – ${day(last)}`
+    return isSameDay(start, last) ? `${day(start)} · ${t('event.allDayLower')}` : `${day(start)} – ${day(last)}`
   }
   if (isSameDay(start, end)) return `${day(start)} · ${fmtTime(start)} – ${fmtTime(end)}`
   return `${day(start)}, ${fmtTime(start)} – ${day(end)}, ${fmtTime(end)}`

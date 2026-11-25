@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { t as tr } from '@/i18n'
 import { computed, nextTick, ref, watch } from 'vue'
 import { useDisplay } from 'vuetify'
 import type { Task, TaskInput } from '@/api/types'
@@ -48,9 +49,9 @@ const listItems = computed(() => tasks.lists.map((l) => ({ title: l.name, value:
 const listHint = computed(() => {
   const t = props.task
   if (!t || listId.value === t.list_id) return ''
-  if (t.parent_id) return 'In einer anderen Liste wird die Unteraufgabe zur Hauptaufgabe.'
+  if (t.parent_id) return tr('taskDialog.subtaskBecomesMain')
   const n = tasks.subtasksOf(t.id).length
-  return n === 0 ? '' : n === 1 ? 'Die Unteraufgabe wird mit verschoben.' : `Die ${n} Unteraufgaben werden mit verschoben.`
+  return n === 0 ? '' : tr('taskDialog.subtasksMove', n)
 })
 
 async function save() {
@@ -69,7 +70,7 @@ async function save() {
   try {
     if (props.task) await tasks.update(props.task.id, input)
     else await tasks.create(input)
-    notify.info(props.task ? 'Aufgabe gespeichert' : 'Aufgabe erstellt')
+    notify.info(props.task ? tr('task.saved') : tr('task.created'))
     open.value = false
   } catch (e) {
     notify.fail(e)
@@ -86,16 +87,16 @@ function setToday() {
   <v-dialog v-model="open" :fullscreen="xs" max-width="520" persistent scrollable @keydown.esc="open = false">
     <v-card color="surface-container-high">
       <div class="d-flex align-center pl-6 pr-2 pt-2">
-        <span class="text-title-medium flex-1-1">{{ task ? 'Aufgabe bearbeiten' : 'Neue Aufgabe' }}</span>
-        <v-btn icon="mdi-close" variant="text" size="small" aria-label="Schließen" @click="open = false" />
+        <span class="text-title-medium flex-1-1">{{ task ? $t('task.edit') : $t('task.new') }}</span>
+        <v-btn icon="mdi-close" variant="text" size="small" :aria-label="$t('common.close')" @click="open = false" />
       </div>
       <v-card-text class="pt-2 pb-2">
         <v-form ref="formRef" @submit.prevent="save">
           <div class="row">
             <v-icon icon="mdi-text-short" class="row-icon" />
             <v-text-field
-              v-model="title" placeholder="Titel hinzufügen" aria-label="Titel" autofocus maxlength="500"
-              density="compact" hide-details="auto" :rules="[(v: string) => !!v.trim() || 'Bitte einen Titel eingeben']"
+              v-model="title" :placeholder="$t('common.addTitle')" :aria-label="$t('common.title')" autofocus maxlength="500"
+              density="compact" hide-details="auto" :rules="[(v: string) => !!v.trim() || $t('common.titleRequired')]"
             />
           </div>
 
@@ -104,20 +105,20 @@ function setToday() {
             <div class="d-flex flex-column ga-2">
               <div class="d-flex ga-2 align-center">
                 <v-text-field
-                  v-model="date" type="date" aria-label="Fällig am" density="compact" hide-details class="flex-1-1"
+                  v-model="date" type="date" :aria-label="$t('task.dueOn')" density="compact" hide-details class="flex-1-1"
                   clearable @click:clear="time = ''"
                 />
                 <v-text-field
-                  v-if="date" v-model="time" type="time" aria-label="Uhrzeit (optional)" density="compact" hide-details
+                  v-if="date" v-model="time" type="time" :aria-label="$t('task.timeOptional')" density="compact" hide-details
                   class="time" clearable
                 />
               </div>
               <div class="text-body-small text-medium-emphasis">
                 <template v-if="!date">
-                  Ohne Datum erscheint die Aufgabe nur in der Aufgabenliste.
-                  <v-btn variant="text" size="small" density="compact" class="text-none" @click="setToday">Heute</v-btn>
+                  {{ $t('taskDialog.noDateHint') }}
+                  <v-btn variant="text" size="small" density="compact" class="text-none" @click="setToday">{{ $t('common.today') }}</v-btn>
                 </template>
-                <template v-else-if="!time">Ganztägig – ohne Uhrzeit</template>
+                <template v-else-if="!time">{{ $t('taskDialog.allDayHint') }}</template>
               </div>
             </div>
           </div>
@@ -125,7 +126,7 @@ function setToday() {
           <div class="row">
             <v-icon icon="mdi-format-list-checks" class="row-icon" />
             <v-select
-              v-model="listId" :items="listItems" aria-label="Liste" density="compact" :hint="listHint"
+              v-model="listId" :items="listItems" :aria-label="$t('task.list')" density="compact" :hint="listHint"
               :persistent-hint="!!listHint" :hide-details="!listHint"
             >
               <template #item="{ props: p, item }">
@@ -142,16 +143,16 @@ function setToday() {
           <div class="row">
             <v-icon icon="mdi-text" class="row-icon" />
             <v-textarea
-              v-model="notes" placeholder="Beschreibung hinzufügen" aria-label="Beschreibung" density="compact" hide-details
+              v-model="notes" :placeholder="$t('common.addDescription')" :aria-label="$t('common.description')" density="compact" hide-details
               rows="3" auto-grow max-rows="10"
             />
           </div>
         </v-form>
       </v-card-text>
       <v-card-actions class="px-6 pb-4">
-        <v-btn variant="outlined" @click="open = false">Abbrechen</v-btn>
+        <v-btn variant="outlined" @click="open = false">{{ $t('common.cancel') }}</v-btn>
         <v-spacer />
-        <v-btn color="primary" variant="flat" :loading="saving" @click="save">Speichern</v-btn>
+        <v-btn color="primary" variant="flat" :loading="saving" @click="save">{{ $t('common.save') }}</v-btn>
       </v-card-actions>
     </v-card>
   </v-dialog>

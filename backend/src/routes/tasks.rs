@@ -1,5 +1,6 @@
 //! Task lists and tasks. Clients show tasks with a due date in the calendar.
 
+use crate::i18n::tr;
 use std::collections::HashMap;
 
 use axum::{
@@ -19,11 +20,11 @@ use crate::{
     time, AppState,
 };
 
-pub const DEFAULT_LIST_NAME: &str = "Meine Aufgaben";
 pub const DEFAULT_LIST_COLOR: &str = "#1A73E8";
 
-/// Creates the default list if the user doesn't have a task list yet.
+/// Creates the default list (named in the user's language) if the user doesn't have a task list yet.
 pub async fn ensure_list(conn: &mut SqliteConnection, user_id: &str) -> AppResult<()> {
+    let lang = crate::i18n::user_lang(&mut *conn, user_id).await?;
     let now = time::to_db(time::now());
     sqlx::query(
         "INSERT INTO task_lists (id, user_id, name, color, visible, created_at, updated_at)
@@ -31,7 +32,7 @@ pub async fn ensure_list(conn: &mut SqliteConnection, user_id: &str) -> AppResul
     )
     .bind(uuid::Uuid::new_v4().to_string())
     .bind(user_id)
-    .bind(DEFAULT_LIST_NAME)
+    .bind(crate::i18n::tr_in!(lang, "tasks.default_list_name"))
     .bind(DEFAULT_LIST_COLOR)
     .bind(&now)
     .bind(&now)
@@ -70,7 +71,7 @@ async fn list_response(state: &AppState, user_id: &str, id: &str) -> AppResult<T
 fn validate_list(input: &TaskListInput) -> AppResult<(String, Option<String>)> {
     let name = input.name.trim();
     if name.is_empty() || name.chars().count() > 100 {
-        return Err(AppError::BadRequest("Der Name muss 1–100 Zeichen lang sein".into()));
+        return Err(AppError::BadRequest(tr!("validation.name_length")));
     }
     Ok((name.to_string(), parse_color(input.color.as_deref())?))
 }
@@ -141,7 +142,7 @@ pub async fn delete_list(State(state): State<AppState>, auth: AuthUser, Path(id)
         .fetch_one(&state.db)
         .await?;
     if n <= 1 {
-        return Err(AppError::BadRequest("Die letzte Aufgabenliste kann nicht gelöscht werden".into()));
+        return Err(AppError::BadRequest(tr!("tasks.last_list")));
     }
     // Tasks are deleted along with it via ON DELETE CASCADE.
     sqlx::query("DELETE FROM task_lists WHERE id = ?").bind(&id).execute(&state.db).await?;
@@ -178,7 +179,7 @@ struct TaskData {
 fn validate_task(input: TaskInput) -> AppResult<TaskData> {
     let title = input.title.trim().to_string();
     if title.is_empty() || title.chars().count() > 500 {
-        return Err(AppError::BadRequest("Der Titel muss 1–500 Zeichen lang sein".into()));
+        return Err(AppError::BadRequest(tr!("validation.title_length")));
     }
     // Without a date there is no time
     let all_day = input.all_day || input.due.is_none();
@@ -219,13 +220,13 @@ async fn resolve_parent(
     };
     let Some(parent_id) = parent_id else { return Ok(None) };
     if existing.is_some_and(|t| t.id == parent_id) {
-        return Err(AppError::BadRequest("Eine Aufgabe kann nicht ihre eigene Unteraufgabe sein".into()));
+        return Err(AppError::BadRequest(tr!("tasks.own_subtask")));
     }
     let parent = owned_task(state, user_id, &parent_id)
         .await
-        .map_err(|_| AppError::BadRequest("Die übergeordnete Aufgabe gibt es nicht".into()))?;
+        .map_err(|_| AppError::BadRequest(tr!("tasks.parent_missing")))?;
     if parent.parent_id.is_some() {
-        return Err(AppError::BadRequest("Unteraufgaben können keine eigenen Unteraufgaben haben".into()));
+        return Err(AppError::BadRequest(tr!("tasks.nested_subtask")));
     }
     if parent.list_id != data.list_id {
         return Ok(None);
@@ -236,7 +237,7 @@ async fn resolve_parent(
             .fetch_one(&state.db)
             .await?;
         if children > 0 {
-            return Err(AppError::BadRequest("Eine Aufgabe mit Unteraufgaben kann keine Unteraufgabe werden".into()));
+            return Err(AppError::BadRequest(tr!("tasks.parent_with_subtasks")));
         }
     }
     Ok(Some(parent_id))

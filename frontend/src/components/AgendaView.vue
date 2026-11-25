@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { t } from '@/i18n'
 import { computed } from 'vue'
 import type { ViewEvent } from '@/api/types'
 import { addDays, fmt, fmtTime, isSameDay, startOfDay } from '@/utils/date'
@@ -27,14 +28,14 @@ const groups = computed(() => {
 })
 
 function timeText(e: ViewEvent, day: Date) {
-  if (e.task) return e.all_day ? 'Aufgabe' : fmtTime(e.startDate)
-  if (e.all_day) return 'Ganztägig'
+  if (e.task) return e.all_day ? t('task.task') : fmtTime(e.startDate)
+  if (e.all_day) return t('event.allDay')
   const startsToday = isSameDay(e.startDate, day)
   const endsToday = e.endDate <= addDays(startOfDay(day), 1)
   if (startsToday && endsToday) return `${fmtTime(e.startDate)} – ${fmtTime(e.endDate)}`
-  if (startsToday) return `ab ${fmtTime(e.startDate)}`
-  if (endsToday) return `bis ${fmtTime(e.endDate)}`
-  return 'Ganztägig'
+  if (startsToday) return t('event.from', { time: fmtTime(e.startDate) })
+  if (endsToday) return t('event.until', { time: fmtTime(e.endDate) })
+  return t('event.allDay')
 }
 const today = new Date()
 </script>
@@ -43,7 +44,7 @@ const today = new Date()
   <div class="agenda">
     <div v-if="!groups.length" class="empty">
       <v-icon icon="mdi-calendar-blank-outline" size="64" color="outline" />
-      <div class="text-body-large mt-4">{{ search ? 'Keine passenden Termine gefunden' : 'Keine Termine in diesem Zeitraum' }}</div>
+      <div class="text-body-large mt-4">{{ search ? $t('agenda.noMatches') : $t('agenda.empty') }}</div>
     </div>
     <div v-for="g in groups" :key="g.day.getTime()" class="group">
       <button class="day" :class="{ today: isSameDay(g.day, today) }" @click="emit('openDay', g.day)">
@@ -65,7 +66,7 @@ const today = new Date()
         >
           <span
             v-if="e.task" class="task-check" role="button" :style="{ color: e.color }"
-            :title="e.task.completed ? 'Als offen markieren' : 'Als erledigt markieren'"
+            :title="e.task.completed ? $t('task.markOpen') : $t('task.markDone')"
             @click.stop="emit('toggle', e)"
           ><v-icon :icon="taskIcon(e.task)" size="18" /></span>
           <span v-else class="dot" :style="{ background: e.color }" />

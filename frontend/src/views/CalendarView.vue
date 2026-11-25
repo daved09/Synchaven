@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { LOCALE, t as tr } from '@/i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { useDisplay } from 'vuetify'
 import type { Calendar, Task, TaskList, ViewEvent } from '@/api/types'
@@ -67,10 +68,10 @@ const taskListDialog = ref(false)
 const editTaskList = ref<TaskList | null>(null)
 
 const modes: { value: ViewMode; title: string; icon: string; key: string }[] = [
-  { value: 'month', title: 'Monat', icon: 'mdi-calendar-month-outline', key: 'M' },
-  { value: 'week', title: 'Woche', icon: 'mdi-calendar-week-outline', key: 'W' },
-  { value: 'day', title: 'Tag', icon: 'mdi-calendar-today-outline', key: 'T' },
-  { value: 'list', title: 'Terminliste', icon: 'mdi-format-list-bulleted', key: 'L' },
+  { value: 'month', title: tr('views.month'), icon: 'mdi-calendar-month-outline', key: 'M' },
+  { value: 'week', title: tr('views.week'), icon: 'mdi-calendar-week-outline', key: 'W' },
+  { value: 'day', title: tr('views.day'), icon: 'mdi-calendar-today-outline', key: 'T' },
+  { value: 'list', title: tr('views.list'), icon: 'mdi-format-list-bulleted', key: 'L' },
 ]
 const currentMode = computed(() => modes.find((m) => m.value === view.mode)!)
 // On touch devices, the neighboring periods sit left and right of the current page, ready for swiping
@@ -172,14 +173,14 @@ function editEvent(ev: ViewEvent) {
 }
 async function deleteEvent(ev: ViewEvent, scope: 'one' | 'all') {
   const text = scope === 'one'
-    ? `Nur der Termin am ${ev.startDate.toLocaleDateString('de-DE')} wird aus der Serie entfernt.`
-    : ev.recurring ? 'Alle Termine dieser Serie werden gelöscht.' : `„${ev.title}“ wird gelöscht.`
-  if (!(await confirmRef.value!.ask('Termin löschen?', text))) return
+    ? tr('calendarView.deleteOccurrence', { date: ev.startDate.toLocaleDateString(LOCALE) })
+    : ev.recurring ? tr('calendarView.deleteSeries') : tr('common.deletesNamed', { name: ev.title })
+  if (!(await confirmRef.value!.ask(tr('calendarView.deleteEventTitle'), text))) return
   try {
     if (scope === 'one') await events.removeOccurrence(ev.event_id, ev.start)
     else await events.remove(ev.event_id)
     detailsOpen.value = false
-    notify.info('Termin gelöscht')
+    notify.info(tr('calendarView.eventDeleted'))
   } catch (e) {
     notify.fail(e)
   }
@@ -189,21 +190,21 @@ async function moveEvent(ev: ViewEvent, newStart: Date) {
   if (ev.task) {
     try {
       await tasks.move(ev.task, newStart)
-      notify.info('Aufgabe verschoben')
+      notify.info(tr('calendarView.taskMoved'))
     } catch (e) {
       notify.fail(e)
     }
     return
   }
   if (ev.recurring && !(await confirmRef.value!.ask(
-    'Serientermin verschieben?',
-    `Nur der Termin am ${ev.startDate.toLocaleDateString('de-DE')} wird verschoben und dabei aus der Serie gelöst.`,
-    'Verschieben',
+    tr('calendarView.moveOccurrenceTitle'),
+    tr('calendarView.moveOccurrenceText', { date: ev.startDate.toLocaleDateString(LOCALE) }),
+    tr('calendarView.move'),
     'primary',
   ))) return
   try {
     await events.move(ev, newStart)
-    notify.info('Termin verschoben')
+    notify.info(tr('calendarView.eventMoved'))
   } catch (e) {
     notify.fail(e)
   }
@@ -229,20 +230,20 @@ async function toggleTask(t: Task) {
   try {
     const done = !t.completed
     await tasks.setCompleted(t, done)
-    notify.info(done ? 'Aufgabe erledigt' : 'Aufgabe wieder offen')
+    notify.info(done ? tr('calendarView.taskDone') : tr('calendarView.taskReopened'))
   } catch (e) {
     notify.fail(e)
   }
 }
 async function deleteTask(t: Task) {
   const subs = tasks.subtasksOf(t.id).length
-  const text = subs === 0 ? `„${t.title}“ wird gelöscht.`
-    : `„${t.title}“ und ${subs === 1 ? 'eine Unteraufgabe werden' : `${subs} Unteraufgaben werden`} gelöscht.`
-  if (!(await confirmRef.value!.ask('Aufgabe löschen?', text))) return
+  const text = subs === 0 ? tr('common.deletesNamed', { name: t.title })
+    : tr('calendarView.deleteTaskWithSubtasks', { name: t.title, n: subs }, subs)
+  if (!(await confirmRef.value!.ask(tr('calendarView.deleteTaskTitle'), text))) return
   try {
     await tasks.remove(t.id)
     taskDetailsOpen.value = false
-    notify.info('Aufgabe gelöscht')
+    notify.info(tr('calendarView.taskDeleted'))
   } catch (e) {
     notify.fail(e)
   }
@@ -267,10 +268,10 @@ function showTaskList(l: TaskList) {
   taskPanel.value = true
 }
 async function deleteTaskList(l: TaskList) {
-  if (!(await confirmRef.value!.ask('Liste löschen?', `„${l.name}“ und alle enthaltenen Aufgaben werden unwiderruflich gelöscht.`))) return
+  if (!(await confirmRef.value!.ask(tr('calendarView.deleteListTitle'), tr('calendarView.deleteListText', { name: l.name })))) return
   try {
     await tasks.removeList(l.id)
-    notify.info('Liste gelöscht')
+    notify.info(tr('calendarView.listDeleted'))
   } catch (e) {
     notify.fail(e)
   }
@@ -296,11 +297,11 @@ async function toggleCalendar(cal: Calendar) {
   }
 }
 async function deleteCalendar(cal: Calendar) {
-  if (!(await confirmRef.value!.ask('Kalender löschen?', `„${cal.name}“ und alle enthaltenen Termine werden unwiderruflich gelöscht.`))) return
+  if (!(await confirmRef.value!.ask(tr('calendarView.deleteCalendarTitle'), tr('calendarView.deleteCalendarText', { name: cal.name })))) return
   try {
     await calendars.remove(cal.id)
     await events.reload()
-    notify.info('Kalender gelöscht')
+    notify.info(tr('calendarView.calendarDeleted'))
   } catch (e) {
     notify.fail(e)
   }
@@ -323,7 +324,7 @@ async function onImportFile(e: Event) {
   try {
     const r = await calendars.importIcs(importTarget, file)
     await events.reload()
-    notify.info(`${r.imported} Termin(e) importiert${r.skipped.length ? `, ${r.skipped.length} Hinweis(e)` : ''}`)
+    notify.info(tr('calendarView.imported', r.imported) + (r.skipped.length ? ', ' + tr('calendarView.importNotes', r.skipped.length) : ''))
   } catch (err) {
     notify.fail(err)
   }
@@ -436,12 +437,12 @@ function onKey(e: KeyboardEvent) {
             v-bind="p" color="primary-container" size="x-large" rounded="lg" class="create-btn" prepend-icon="mdi-plus"
             append-icon="mdi-menu-down" elevation="1"
           >
-            Erstellen
+            {{ $t('calendarView.create') }}
           </v-btn>
         </template>
         <v-list density="compact" rounded="lg">
-          <v-list-item prepend-icon="mdi-calendar-blank-outline" title="Termin" subtitle="C" @click="newEvent()" />
-          <v-list-item prepend-icon="mdi-checkbox-marked-circle-outline" title="Aufgabe" subtitle="A" @click="newTask()" />
+          <v-list-item prepend-icon="mdi-calendar-blank-outline" :title="$t('calendarView.event')" subtitle="C" @click="newEvent()" />
+          <v-list-item prepend-icon="mdi-checkbox-marked-circle-outline" :title="$t('task.task')" subtitle="A" @click="newTask()" />
         </v-list>
       </v-menu>
     </div>
@@ -459,8 +460,8 @@ function onKey(e: KeyboardEvent) {
     />
     <v-list nav density="comfortable" class="pt-0" bg-color="transparent">
       <div class="d-flex align-center pl-4 pr-2">
-        <v-list-subheader class="flex-grow-1 px-0">Meine Kalender</v-list-subheader>
-        <v-btn icon="mdi-plus" size="small" variant="text" title="Neuer Kalender" @click="newCalendar" />
+        <v-list-subheader class="flex-grow-1 px-0">{{ $t('calendarView.myCalendars') }}</v-list-subheader>
+        <v-btn icon="mdi-plus" size="small" variant="text" :title="$t('calendar.new')" @click="newCalendar" />
       </div>
       <v-list-item v-for="cal in calendars.list" :key="cal.id" rounded="xl" class="cal-item" @click="toggleCalendar(cal)">
         <template #prepend>
@@ -473,12 +474,12 @@ function onKey(e: KeyboardEvent) {
               <v-btn v-bind="p" icon="mdi-dots-vertical" size="small" variant="text" class="cal-menu" @click.stop />
             </template>
             <v-list density="compact" rounded="lg">
-              <v-list-item prepend-icon="mdi-pencil-outline" title="Bearbeiten" @click="editCal(cal)" />
-              <v-list-item prepend-icon="mdi-download-outline" title="Exportieren (.ics)" @click="exportCalendar(cal)" />
+              <v-list-item prepend-icon="mdi-pencil-outline" :title="$t('common.edit')" @click="editCal(cal)" />
+              <v-list-item prepend-icon="mdi-download-outline" :title="$t('calendarView.exportIcs')" @click="exportCalendar(cal)" />
               <template v-if="cal.kind !== 'birthdays'">
-                <v-list-item prepend-icon="mdi-upload-outline" title="Importieren (.ics)" @click="startImport(cal)" />
+                <v-list-item prepend-icon="mdi-upload-outline" :title="$t('calendarView.importIcs')" @click="startImport(cal)" />
                 <v-divider />
-                <v-list-item prepend-icon="mdi-delete-outline" title="Löschen" base-color="error" @click="deleteCalendar(cal)" />
+                <v-list-item prepend-icon="mdi-delete-outline" :title="$t('common.delete')" base-color="error" @click="deleteCalendar(cal)" />
               </template>
             </v-list>
           </v-menu>
@@ -487,8 +488,8 @@ function onKey(e: KeyboardEvent) {
     </v-list>
     <v-list nav density="comfortable" class="pt-0" bg-color="transparent">
       <div class="d-flex align-center pl-4 pr-2">
-        <v-list-subheader class="flex-grow-1 px-0">Aufgaben</v-list-subheader>
-        <v-btn icon="mdi-plus" size="small" variant="text" title="Neue Aufgabenliste" @click="newTaskList" />
+        <v-list-subheader class="flex-grow-1 px-0">{{ $t('tasks.title') }}</v-list-subheader>
+        <v-btn icon="mdi-plus" size="small" variant="text" :title="$t('taskList.new')" @click="newTaskList" />
       </div>
       <v-list-item v-for="l in tasks.lists" :key="l.id" rounded="xl" class="cal-item" @click="toggleTaskList(l)">
         <template #prepend>
@@ -502,11 +503,11 @@ function onKey(e: KeyboardEvent) {
               <v-btn v-bind="p" icon="mdi-dots-vertical" size="small" variant="text" class="cal-menu" @click.stop />
             </template>
             <v-list density="compact" rounded="lg">
-              <v-list-item prepend-icon="mdi-format-list-checks" title="Aufgaben anzeigen" @click="showTaskList(l)" />
-              <v-list-item prepend-icon="mdi-pencil-outline" title="Bearbeiten" @click="editTaskListOpen(l)" />
+              <v-list-item prepend-icon="mdi-format-list-checks" :title="$t('calendarView.showTasks')" @click="showTaskList(l)" />
+              <v-list-item prepend-icon="mdi-pencil-outline" :title="$t('common.edit')" @click="editTaskListOpen(l)" />
               <template v-if="tasks.lists.length > 1">
                 <v-divider />
-                <v-list-item prepend-icon="mdi-delete-outline" title="Löschen" base-color="error" @click="deleteTaskList(l)" />
+                <v-list-item prepend-icon="mdi-delete-outline" :title="$t('common.delete')" base-color="error" @click="deleteTaskList(l)" />
               </template>
             </v-list>
           </v-menu>
@@ -517,29 +518,29 @@ function onKey(e: KeyboardEvent) {
   </v-navigation-drawer>
 
   <v-app-bar flat color="surface" density="comfortable" class="app-bar">
-    <v-app-bar-nav-icon title="Menü" @click="drawer = !drawer" />
+    <v-app-bar-nav-icon :title="$t('common.menu')" @click="drawer = !drawer" />
     <div v-if="lgAndUp" class="d-flex align-center mr-6">
       <v-icon icon="mdi-calendar-month" color="primary" size="28" class="mr-2" />
-      <span class="text-title-large">Kalender</span>
+      <span class="text-title-large">{{ $t('nav.calendar') }}</span>
     </div>
-    <v-btn v-if="!smAndDown" variant="outlined" class="mr-2" title="Heute (H)" @click="view.today()">Heute</v-btn>
-    <v-btn v-else icon="mdi-calendar-today-outline" size="small" title="Heute" @click="view.today()" />
-    <v-btn v-if="!smAndDown" icon="mdi-chevron-left" title="Zurück (←)" @click="view.step(-1)" />
-    <v-btn v-if="!smAndDown" icon="mdi-chevron-right" title="Weiter (→)" @click="view.step(1)" />
+    <v-btn v-if="!smAndDown" variant="outlined" class="mr-2" :title="`${$t('common.today')} (H)`" @click="view.today()">{{ $t('common.today') }}</v-btn>
+    <v-btn v-else icon="mdi-calendar-today-outline" size="small" :title="$t('common.today')" @click="view.today()" />
+    <v-btn v-if="!smAndDown" icon="mdi-chevron-left" :title="`${$t('common.previous')} (←)`" @click="view.step(-1)" />
+    <v-btn v-if="!smAndDown" icon="mdi-chevron-right" :title="`${$t('common.next')} (→)`" @click="view.step(1)" />
     <div class="title ml-2" :class="smAndDown ? 'text-title-medium' : 'text-title-large'">{{ view.title }}</div>
     <v-spacer />
     <v-progress-circular v-if="events.loading" indeterminate size="20" width="2" color="primary" class="mr-3" />
 
     <template v-if="view.mode === 'list' || searchOpen">
       <v-text-field
-        v-if="searchOpen" v-model="view.search" placeholder="Termine durchsuchen" density="compact" variant="solo-filled"
+        v-if="searchOpen" v-model="view.search" :placeholder="$t('calendarView.search')" density="compact" variant="solo-filled"
         flat rounded="xl" hide-details autofocus clearable prepend-inner-icon="mdi-magnify" class="search mr-2"
         bg-color="surface-container-high"
         @keydown.esc="searchOpen = false; view.search = ''"
       />
     </template>
     <v-btn
-      v-if="!searchOpen" icon="mdi-magnify" title="Suchen (/)"
+      v-if="!searchOpen" icon="mdi-magnify" :title="`${$t('common.search')} (/)`"
       @click="view.show('list'); searchOpen = true"
     />
 
@@ -562,10 +563,10 @@ function onKey(e: KeyboardEvent) {
     </v-menu>
 
     <v-btn
-      :icon="taskPanel ? 'mdi-checkbox-marked-circle' : 'mdi-checkbox-marked-circle-outline'" title="Aufgaben"
+      :icon="taskPanel ? 'mdi-checkbox-marked-circle' : 'mdi-checkbox-marked-circle-outline'" :title="$t('tasks.title')"
       :active="taskPanel" @click="taskPanel = !taskPanel"
     />
-    <v-btn icon="mdi-account-box-multiple-outline" title="Kontakte" :to="{ name: 'contacts' }" />
+    <v-btn icon="mdi-account-box-multiple-outline" :title="$t('nav.contacts')" :to="{ name: 'contacts' }" />
     <AccountMenu ref="accountMenu" />
   </v-app-bar>
 
@@ -612,7 +613,7 @@ function onKey(e: KeyboardEvent) {
     </div>
     <v-btn
       v-if="smAndDown" class="fab" color="primary-container" size="x-large" icon="mdi-plus" rounded="lg" elevation="3"
-      title="Termin erstellen" @click="newEvent()"
+      :title="$t('calendarView.createEvent')" @click="newEvent()"
     />
   </v-main>
 

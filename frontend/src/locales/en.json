@@ -2,6 +2,7 @@
   "settings": {
     "pushHint": {
       "unsupported": "This browser does not support push notifications.",
+      "install": "On iPhone and iPad, notifications only work after adding Synchaven via Share → Add to Home Screen and opening it from there (iOS 16.4 or later).",
       "insecure": "Notifications only work when Synchaven is accessed via HTTPS.",
       "denied": "Notifications are blocked for this site in the browser. Please allow them in the site settings.",
       "off": "Reminders for events and due tasks appear as notifications, even when Synchaven is not open.",

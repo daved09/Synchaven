@@ -367,6 +367,7 @@ frontend/           Vue 3 + Vuetify 3 (Material 3) + Pinia
   src/views/        Sign-in, calendar, contacts
   src/plugins/      Vuetify setup and M3 color scheme generator
   src/locales/      Texts of the web UI per language
+  icons/            SVG sources of the PNG app icons (render with scripts/generate-icons.sh)
 Android/            Android app (Kotlin, Jetpack Compose, Material 3, MVVM)
 docs/API.md         API reference
 Dockerfile          Multi-stage build → slim Debian image

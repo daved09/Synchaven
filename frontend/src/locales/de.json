@@ -2,6 +2,7 @@
   "settings": {
     "pushHint": {
       "unsupported": "Dieser Browser unterstützt keine Push-Benachrichtigungen.",
+      "install": "Auf iPhone und iPad funktionieren Benachrichtigungen erst, wenn Synchaven über Teilen → Zum Home-Bildschirm hinzugefügt und von dort geöffnet wird (ab iOS 16.4).",
       "insecure": "Benachrichtigungen funktionieren nur, wenn Synchaven über HTTPS aufgerufen wird.",
       "denied": "Benachrichtigungen sind für diese Seite im Browser blockiert. Bitte in den Website-Einstellungen erlauben.",
       "off": "Erinnerungen an Termine und fällige Aufgaben erscheinen als Benachrichtigung, auch wenn Synchaven nicht geöffnet ist.",

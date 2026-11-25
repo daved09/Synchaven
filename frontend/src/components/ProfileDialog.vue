@@ -57,6 +57,7 @@ async function save() {
           <v-text-field
             v-model="newPassword" :label="$t('profile.newPassword')" type="password" autocomplete="new-password"
             prepend-inner-icon="mdi-lock-reset" :rules="[(v: string) => !v || v.length >= 8 || $t('common.minPassword')]"
+            :hint="$t('profile.newPasswordHint')" :persistent-hint="!!newPassword" class="mb-2"
           />
           <v-text-field
             v-model="currentPassword" :label="$t('profile.currentPassword')" type="password" autocomplete="current-password"

@@ -299,6 +299,15 @@ pub async fn create_app_password(
     ))
 }
 
+/// Deletes all app passwords of an account – on a new password, so sync clients signed in with one lose access too.
+pub(super) async fn revoke_app_passwords<'e, E>(db: E, user_id: &str) -> AppResult<u64>
+where
+    E: sqlx::Executor<'e, Database = sqlx::Sqlite>,
+{
+    let res = sqlx::query("DELETE FROM app_passwords WHERE user_id = ?").bind(user_id).execute(db).await?;
+    Ok(res.rows_affected())
+}
+
 /// `DELETE /api/auth/app-passwords/{id}` – CardDAV clients using it can no longer sign in
 pub async fn delete_app_password(
     State(state): State<AppState>,

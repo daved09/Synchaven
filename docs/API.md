@@ -35,7 +35,7 @@ This also applies when an administrator has disabled the account, signed it out 
 | 401  | `totp_required` | Correct password, but the account has two-factor authentication: send `code` as well |
 | 401  | `totp_invalid` | The code of the second factor is wrong or was already used |
 | 409  | `conflict`     | Email already registered                   |
-| 429  | `too_many_requests` | Too many wrong codes of the second factor (5 within 5 minutes per account) |
+| 429  | `too_many_requests` | Too many failed sign-ins for this email address, or too many wrong codes of the second factor (5 within 5 minutes per account) |
 | 500  | `internal`     | Server error                               |
 
 ## Time model
@@ -101,6 +101,13 @@ sends the request again with it. A wrong or already used code gives `401` with `
 only once. After 5 wrong codes within 5 minutes, further codes for the account are rejected with `429` for the rest of
 those 5 minutes.
 
+Failed sign-ins are counted per email address (unknown addresses too, so the answer doesn't reveal whether an account
+exists); CardDAV sign-ins with the account password count towards the same limit. The first 5 failures are free, after
+that each attempt has to wait 30 seconds, doubling up to 15 minutes; earlier attempts get `429` (`too_many_requests`,
+the `message` says how many minutes). A correct password resets the count, failures are forgotten after an hour without
+attempts. Existing sessions, app passwords and CardDAV clients that signed in successfully during the last 15 minutes
+are not affected.
+
 ### `POST /auth/refresh` → like login
 Returns a new token (same response as `/auth/login`) for a session that is still valid. The Android app uses this
 to renew the token of its sync without storing the password.
@@ -109,8 +116,9 @@ to renew the token of its sync without storing the password.
 
 ### `PUT /auth/me` → `User`
 All fields optional. `current_password` is required for changing `email` or `new_password`. A new password ends all
-sessions of the account (all tokens issued until now become invalid, other devices get `401`); the response then
-additionally contains `token` and `expires_at` – the client continues with this new token.
+sessions of the account (all tokens issued until now become invalid, other devices get `401`), deletes all its app
+passwords and push subscriptions; the response then additionally contains `token` and `expires_at` – the client
+continues with this new token (and the web UI re-subscribes its browser for push).
 ```json
 { "name": "Anna B.", "email": "new@example.com", "current_password": "…", "new_password": "…", "default_view": "week", "language": "en" }
 ```
@@ -499,13 +507,15 @@ account with its initial data in `language` (optional, like for registration), e
 ### `PUT /admin/users/{id}`
 Optional `name`, `email`, `password`, `is_admin`, `disabled`, `reset_totp`; only the given fields are changed.
 `reset_totp: true` turns two-factor authentication off, e.g. when the phone with the authenticator app is lost. A new password
-invalidates all tokens of the account (except for your own account). Disabled accounts (`disabled: true`) can neither
+invalidates all tokens of the account (except for your own account) and deletes its app passwords and push
+subscriptions; disabling it deletes the push subscriptions as well. Disabled accounts (`disabled: true`) can neither
 sign in nor sync via CardDAV; their tokens are rejected. Your own account cannot be disabled
 or demoted (`400`).
 
 ### `POST /admin/users/{id}/logout`
-Invalidates all tokens issued so far for the account. CardDAV clients sign in with the password or an app password
-and are not affected. Not for your own account (`400`).
+Invalidates all tokens issued so far for the account and deletes its push subscriptions. CardDAV clients sign in
+with the password or an app password and are not affected – a new password (`PUT /admin/users/{id}`) ends those as
+well. Not for your own account (`400`).
 
 ### `DELETE /admin/users/{id}` → `204`
 Deletes the account with all calendars, events, address books, contacts and tasks. Not for your own account (`400`).
@@ -523,12 +533,20 @@ after which the ids start again at 1. `DELETE` empties the buffer (the console o
 
 ### `POST /admin/export` → `application/json`
 ```json
-{ "current_password": "…", "code": "123456" }
+{ "current_password": "…", "code": "123456", "passphrase": "at least 12 characters" }
 ```
-The whole database (all users incl. password hashes and the two-factor secrets in plaintext) as the file
+The whole database (all users incl. password hashes and the two-factor secrets) as the file
 `synchaven-export-<date>.json`. Because of that it needs the administrator's password, and with two-factor
 authentication on also `code` (or a recovery code) – otherwise `401` with `unauthorized`, `totp_required` or
-`totp_invalid`. Treat the file like the database itself. Events in the
+`totp_invalid`. With `passphrase` (optional for the API, always used by the web UI; shorter than 12 characters →
+`400`) the file is encrypted:
+```json
+{ "format": "synchaven-export-encrypted", "format_version": 1,
+  "kdf": { "algorithm": "argon2id", "memory_kib": 65536, "iterations": 3, "parallelism": 1, "salt": "<Base64>" },
+  "nonce": "<Base64>", "ciphertext": "<Base64>" }
+```
+The key is derived with Argon2id, the export JSON is encrypted with AES-256-GCM; format, version and `kdf` are
+authenticated along with it. Without `passphrase` it is plaintext – treat that file like the database itself. Events in the
 birthday calendar are not included, the import regenerates them from the contacts. Push subscriptions are missing
 as well; the web UI re-subscribes a browser with notifications enabled the next time it is opened. Same
 format as `synchaven export` on the command line:
@@ -538,7 +556,8 @@ format as `synchaven export` on the command line:
 ```
 
 ### `POST /admin/import?replace=true` (body: export, `Content-Type: application/json`, max. 512 MB)
-Replaces **all** data of all users in one transaction. Without `replace=true` → `409` as long as the database
+An encrypted export needs its passphrase in the header `X-Export-Passphrase`, Base64-encoded (UTF-8); missing or
+wrong → `400`. Replaces **all** data of all users in one transaction. Without `replace=true` → `409` as long as the database
 contains data; invalid file or inconsistent data → `400`, the database then stays unchanged. Tables and
 columns that no longer exist are skipped, as are push subscriptions from older exports. Existing
 push subscriptions are deleted. Tokens stay valid as long as the user still exists afterwards.
@@ -550,7 +569,9 @@ push subscriptions are deleted. Tokens stay valid as long as the user still exis
 
 Independently of the REST API, the server provides address books via CardDAV (RFC 6352). Sign-in via HTTP Basic
 with email address and an app password (see above) or – only while two-factor authentication is off – the account
-password. Base URL: `https://<server>/dav/` (discovery also via `/.well-known/carddav`).
+password. Base URL: `https://<server>/dav/` (discovery also via `/.well-known/carddav`). Wrong account passwords count
+towards the sign-in limit of `/auth/login`; while it applies, requests get `429` with `Retry-After` (seconds). App
+passwords are not limited.
 
 | Path | Content |
 |------|--------|

@@ -33,6 +33,7 @@ interface Options {
   contentType?: string
   query?: Record<string, string | undefined>
   asText?: boolean
+  headers?: Record<string, string>
 }
 
 /** Requests whose 401 means a wrong password or code – not an ended session */
@@ -50,7 +51,7 @@ async function request<T>(method: string, path: string, opts: Options = {}): Pro
     const s = qs.toString()
     if (s) url += '?' + s
   }
-  const headers: Record<string, string> = { Accept: 'application/json', 'Accept-Language': language }
+  const headers: Record<string, string> = { Accept: 'application/json', 'Accept-Language': language, ...opts.headers }
   if (token) headers.Authorization = `Bearer ${token}`
   let body: BodyInit | undefined
   if (opts.rawBody !== undefined) {
@@ -81,6 +82,10 @@ async function request<T>(method: string, path: string, opts: Options = {}): Pro
   }
   if (res.status === 204) return undefined as T
   return (opts.asText ? await res.text() : await res.json()) as T
+}
+
+function base64Utf8(text: string): string {
+  return btoa(Array.from(new TextEncoder().encode(text), (b) => String.fromCharCode(b)).join(''))
 }
 
 export const api = {
@@ -189,10 +194,14 @@ export const api = {
     request<{ entries: LogEntry[]; started_at: string; capacity: number }>('GET', '/admin/logs', { query: { after: String(after) } }),
   clearAdminLogs: () => request<void>('DELETE', '/admin/logs'),
 
-  adminExport: (currentPassword: string, code?: string) =>
-    request<string>('POST', '/admin/export', { body: { current_password: currentPassword, code: code || undefined }, asText: true }),
-  adminImport: (json: string) =>
+  adminExport: (currentPassword: string, passphrase: string, code?: string) =>
+    request<string>('POST', '/admin/export', {
+      body: { current_password: currentPassword, code: code || undefined, passphrase }, asText: true,
+    }),
+  /** `passphrase`: for an encrypted export – sent Base64-encoded in a header, as headers are ASCII only */
+  adminImport: (json: string, passphrase?: string) =>
     request<DbImportReport>('POST', '/admin/import', {
       rawBody: json, contentType: 'application/json', query: { replace: 'true' },
+      headers: passphrase ? { 'X-Export-Passphrase': base64Utf8(passphrase) } : undefined,
     }),
 }

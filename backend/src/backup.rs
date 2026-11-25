@@ -46,12 +46,30 @@ pub struct Export {
 }
 
 const USAGE: &str = "Usage:
-  synchaven export [FILE]             Export the database as JSON (to standard output without FILE)
-  synchaven import [--replace] FILE   Import a JSON export (FILE \"-\" = standard input)
+  synchaven export [--passphrase-file PF] [FILE]              Export the database as JSON
+                                                              (to standard output without FILE)
+  synchaven import [--replace] [--passphrase-file PF] FILE    Import a JSON export (FILE \"-\" = standard input)
+
+The export contains all password hashes and two-factor secrets. With a passphrase – from the file PF or the
+environment variable EXPORT_PASSPHRASE, at least 12 characters – it is encrypted (Argon2id + AES-256-GCM);
+the import of such a file needs the same passphrase.
 
 The database is located at $DATA_DIR/synchaven.db. The import creates it if needed and brings it up
 to the current schema. It refuses a database that already contains data – unless --replace is given,
 which deletes all existing data first. The server must not be running during the import.";
+
+/// Environment variable with the passphrase for `export`/`import` (instead of `--passphrase-file`)
+const PASSPHRASE_ENV: &str = "EXPORT_PASSPHRASE";
+
+/// Passphrase from `--passphrase-file` or `EXPORT_PASSPHRASE`; `None` if neither is given.
+fn cli_passphrase(file: Option<&str>) -> anyhow::Result<Option<String>> {
+    if let Some(file) = file {
+        let text = std::fs::read_to_string(file).with_context(|| format!("Cannot read {file}"))?;
+        // A trailing line break from an editor or `echo` is not part of the passphrase
+        return Ok(Some(text.trim_end_matches(['\n', '\r']).to_string()));
+    }
+    Ok(std::env::var(PASSPHRASE_ENV).ok().filter(|p| !p.is_empty()))
+}
 
 /// Runs `export`/`import`. `None` if `cmd` is neither of these commands.
 pub async fn run_cli(cmd: &str, args: &[String]) -> Option<anyhow::Result<()>> {
@@ -193,18 +211,37 @@ fn write_private(path: &str, data: &[u8]) -> std::io::Result<()> {
 }
 
 async fn export_cli(args: &[String]) -> anyhow::Result<()> {
-    let target = match args {
-        [] => None,
-        [file] if file == "-" => None,
-        [file] => Some(file.as_str()),
-        _ => bail!("{USAGE}"),
-    };
+    let mut passphrase_file = None;
+    let mut target = None;
+    let mut it = args.iter();
+    while let Some(arg) = it.next() {
+        match arg.as_str() {
+            "--passphrase-file" => passphrase_file = Some(it.next().map(String::as_str).ok_or_else(|| anyhow::anyhow!("{USAGE}"))?),
+            "-" if target.is_none() => target = Some(None),
+            _ if target.is_none() => target = Some(Some(arg.as_str())),
+            _ => bail!("{USAGE}"),
+        }
+    }
+    let target = target.flatten();
+    let passphrase = cli_passphrase(passphrase_file)?;
+    if let Some(p) = &passphrase {
+        crate::export_crypto::check_passphrase(p).map_err(anyhow::Error::msg)?;
+    }
     let db = open(false).await?;
     let secrets = SecretBox::load(&crate::config::data_dir_from_env())?;
     let (export, summary) = export_db(&db, secrets.as_ref()).await?;
     db.close().await;
 
-    let json = serde_json::to_vec_pretty(&export)?;
+    let mut json = serde_json::to_vec_pretty(&export)?;
+    if let Some(p) = &passphrase {
+        json = crate::export_crypto::encrypt(&json, p)?;
+        eprintln!("Export encrypted with the passphrase");
+    } else {
+        eprintln!(
+            "Note: the export is not encrypted and contains all password hashes and two-factor secrets – \
+             use --passphrase-file or {PASSPHRASE_ENV} to encrypt it"
+        );
+    }
     match target {
         Some(file) => {
             // Write to a temporary file first, so an abort doesn't leave a half-written export behind
@@ -226,10 +263,13 @@ async fn export_cli(args: &[String]) -> anyhow::Result<()> {
 
 async fn import_cli(args: &[String]) -> anyhow::Result<()> {
     let mut replace = false;
+    let mut passphrase_file = None;
     let mut file = None;
-    for arg in args {
+    let mut it = args.iter();
+    while let Some(arg) = it.next() {
         match arg.as_str() {
             "--replace" => replace = true,
+            "--passphrase-file" => passphrase_file = Some(it.next().map(String::as_str).ok_or_else(|| anyhow::anyhow!("{USAGE}"))?),
             _ if file.is_none() => file = Some(arg.as_str()),
             _ => bail!("{USAGE}"),
         }
@@ -242,6 +282,14 @@ async fn import_cli(args: &[String]) -> anyhow::Result<()> {
         buf
     } else {
         std::fs::read(Path::new(file)).with_context(|| format!("Cannot read {file}"))?
+    };
+    let json = if crate::export_crypto::is_encrypted(&json) {
+        let Some(p) = cli_passphrase(passphrase_file)? else {
+            bail!("The export is encrypted – give its passphrase with --passphrase-file or {PASSPHRASE_ENV}")
+        };
+        crate::export_crypto::decrypt(&json, &p)?
+    } else {
+        json
     };
     let export = parse(&json)?;
     eprintln!(

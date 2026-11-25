@@ -128,7 +128,7 @@ async function setLanguage(v: Settings['language']) {
         <div class="text-title-small mt-4 mb-1">{{ $t('settings.notifications') }}</div>
         <v-switch
           :model-value="push === 'on'" :label="$t('settings.pushToggle')" color="primary" inset hide-details
-          :disabled="push === null || push === 'unsupported' || push === 'insecure' || push === 'denied'"
+          :disabled="push === null || push === 'unsupported' || push === 'install' || push === 'insecure' || push === 'denied'"
           :loading="pushBusy" @update:model-value="togglePush"
         />
         <div class="text-body-small text-medium-emphasis">{{ pushHint }}</div>

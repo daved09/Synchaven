@@ -8,6 +8,8 @@ import { browserTimeZone } from './date'
 export type PushState =
   /** Browser doesn't support Web Push */
   | 'unsupported'
+  /** iPhone/iPad: Web Push only works once Synchaven is added to the home screen and opened from there */
+  | 'install'
   /** Page is not served via HTTPS (or localhost) */
   | 'insecure'
   /** Notifications blocked for this page in the browser */
@@ -16,6 +18,15 @@ export type PushState =
   | 'on'
 
 const supported = () => 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window
+
+/** iPhone/iPad (iPadOS reports itself as a Mac, but with a touch screen) */
+const isIos = () =>
+  /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+
+/** Opened from the home screen instead of in Safari */
+const isStandalone = () =>
+  window.matchMedia('(display-mode: standalone)').matches ||
+  (navigator as Navigator & { standalone?: boolean }).standalone === true
 
 /** Registers the service worker (on app start). */
 export async function registerServiceWorker(): Promise<ServiceWorkerRegistration | null> {
@@ -39,7 +50,7 @@ async function currentSubscription(): Promise<PushSubscription | null> {
 
 export async function pushState(): Promise<PushState> {
   if (!window.isSecureContext) return 'insecure'
-  if (!supported()) return 'unsupported'
+  if (!supported()) return isIos() && !isStandalone() ? 'install' : 'unsupported'
   if (Notification.permission === 'denied') return 'denied'
   if (Notification.permission !== 'granted') return 'off'
   return (await currentSubscription()) ? 'on' : 'off'
@@ -68,7 +79,7 @@ async function send(sub: PushSubscription) {
 /** Asks for permission and subscribes the browser on the server. */
 export async function enablePush(): Promise<PushState> {
   const state = await pushState()
-  if (state === 'insecure' || state === 'unsupported' || state === 'denied') return state
+  if (state === 'insecure' || state === 'unsupported' || state === 'install' || state === 'denied') return state
   if ((await Notification.requestPermission()) !== 'granted') return pushState()
   const reg = await registration()
   if (!reg) return 'unsupported'

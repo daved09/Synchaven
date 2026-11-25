@@ -521,8 +521,14 @@ after which the ids start again at 1. `DELETE` empties the buffer (the console o
 ```
 `level` is one of `ERROR`, `WARN`, `INFO`, `DEBUG`, `TRACE`; further fields of an entry are appended to `message` as `key=value`.
 
-### `GET /admin/export` → `application/json`
-The whole database (all users incl. password hashes) as the file `synchaven-export-<date>.json`. Events in the
+### `POST /admin/export` → `application/json`
+```json
+{ "current_password": "…", "code": "123456" }
+```
+The whole database (all users incl. password hashes and the two-factor secrets in plaintext) as the file
+`synchaven-export-<date>.json`. Because of that it needs the administrator's password, and with two-factor
+authentication on also `code` (or a recovery code) – otherwise `401` with `unauthorized`, `totp_required` or
+`totp_invalid`. Treat the file like the database itself. Events in the
 birthday calendar are not included, the import regenerates them from the contacts. Push subscriptions are missing
 as well; the web UI re-subscribes a browser with notifications enabled the next time it is opened. Same
 format as `synchaven export` on the command line:

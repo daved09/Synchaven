@@ -324,6 +324,10 @@ pub async fn update_me(
     .bind(&user.id)
     .execute(&mut *tx)
     .await?;
+    if wants_password {
+        // The browsers of the ended sessions must not keep receiving reminders; this one re-subscribes itself
+        super::push::remove_all(&mut *tx, &user.id).await?;
+    }
     if language_changed {
         // Birthday events carry texts in the user's language ("Born on …")
         let ids: Vec<(String,)> = sqlx::query_as(

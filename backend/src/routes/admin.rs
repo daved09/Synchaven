@@ -33,10 +33,27 @@ async fn require_admin(state: &AppState, auth: &AuthUser) -> AppResult<()> {
     Ok(())
 }
 
-/// `GET /api/admin/export` – the whole database as a JSON file
-pub async fn export(State(state): State<AppState>, auth: AuthUser) -> AppResult<impl IntoResponse> {
+#[derive(Deserialize)]
+pub struct ExportInput {
+    current_password: Option<String>,
+    /// Code of the second factor – only if the administrator has two-factor authentication on
+    code: Option<String>,
+}
+
+/// `POST /api/admin/export` – the whole database as a JSON file. It contains every account's password hash and
+/// two-factor secret in plaintext, so the session alone (e.g. a stolen token) is not enough: it needs the
+/// administrator's password and, with two-factor authentication on, a code.
+pub async fn export(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Json(input): Json<ExportInput>,
+) -> AppResult<impl IntoResponse> {
     require_admin(&state, &auth).await?;
+    let user = super::auth::load_user(&state, &auth.id).await?;
+    super::security::require_password_and_code(&state, &user, input.current_password.as_deref(), input.code.as_deref())
+        .await?;
     let (export, _) = backup::export_db(&state.db, Some(&state.secrets)).await?;
+    tracing::info!("Database exported by administrator {}", auth.id);
     let json = serde_json::to_vec_pretty(&export).map_err(anyhow::Error::from)?;
     let stamp = chrono::Local::now().format("%Y-%m-%d");
     Ok((
@@ -398,6 +415,11 @@ pub async fn update(
     .bind(&id)
     .execute(&state.db)
     .await?;
+    // Ended sessions and disabled accounts: their browsers must not keep receiving reminders
+    let disabling = input.disabled == Some(true) && !user.disabled;
+    if revoke || disabling {
+        super::push::remove_all(&state.db, &id).await?;
+    }
     if input.reset_totp && user.totp_secret.is_some() {
         super::security::disable_for(&state, &id).await?;
         tracing::info!("Account {id}: two-factor authentication turned off by administrator {}", auth.id);
@@ -424,6 +446,8 @@ pub async fn logout_everywhere(
     if res.rows_affected() == 0 {
         return Err(AppError::NotFound);
     }
+    super::push::remove_all(&state.db, &id).await?;
+    tracing::info!("Account {id} signed out everywhere by administrator {}", auth.id);
     Ok(Json(load_admin_user(&state, &id).await?))
 }
 

@@ -78,14 +78,12 @@ class SyncController(context: Context) {
     // ---------- Account ----------
 
     /**
-     * Create the account or update the credentials – after sign-in (with password) or from an existing
-     * session (token only, which the sync then renews itself).
+     * Create the account or update its token – after sign-in or from an existing session. The sync renews the
+     * token itself; it never gets the password.
      */
-    fun setupAccount(
-        serverUrl: String, userId: String, email: String, password: String?, token: String, expiresAt: String,
-    ) {
+    fun setupAccount(serverUrl: String, userId: String, email: String, token: String, expiresAt: String) {
         val isNew = !hasAccountFor(serverUrl, userId)
-        val account = accounts.createOrUpdate(serverUrl, userId, email, password, token, expiresAt)
+        val account = accounts.createOrUpdate(serverUrl, userId, email, token, expiresAt)
         if (isNew) {
             // Only turned on once the permissions have been granted (see SyncOnboarding)
             for (k in SyncKind.entries) ContentResolver.setIsSyncable(account, k.authority, 0)
@@ -106,10 +104,6 @@ class SyncController(context: Context) {
     fun removeAccount() {
         accounts.remove()
         refresh()
-    }
-
-    fun updatePassword(password: String) {
-        accounts.account()?.let { accounts.setPassword(it, password) }
     }
 
     /** New token after a password change: the sync's old one was revoked along with all other sessions */

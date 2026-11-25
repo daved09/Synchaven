@@ -246,9 +246,13 @@ struct SubRow {
 }
 
 async fn run(state: &AppState, from: DateTime<Utc>, to: DateTime<Utc>) -> anyhow::Result<()> {
-    let subs: Vec<SubRow> = sqlx::query_as("SELECT id, user_id, endpoint, p256dh, auth, timezone FROM push_subscriptions")
-        .fetch_all(&state.db)
-        .await?;
+    // Disabled accounts get no reminders (their subscriptions are removed when disabling; this also covers older data)
+    let subs: Vec<SubRow> = sqlx::query_as(
+        "SELECT s.id, s.user_id, s.endpoint, s.p256dh, s.auth, s.timezone FROM push_subscriptions s \
+         JOIN users u ON u.id = s.user_id WHERE u.disabled = 0",
+    )
+    .fetch_all(&state.db)
+    .await?;
     let mut by_user: HashMap<&str, Vec<&SubRow>> = HashMap::new();
     for s in &subs {
         by_user.entry(&s.user_id).or_default().push(s);

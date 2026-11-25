@@ -372,6 +372,8 @@
     "title": "Datenbank exportieren und importieren",
     "intro": "Die ganze Datenbank mit allen Benutzern, Passwort-Hashes und Einstellungen (ohne Push-Abonnements) als JSON sichern, z. B. vor einem Update. Der Import ersetzt alle vorhandenen Daten.",
     "export": "Datenbank exportieren",
+    "exportConfirmTitle": "Datenbank exportieren",
+    "exportConfirmText": "Der Export enthält alle Daten aller Benutzer, ihre Passwort-Hashes und die Schlüssel der Zwei-Faktor-Anmeldung im Klartext. Bestätige ihn mit deinem Passwort und bewahre die Datei so sicher auf wie die Datenbank selbst.",
     "import": "Datenbank importieren",
     "done": "Import abgeschlossen: {summary}",
     "reload": "Neu laden",

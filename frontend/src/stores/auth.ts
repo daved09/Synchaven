@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { api, getToken, setToken } from '@/api/client'
 import type { User } from '@/api/types'
+import { refreshPush } from '@/utils/push'
 
 export const useAuthStore = defineStore('auth', () => {
   const token = ref<string | null>(getToken())
@@ -29,6 +30,8 @@ export const useAuthStore = defineStore('auth', () => {
     if (newToken) {
       setToken(newToken)
       token.value = newToken
+      // New password: the server removed the push subscriptions of all sessions – this browser subscribes again
+      refreshPush().catch(() => {})
     }
     user.value = u
   }

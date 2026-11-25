@@ -14,6 +14,17 @@ use crate::{
     time, AppState,
 };
 
+/// Removes all push subscriptions of an account, so its browsers stop receiving reminders (event and task titles).
+/// Called whenever its sessions end – password change, password reset, "sign out everywhere", disabling: a browser
+/// that is still signed in subscribes again on its next start (`refreshPush` in the web UI), a revoked one cannot.
+pub(super) async fn remove_all<'e, E>(db: E, user_id: &str) -> AppResult<u64>
+where
+    E: sqlx::Executor<'e, Database = sqlx::Sqlite>,
+{
+    let res = sqlx::query("DELETE FROM push_subscriptions WHERE user_id = ?").bind(user_id).execute(db).await?;
+    Ok(res.rows_affected())
+}
+
 /// Public VAPID key for `pushManager.subscribe({ applicationServerKey })`
 pub async fn public_key(State(state): State<AppState>) -> Json<Value> {
     Json(json!({ "public_key": state.push.public_key }))

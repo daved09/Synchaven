@@ -178,6 +178,20 @@ fn decrypt_secrets(user: &mut Map<String, Value>, secrets: Option<&SecretBox>) -
     Ok(())
 }
 
+/// Writes a file only the owner can read: the export contains password hashes and the two-factor secrets in plaintext.
+fn write_private(path: &str, data: &[u8]) -> std::io::Result<()> {
+    let mut options = std::fs::OpenOptions::new();
+    options.write(true).create(true).truncate(true);
+    #[cfg(unix)]
+    std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
+    let mut file = options.open(path)?;
+    // `mode` only applies to new files – a left-over one would otherwise keep its permissions
+    #[cfg(unix)]
+    file.set_permissions(std::os::unix::fs::PermissionsExt::from_mode(0o600))?;
+    file.write_all(data)?;
+    file.sync_all()
+}
+
 async fn export_cli(args: &[String]) -> anyhow::Result<()> {
     let target = match args {
         [] => None,
@@ -195,7 +209,7 @@ async fn export_cli(args: &[String]) -> anyhow::Result<()> {
         Some(file) => {
             // Write to a temporary file first, so an abort doesn't leave a half-written export behind
             let tmp = format!("{file}.tmp");
-            std::fs::write(&tmp, &json).with_context(|| format!("Cannot write {tmp}"))?;
+            write_private(&tmp, &json).with_context(|| format!("Cannot write {tmp}"))?;
             std::fs::rename(&tmp, file).with_context(|| format!("Cannot write {file}"))?;
             eprintln!("Export written to {file} ({})", summary.join(", "));
         }

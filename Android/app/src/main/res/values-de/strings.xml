@@ -355,7 +355,7 @@
     <string name="sync_title">Mit Android synchronisieren</string>
     <string name="sync_intro">Termine und Kontakte erscheinen im Kalender und in den Kontakten von Android – Änderungen dort werden auf den Server übertragen. DAVx⁵ wird dafür nicht mehr gebraucht.</string>
     <string name="sync_setup">Synchronisierung einrichten</string>
-    <string name="sync_setup_hint">Die Synchronisierung für „%1$s“ konnte sich nicht mehr anmelden. Mit dem Passwort meldet sie sich neu an; es wird dafür im Android-Konto gespeichert.</string>
+    <string name="sync_setup_hint">Die Synchronisierung für „%1$s“ konnte sich nicht mehr anmelden. Gib dein Passwort ein, um sie neu anzumelden – das Passwort selbst wird nicht auf dem Gerät gespeichert.</string>
     <string name="sync_reenter_password">Passwort erneut eingeben</string>
     <string name="sync_calendar">Kalender</string>
     <string name="sync_contacts">Kontakte</string>
@@ -381,7 +381,7 @@
     <string name="sync_disable_confirm">Ausschalten</string>
     <string name="sync_permission_denied">Ohne Berechtigung ist keine Synchronisierung möglich – bitte in den App-Einstellungen erlauben</string>
     <string name="sync_untitled">(Ohne Titel)</string>
-    <string name="sync_error_auth">Anmeldung fehlgeschlagen – wurde das Passwort geändert? Bitte erneut eingeben.</string>
+    <string name="sync_error_auth">Anmeldung abgelaufen – wurde das Passwort geändert oder das Konto abgemeldet? Bitte erneut anmelden.</string>
     <string name="sync_error_permission">Berechtigung fehlt – bitte Zugriff auf Kalender bzw. Kontakte erlauben</string>
     <plurals name="sync_items_skipped">
         <item quantity="one">%1$d Eintrag nicht übertragen: %2$s</item>

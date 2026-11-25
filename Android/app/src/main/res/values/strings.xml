@@ -360,7 +360,7 @@
     <string name="sync_title">Sync with Android</string>
     <string name="sync_intro">Events and contacts appear in the Android calendar and contacts – changes made there are transferred to the server. DAVx⁵ is no longer needed for this.</string>
     <string name="sync_setup">Set up sync</string>
-    <string name="sync_setup_hint">The sync for “%1$s” could no longer sign in. With the password it signs in again; for this, it is stored in the Android account.</string>
+    <string name="sync_setup_hint">The sync for “%1$s” could no longer sign in. Enter your password to sign it in again – the password itself is not stored on the device.</string>
     <string name="sync_reenter_password">Enter password again</string>
     <string name="sync_calendar">Calendar</string>
     <string name="sync_contacts">Contacts</string>
@@ -386,7 +386,7 @@
     <string name="sync_disable_confirm">Turn off</string>
     <string name="sync_permission_denied">Sync is not possible without permission – please allow it in the app settings</string>
     <string name="sync_untitled">(Untitled)</string>
-    <string name="sync_error_auth">Sign-in failed – was the password changed? Please enter it again.</string>
+    <string name="sync_error_auth">Sign-in expired – was the password changed or the account signed out? Please sign in again.</string>
     <string name="sync_error_permission">Permission missing – please allow access to calendar or contacts</string>
     <plurals name="sync_items_skipped">
         <item quantity="one">%1$d entry not transferred: %2$s</item>

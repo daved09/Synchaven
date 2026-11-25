@@ -39,8 +39,8 @@ fun Context.hasPermissions(kind: SyncKind) =
 
 /**
  * Access to the app's Android account. The token is stored in the AccountManager and renewed before it expires
- * (`/auth/refresh`), so the sync keeps running without the app being open. If a password was entered at
- * sign-in, it is stored there as well – as a fallback in case the token has expired after all.
+ * (`/auth/refresh`), so the sync keeps running without the app being open. The account password is deliberately
+ * not stored: if the server revokes the token (password change, "sign out everywhere"), the sync must stop.
  */
 class SyncAccounts(private val context: Context) {
     private val am = AccountManager.get(context)
@@ -67,7 +67,6 @@ class SyncAccounts(private val context: Context) {
     /** Email address for sign-in (the account name stays the same if the address changes). */
     fun email(account: Account): String = am.getUserData(account, Keys.EMAIL) ?: account.name
 
-    fun password(account: Account): String? = am.getPassword(account)
     fun token(account: Account): String? = am.peekAuthToken(account, TOKEN_TYPE)
 
     fun setToken(account: Account, token: String?) = am.setAuthToken(account, TOKEN_TYPE, token)
@@ -85,7 +84,6 @@ class SyncAccounts(private val context: Context) {
     /** Have the permissions already been requested once after creating the account? */
     fun onboarded(account: Account): Boolean = am.getUserData(account, Keys.ONBOARDED) == "1"
     fun setOnboarded(account: Account) = am.setUserData(account, Keys.ONBOARDED, "1")
-    fun setPassword(account: Account, password: String) = am.setPassword(account, password)
     fun setEmail(account: Account, email: String) = am.setUserData(account, Keys.EMAIL, email)
 
     /** Interval of the automatic sync in minutes, 0 = only on changes and manually */
@@ -108,12 +106,12 @@ class SyncAccounts(private val context: Context) {
      * first – Android then deletes its calendars and contacts from the device.
      */
     fun createOrUpdate(
-        serverUrl: String, userId: String, email: String, password: String?, token: String, expiresAt: String,
+        serverUrl: String, userId: String, email: String, token: String, expiresAt: String,
     ): Account {
         account()?.let { existing ->
             // In local mode the address is empty – AccountManager may then return it as null
             if (serverUrl(existing).orEmpty() == serverUrl && userId(existing) == userId) {
-                if (password != null) setPassword(existing, password)
+                am.clearPassword(existing)
                 setToken(existing, token, expiresAt)
                 setEmail(existing, email)
                 return existing
@@ -127,9 +125,14 @@ class SyncAccounts(private val context: Context) {
             putString(Keys.EMAIL, email)
             putString(Keys.INTERVAL, DEFAULT_INTERVAL_MINUTES.toString())
         }
-        check(am.addAccountExplicitly(account, password, data)) { context.getString(R.string.sync_error_account) }
+        check(am.addAccountExplicitly(account, null, data)) { context.getString(R.string.sync_error_account) }
         setToken(account, token, expiresAt)
         return account
+    }
+
+    /** Deletes a password stored by older versions (they kept it as a fallback for signing in again). */
+    fun clearStoredPasswords() {
+        am.getAccountsByType(ACCOUNT_TYPE).forEach { am.clearPassword(it) }
     }
 
     /** Removes the account including all synced calendars and contacts on this device. */

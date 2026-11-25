@@ -35,7 +35,14 @@ Material 3 design** (Vuetify), a **REST API** for custom clients such as an Andr
 
 ## Running with Docker
 
-First build the image, then start it:
+The quickest way is the prebuilt image (published by the *Docker image* workflow for every `v*` tag) from the GitHub Container Registry: download
+`docker-compose.yml` and start it (without a `.env`, the `latest` image is used):
+
+```bash
+docker compose up -d
+```
+
+Or build the image yourself, then start it:
 
 ```bash
 ./build.sh
@@ -55,23 +62,24 @@ with one using the new image.
 
 ### Build script
 
-`build.sh` takes no parameters. It builds the image as
-`ghcr.io/daved09/synchaven:<version>`, where `<version>` comes from `version.properties`
-(entry `version=…`), and writes the version as `SYNCHAVEN_VERSION` to `.env`. `docker compose` reads
-this file automatically, so Compose always starts the most recently built version. For a
+`build.sh` takes no parameters. It builds the image as `<image>:<version>`, where `<version>` comes
+from `version.properties` (entry `version=…`) and `<image>` from `SYNCHAVEN_IMAGE` (environment variable
+or `.env`, default `ghcr.io/daved09/synchaven`). It writes both as `SYNCHAVEN_IMAGE` and `SYNCHAVEN_VERSION`
+to `.env`. `docker compose` reads this file automatically, so Compose always starts the most recently built
+version. For your own registry, put e.g. `SYNCHAVEN_IMAGE=registry.example.org/synchaven` into `.env`. For a
 new version, just increase `version` in `version.properties`.
 
 The backend reads the same file at compile time via `backend/build.rs` and reports the version at
 `GET /api/info` – also with `cargo run` without `build.sh`. The version in `backend/Cargo.toml` is only a
 placeholder (`0.0.0`).
 
-Pushing to the registry:
+Pushing to your own registry:
 
 ```bash
-docker push ghcr.io/daved09/synchaven:1.0.0
+docker push registry.example.org/synchaven:1.0.0
 ```
 
-On another machine, `docker-compose.yml` and a `.env` with
+On another machine, `docker-compose.yml` and a `.env` with `SYNCHAVEN_IMAGE=…` and
 `SYNCHAVEN_VERSION=1.0.0` are enough – the image is then pulled from the registry.
 
 Without Compose:
@@ -260,7 +268,7 @@ birthdays are ports from `backend/src`. On vCard import, only the fields the app
 next time *Use without server* is chosen – it is not transferred to a server (use export and import for that; tasks are not
 included).
 
-On first start, enter the server address (e.g. `http://homeserver.local:8080`) or choose *Use without server*.
+On first start, enter the server address (e.g. `http://192.168.1.10:8080`) or choose *Use without server*.
 Unencrypted HTTP is allowed for servers on the home network; user-installed certificate authorities are
 accepted.
 
@@ -331,3 +339,8 @@ Android/            Android app (Kotlin, Jetpack Compose, Material 3, MVVM)
 docs/API.md         API reference
 Dockerfile          Multi-stage build → slim Debian image
 ```
+
+## License
+
+Synchaven is licensed under the [GNU Affero General Public License v3.0](LICENSE) (`AGPL-3.0-only`).
+If you run a modified version as a network service, you must make its source code available to its users.

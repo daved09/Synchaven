@@ -1,6 +1,7 @@
 services:
   Synchaven:
-    image: ghcr.io/daved09/synchaven:${SYNCHAVEN_VERSION}
+    # build.sh writes SYNCHAVEN_IMAGE and SYNCHAVEN_VERSION to .env; without it the published image is used
+    image: ${SYNCHAVEN_IMAGE:-ghcr.io/daved09/synchaven}:${SYNCHAVEN_VERSION:-latest}
     container_name: synchaven
     restart: unless-stopped
     ports:

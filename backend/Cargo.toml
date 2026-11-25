@@ -3,6 +3,8 @@ name = "synchaven"
 version = "0.0.0" # Placeholder – the version is in version.properties (see build.rs)
 edition = "2021"
 description = "Synchaven – calendar and contacts backend with REST API and CardDAV"
+license = "AGPL-3.0-only"
+repository = "https://github.com/daved09/Synchaven"
 
 [dependencies]
 aes-gcm = "0.11.1"

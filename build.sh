@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Builds the Synchaven Docker image as
-#   ghcr.io/daved09/synchaven:<version>
+#   <image>:<version>
+# <image> is SYNCHAVEN_IMAGE from the environment or .env (default: ghcr.io/daved09/synchaven),
+# e.g. SYNCHAVEN_IMAGE=registry.example.org/synchaven for a private registry.
 # The version comes from version.properties (key "version"). The backend reads it itself at
 # compile time (backend/build.rs); here it serves as the image tag and is stored as
 # SYNCHAVEN_VERSION in .env so that `docker compose up -d` starts exactly this image.
@@ -9,7 +11,13 @@ set -euo pipefail
 
 cd "$(dirname "$(readlink -f "$0")")"
 
-REPOSITORY="ghcr.io/daved09/synchaven"
+DEFAULT_IMAGE="ghcr.io/daved09/synchaven"
+
+# Image name: environment variable before .env before the default
+if [[ -z "${SYNCHAVEN_IMAGE:-}" && -f .env ]]; then
+    SYNCHAVEN_IMAGE="$(sed -n 's/^SYNCHAVEN_IMAGE=//p' .env | head -n1 | tr -d '\r')"
+fi
+REPOSITORY="${SYNCHAVEN_IMAGE:-$DEFAULT_IMAGE}"
 
 if ! command -v docker >/dev/null 2>&1; then
     echo "Fehler: docker ist nicht installiert oder nicht im PATH." >&2
@@ -45,13 +53,17 @@ docker build \
     --label "org.opencontainers.image.created=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
     .
 
-# ---------- Store the version for docker-compose.yml ----------
+# ---------- Store image and version for docker-compose.yml ----------
 # Other entries in .env are kept
-if [[ -f .env ]] && grep -q '^SYNCHAVEN_VERSION=' .env; then
-    sed -i "s/^SYNCHAVEN_VERSION=.*/SYNCHAVEN_VERSION=${VERSION}/" .env
-else
-    echo "SYNCHAVEN_VERSION=${VERSION}" >> .env
-fi
+set_env() {
+    if [[ -f .env ]] && grep -q "^$1=" .env; then
+        sed -i "s|^$1=.*|$1=$2|" .env
+    else
+        echo "$1=$2" >> .env
+    fi
+}
+set_env SYNCHAVEN_IMAGE "$REPOSITORY"
+set_env SYNCHAVEN_VERSION "$VERSION"
 
 echo
 echo "==> Fertig: ${IMAGE}"

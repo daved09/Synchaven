@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
     SyncHaven servers are usually self-hosted:
-    - unencrypted http:// is allowed for servers on the home network
+    - unencrypted http:// is allowed for servers on the home network. The server address is entered freely,
+      so this can't be limited to certain hosts here; instead the app uses https:// unless http:// is typed
+      explicitly, and signing in to an http:// server needs a confirmation (LoginScreen)
     - user-installed certificate authorities (e.g. your own CA) are accepted as well
 -->
 <network-security-config>

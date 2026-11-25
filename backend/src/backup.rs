@@ -10,10 +10,14 @@
 //! The events in the birthday calendar are not exported: they are derived from the contacts and are
 //! regenerated on import. The birthday calendar itself (color, visibility, reminders) stays in the export.
 //!
+//! The TOTP secrets are encrypted in the database with a key outside of it (see [crate::crypto]); the export
+//! contains them decrypted, so it can be imported on a server with a different key. On import they are encrypted
+//! again (web UI: right away, command line: on the next server start). Keep exports as safe as the database itself.
+//!
 //! Push subscriptions are missing as well (`NOT_EXPORTED`): they belong to individual browsers and to the VAPID key
 //! in the data directory. The web UI re-registers a subscription that is still enabled the next time it is opened.
 
-use crate::i18n::tr;
+use crate::{crypto::SecretBox, i18n::tr};
 use std::{collections::BTreeMap, io::Write, path::Path, str::FromStr, time::Duration};
 
 use anyhow::{bail, Context};
@@ -103,7 +107,8 @@ async fn last_migration(conn: &mut SqliteConnection) -> Option<i64> {
 }
 
 /// Reads all tables in one read transaction – a consistent state, even while the server is running.
-pub async fn export_db(db: &SqlitePool) -> anyhow::Result<(Export, Vec<String>)> {
+/// `secrets` decrypts the TOTP secrets; without it, an export of accounts with two-factor authentication fails.
+pub async fn export_db(db: &SqlitePool, secrets: Option<&SecretBox>) -> anyhow::Result<(Export, Vec<String>)> {
     let mut tx = db.begin().await?;
     let mut tables_out = BTreeMap::new();
     let mut summary = Vec::new();
@@ -135,6 +140,9 @@ pub async fn export_db(db: &SqlitePool) -> anyhow::Result<(Export, Vec<String>)>
                 };
                 obj.insert(col.name().to_string(), value);
             }
+            if table == "users" {
+                decrypt_secrets(&mut obj, secrets)?;
+            }
             out.push(obj);
         }
         summary.push(format!("{table}: {}", out.len()));
@@ -152,6 +160,24 @@ pub async fn export_db(db: &SqlitePool) -> anyhow::Result<(Export, Vec<String>)>
     Ok((export, summary))
 }
 
+const SECRET_COLUMNS: [&str; 2] = ["totp_secret", "totp_pending_secret"];
+
+fn decrypt_secrets(user: &mut Map<String, Value>, secrets: Option<&SecretBox>) -> anyhow::Result<()> {
+    let id = user.get("id").and_then(Value::as_str).unwrap_or_default().to_string();
+    for col in SECRET_COLUMNS {
+        let Some(Value::String(stored)) = user.get(col) else { continue };
+        if !crate::crypto::is_encrypted(stored) {
+            continue;
+        }
+        let Some(secrets) = secrets else {
+            bail!("The key for the two-factor secrets is missing (TOTP_ENCRYPTION_KEY or totp_key in the data directory)")
+        };
+        let plain = secrets.decrypt(&id, stored).with_context(|| format!("Account {id}"))?;
+        user.insert(col.to_string(), Value::String(plain));
+    }
+    Ok(())
+}
+
 async fn export_cli(args: &[String]) -> anyhow::Result<()> {
     let target = match args {
         [] => None,
@@ -160,7 +186,8 @@ async fn export_cli(args: &[String]) -> anyhow::Result<()> {
         _ => bail!("{USAGE}"),
     };
     let db = open(false).await?;
-    let (export, summary) = export_db(&db).await?;
+    let secrets = SecretBox::load(&crate::config::data_dir_from_env())?;
+    let (export, summary) = export_db(&db, secrets.as_ref()).await?;
     db.close().await;
 
     let json = serde_json::to_vec_pretty(&export)?;

@@ -295,7 +295,11 @@
     "twoFactorSubtitle": "Gib den Code aus deiner Authenticator-App ein",
     "code": "Code",
     "codeHint": "Oder einer deiner Wiederherstellungscodes",
-    "verify": "Bestätigen"
+    "verify": "Bestätigen",
+    "setupTitle": "Ersteinrichtung",
+    "setupSubtitle": "Lege das Administratorkonto an",
+    "setupToken": "Setup-Token",
+    "setupTokenHint": "Steht beim Start im Server-Log und in der Datei setup_token im Datenverzeichnis"
   },
   "nav": {
     "calendar": "Kalender",

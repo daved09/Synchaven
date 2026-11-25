@@ -77,5 +77,7 @@ async fn info(axum::extract::State(state): axum::extract::State<AppState>) -> Re
         "version": env!("SYNCHAVEN_VERSION"),
         "api_version": 1,
         "allow_registration": auth::registration_open(&state).await?,
+        // No account yet: the first one is created with the setup token from the server log
+        "setup_required": crate::setup::pending(&state.db).await?,
     })))
 }

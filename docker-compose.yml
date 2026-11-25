@@ -7,14 +7,21 @@ services:
     ports:
       - "8080:8080"
     environment:
-      # Allow new accounts (set to "false" after creating your own accounts).
-      # The first registered account becomes administrator (Account → Administration). Registration can
-      # also be toggled there; a value stored there takes precedence.
-      ALLOW_REGISTRATION: "true"
+      # Initial setup: the first account becomes administrator and needs the setup token that the server
+      # prints at startup (`docker logs synchaven`, also in /data/setup_token).
+      # Let further people register themselves ("true"), or create their accounts in the admin page ("false").
+      # Can also be toggled under Account → Administration; a value stored there takes precedence.
+      ALLOW_REGISTRATION: "false"
       # Lifetime of sign-in tokens in days
       TOKEN_TTL_DAYS: "30"
-      # Allowed origins for browser access from other domains (comma-separated, "*" = all)
-      CORS_ORIGINS: "*"
+      # Other web pages that may call the API (comma-separated, "*" = all). Not needed for the web UI,
+      # the app or CardDAV; without it, browsers only allow the web UI itself (same origin).
+      # CORS_ORIGINS: "https://other.example.org"
+      # Optional: fixed key for the two-factor secrets (≥ 32 characters), e.g. kept outside /data.
+      # If not set, one is generated in /data/totp_key – keep it with your backups of the database.
+      # TOTP_ENCRYPTION_KEY: "please-replace-with-a-long-random-value"
+      # Optional: fixed setup token for the first account (≥ 16 characters) instead of a random one
+      # SETUP_TOKEN: "..."
       # Optional: fixed JWT secret (≥ 32 characters). If not set, one is generated in /data.
       # JWT_SECRET: "please-replace-with-a-long-random-value"
       # User/group ID the program runs as and that owns /data.

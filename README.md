@@ -96,17 +96,29 @@ docker run -d --name synchaven -p 8080:8080 -v synchaven-data:/data ghcr.io/dave
 | Variable             | Default           | Description |
 |----------------------|-------------------|--------------|
 | `BIND_ADDR`          | `0.0.0.0:8080`    | Address/port |
-| `DATA_DIR`           | `/data`           | Location of `synchaven.db` and `jwt_secret` |
-| `ALLOW_REGISTRATION` | `true`            | Allow new accounts (default; can be changed in the admin page) |
+| `DATA_DIR`           | `/data`           | Location of `synchaven.db`, `jwt_secret` and `totp_key` |
+| `ALLOW_REGISTRATION` | `false`           | Allow new accounts to register themselves (default; can be changed in the admin page) |
 | `TOKEN_TTL_DAYS`     | `30`              | Session lifetime (default; can be changed in the admin page) |
 | `JWT_SECRET`         | *(automatic)*     | Custom secret (≥ 32 characters) |
-| `CORS_ORIGINS`       | `*`               | Allowed browser origins, comma-separated |
+| `CORS_ORIGINS`       | *(empty)*         | Other web pages that may call the API, comma-separated (`*` = all). Empty: only the web UI itself (same origin); the app and CardDAV don't need it |
+| `TOTP_ENCRYPTION_KEY`| *(automatic)*     | Key for the two-factor secrets in the database (≥ 32 characters); without it, one is generated in `totp_key` in the data directory |
+| `SETUP_TOKEN`        | *(automatic)*     | Fixed setup token for the first account (≥ 16 characters) instead of a random one |
 | `VAPID_SUBJECT`      | `mailto:synchaven@example.org` | Contact address for push services (`mailto:` or `https:`) |
 | `RUST_LOG`           | `synchaven=info`  | Log level |
 | `PUID` / `PGID`      | `10001`           | User/group ID for the program and `/data` (Docker only) |
 
-The **administrator** is the first account to be registered. The first account can also be created with
-`ALLOW_REGISTRATION=false`. Administrators find the admin page under *Account → Administration*:
+**Initial setup:** as long as no account exists, the web UI shows the initial setup. The first account becomes
+**administrator** and can only be created with the **setup token** that the server prints to its log at startup
+(`docker logs synchaven`) and stores in `setup_token` in the data directory. So nobody can claim the administrator
+account before you, even if the server is already reachable from the internet. After the setup the token is deleted.
+Further accounts are created in the admin page, or – after opening registration – by the people themselves.
+
+The TOTP secrets of two-factor authentication are stored encrypted; the key is in `totp_key` in the data directory
+(or `TOTP_ENCRYPTION_KEY`). Without the key, accounts with two-factor authentication can no longer sign in
+(an administrator can turn it off for them) – include it in your backups, but store it separately from copies of the
+database if you can.
+
+Administrators find the admin page under *Account → Administration*:
 
 * **Overview:** version, uptime, database size, number of users, events, contacts etc. and the
   server configuration from the environment variables
@@ -120,9 +132,8 @@ The **administrator** is the first account to be registered. The first account c
 * **Log:** the last 2000 log messages since the server start, live, with level filter, search and
   download. Which messages appear is set with `RUST_LOG`, as for the console.
 
-**Note:** When running on the internet, put a reverse proxy with HTTPS in front (e.g. Caddy, Traefik, nginx)
-and close registration after creating your own accounts (admin page or
-`ALLOW_REGISTRATION=false`).
+**Note:** When running on the internet, put a reverse proxy with HTTPS in front (e.g. Caddy, Traefik, nginx).
+If you open registration, close it again after creating your accounts (admin page or `ALLOW_REGISTRATION=false`).
 
 ### Browser notifications
 
@@ -174,8 +185,8 @@ re-subscribes the next time the web UI is opened.
 
 **In the web UI:** as an administrator, *Account → Administration → Backup* has the buttons
 *Export database* and *Import database*. The import replaces all data of all users. After a failed
-migration: set the old database aside (see below), start the server, register an account (the first
-account becomes administrator and also works with `ALLOW_REGISTRATION=false`) and import the export – the
+migration: set the old database aside (see below), start the server, create an account in the initial setup (with the setup token
+from the log) and import the export – the
 temporary account is replaced by the accounts from the export. If the export does not contain an
 administrator yet (older versions), the oldest account becomes one.
 

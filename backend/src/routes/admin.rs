@@ -36,7 +36,7 @@ async fn require_admin(state: &AppState, auth: &AuthUser) -> AppResult<()> {
 /// `GET /api/admin/export` – the whole database as a JSON file
 pub async fn export(State(state): State<AppState>, auth: AuthUser) -> AppResult<impl IntoResponse> {
     require_admin(&state, &auth).await?;
-    let (export, _) = backup::export_db(&state.db).await?;
+    let (export, _) = backup::export_db(&state.db, Some(&state.secrets)).await?;
     let json = serde_json::to_vec_pretty(&export).map_err(anyhow::Error::from)?;
     let stamp = chrono::Local::now().format("%Y-%m-%d");
     Ok((
@@ -70,9 +70,12 @@ pub async fn import(
         .await
         .map_err(anyhow::Error::from)?
         .map_err(map_err)?;
+    // The export contains the TOTP secrets decrypted
+    crate::crypto::encrypt_plaintext(&state.db, &state.secrets).await?;
     // Cached CardDAV sign-ins and settings belong to the old data
     state.dav_auth.clear();
     state.settings.reload(&state.db).await?;
+    state.setup.prepare(&state.db).await?;
     tracing::info!("Database imported from export ({})", report.summary.join(", "));
     Ok(Json(report))
 }

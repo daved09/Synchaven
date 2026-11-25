@@ -39,14 +39,20 @@ class InvalidServerUrlException(url: String) : IOException("invalid server url: 
 class ApiException(val status: Int, val code: String, val serverMessage: String) :
     Exception("HTTP $status $code: $serverMessage")
 
-/** Normalizes input such as "synchaven.local:8080" to "http://synchaven.local:8080". */
+/**
+ * Normalizes input such as "synchaven.example.org" to "https://synchaven.example.org". Without a scheme the
+ * connection is always encrypted: unencrypted http:// only when typed explicitly (and confirmed, see [isCleartextUrl]).
+ */
 fun normalizeServerUrl(input: String): String {
     var url = input.trim().trimEnd('/')
-    if (!url.startsWith("http://", true) && !url.startsWith("https://", true)) url = "http://$url"
+    if (!url.startsWith("http://", true) && !url.startsWith("https://", true)) url = "https://$url"
     // Anyone pasting the API address means the server itself
     if (url.endsWith("/api", ignoreCase = true)) url = url.dropLast(4)
     return url
 }
+
+/** Unencrypted address (http://): the token and all data could be read along the way. */
+fun isCleartextUrl(url: String): Boolean = url.trim().startsWith("http://", ignoreCase = true)
 
 /**
  * Replaces the placeholder with the server (header [SyncHavenApi.SERVER_HEADER] or signed-in session)

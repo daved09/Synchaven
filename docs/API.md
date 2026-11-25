@@ -57,15 +57,19 @@ This also applies when an administrator has disabled the account, signed it out 
 
 ### `GET /info`
 ```json
-{ "name": "Synchaven", "version": "1.0.0", "api_version": 1, "allow_registration": true }
+{ "name": "Synchaven", "version": "1.0.0", "api_version": 1, "allow_registration": true, "setup_required": false }
 ```
+`setup_required` is `true` as long as no account exists: the first account (the administrator) is then created with
+`setup_token` in `POST /auth/register`. `allow_registration` is `false` during the setup.
 
 ## Account
 
 ### `POST /auth/register` → `201`
 ```json
-{ "email": "anna@example.com", "password": "at least 8 characters", "name": "Anna", "language": "de" }
+{ "email": "anna@example.com", "password": "at least 8 characters", "name": "Anna", "language": "de", "setup_token": "…" }
 ```
+`setup_token` is only needed for the first account (`setup_required` in `/info`): the token the server writes to its
+log and to `setup_token` in the data directory. Without it or with a wrong one: `403`.
 `language` (`de` or `en`, optional) is the language of the account's initial data; without it, the request's
 `Accept-Language` decides. Another value gives `400`.
 
@@ -82,8 +86,8 @@ Response (also for login):
 store the last selected view there. `is_admin` is `true` for administrators – initially the first registered
 account; further ones are granted in the admin page. New accounts get their initial data in `language`: a calendar
 ("Persönlich" / "Personal"), a task list ("Meine Aufgaben" / "My tasks"), an address book ("Kontakte" / "Contacts")
-and the birthday calendar ("Geburtstage" / "Birthdays"). If registration is closed (admin page or `ALLOW_REGISTRATION=false`), only the first account of an
-empty database can be registered (`allow_registration` in `/info` shows whether it is currently possible). A disabled
+and the birthday calendar ("Geburtstage" / "Birthdays"). Further accounts can only register while registration is open (admin page or `ALLOW_REGISTRATION=true`;
+`allow_registration` in `/info` shows whether it is currently possible), otherwise `403`. A disabled
 account gets `403` when signing in with the correct password.
 
 ### `POST /auth/login`
@@ -465,13 +469,13 @@ Body `{ "name": "Friends" }`. Removes the category from all contacts; the contac
 { "version": "1.0.0", "started_at": "…", "database_size": 303904,
   "counts": { "users": 2, "disabled_users": 0, "calendars": 2, "events": 120, "addressbooks": 1, "contacts": 35,
               "tasks": 12, "push_subscriptions": 1 },
-  "config": { "bind": "0.0.0.0:8080", "data_dir": "/data", "cors_origins": ["*"], "vapid_subject": "mailto:…" } }
+  "config": { "bind": "0.0.0.0:8080", "data_dir": "/data", "cors_origins": [], "vapid_subject": "mailto:…" } }
 ```
 `calendars` without birthday calendars, `events` without birthdays, `database_size` in bytes (incl. WAL).
 
 ### `GET /admin/settings` · `PUT /admin/settings`
 ```json
-{ "allow_registration": false, "token_ttl_days": 30, "defaults": { "allow_registration": true, "token_ttl_days": 30 } }
+{ "allow_registration": false, "token_ttl_days": 30, "defaults": { "allow_registration": false, "token_ttl_days": 30 } }
 ```
 `PUT` with `{ "allow_registration": false }` and/or `{ "token_ttl_days": 7 }` (1–3650, otherwise `400`) only changes the
 given values and responds like `GET`. Stored values take precedence over the environment variables (`defaults`).

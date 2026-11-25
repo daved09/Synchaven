@@ -89,8 +89,10 @@ export const api = {
   login: (email: string, password: string, code?: string) =>
     request<AuthResponse>('POST', '/auth/login', { body: { email, password, code } }),
   /** `language`: language of the initial data (calendar, task list, address book) */
-  register: (email: string, password: string, name: string, language: 'de' | 'en') =>
-    request<AuthResponse>('POST', '/auth/register', { body: { email, password, name, language } }),
+  register: (email: string, password: string, name: string, language: 'de' | 'en', setupToken?: string) =>
+    request<AuthResponse>('POST', '/auth/register', {
+      body: { email, password, name, language, setup_token: setupToken || undefined },
+    }),
   me: () => request<User>('GET', '/auth/me'),
   updateMe: (data: {
     name?: string; email?: string; current_password?: string; new_password?: string; default_view?: ViewMode

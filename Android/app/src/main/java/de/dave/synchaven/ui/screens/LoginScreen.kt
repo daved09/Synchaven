@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -25,7 +26,9 @@ import androidx.compose.material.icons.outlined.Password
 import androidx.compose.material.icons.outlined.PhoneAndroid
 import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material.icons.outlined.VisibilityOff
+import androidx.compose.material.icons.outlined.Warning
 import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -49,6 +52,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -104,6 +108,7 @@ fun LoginScreen() {
                         when {
                             s.checkingServer -> Text(stringResource(R.string.login_server_checking))
                             s.serverError != null -> Text(s.serverError!!.asString())
+                            s.serverInfo?.setupRequired == true -> Text(stringResource(R.string.login_server_setup_required))
                             s.serverInfo != null ->
                                 Text(stringResource(R.string.login_server_info, s.serverInfo!!.name, s.serverInfo!!.version))
                             else -> Text(stringResource(R.string.login_server_hint))
@@ -119,6 +124,8 @@ fun LoginScreen() {
                     },
                     modifier = Modifier.fillMaxWidth(),
                 )
+
+                if (s.cleartext) CleartextWarning(s.cleartextConfirmed, vm::onCleartextConfirmedChange)
 
                 if (s.serverInfo?.allowRegistration == true) {
                     SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
@@ -194,14 +201,6 @@ fun LoginScreen() {
                         Text(stringResource(if (s.register) R.string.login_create_account else R.string.login_tab_login))
                     }
                 }
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
-                    Text(
-                        stringResource(R.string.login_cleartext_note),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center,
-                    )
-                }
 
                 // ---------- Without server ----------
                 Row(
@@ -232,6 +231,36 @@ fun LoginScreen() {
                     textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth(),
                 )
+            }
+        }
+    }
+}
+
+/** Unencrypted server address: explains the risk, signing in needs the explicit confirmation. */
+@Composable
+private fun CleartextWarning(confirmed: Boolean, onConfirmedChange: (Boolean) -> Unit) {
+    Surface(
+        color = MaterialTheme.colorScheme.errorContainer,
+        contentColor = MaterialTheme.colorScheme.onErrorContainer,
+        shape = MaterialTheme.shapes.medium,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 4.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Icon(Icons.Outlined.Warning, null, Modifier.size(20.dp))
+                Text(stringResource(R.string.login_cleartext_title), style = MaterialTheme.typography.titleSmall)
+            }
+            Spacer(Modifier.height(4.dp))
+            Text(stringResource(R.string.login_cleartext_text), style = MaterialTheme.typography.bodySmall)
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .toggleable(value = confirmed, role = Role.Checkbox, onValueChange = onConfirmedChange),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Checkbox(checked = confirmed, onCheckedChange = null)
+                Spacer(Modifier.width(8.dp))
+                Text(stringResource(R.string.login_cleartext_confirm), style = MaterialTheme.typography.bodyMedium)
             }
         }
     }

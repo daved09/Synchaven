@@ -11,6 +11,7 @@ pub struct Config {
     pub jwt_secret: String,
     pub token_ttl_days: i64,
     pub allow_registration: bool,
+    /// Origins of other web pages that may call the API; empty = only the web UI itself (same origin)
     pub cors_origins: Vec<String>,
     /// Contact address for push services (VAPID `sub`), `mailto:` or `https:`
     pub vapid_subject: String,
@@ -33,10 +34,10 @@ impl Config {
         let static_dir = PathBuf::from(env_or("STATIC_DIR", "./static"));
         let token_ttl_days = env_or("TOKEN_TTL_DAYS", "30").parse().context("Invalid TOKEN_TTL_DAYS")?;
         let allow_registration = matches!(
-            env_or("ALLOW_REGISTRATION", "true").to_lowercase().as_str(),
+            env_or("ALLOW_REGISTRATION", "false").to_lowercase().as_str(),
             "1" | "true" | "yes" | "ja"
         );
-        let cors_origins = env_or("CORS_ORIGINS", "*")
+        let cors_origins = env_or("CORS_ORIGINS", "")
             .split(',')
             .map(|s| s.trim().to_string())
             .filter(|s| !s.is_empty())
@@ -44,7 +45,7 @@ impl Config {
 
         if std::env::var("ADMIN_EMAILS").is_ok_and(|v| !v.trim().is_empty()) {
             tracing::warn!(
-                "ADMIN_EMAILS is no longer evaluated: the administrator is the first registered account \
+                "ADMIN_EMAILS is no longer evaluated: the administrator is the first account, created with the setup token \
                  (the oldest one for existing databases)"
             );
         }

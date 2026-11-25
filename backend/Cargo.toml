@@ -16,7 +16,7 @@ chrono = { version = "0.4", features = ["serde"] }
 chrono-tz = "0.10"
 hkdf = "0.13.0"
 hmac = "0.13"
-jsonwebtoken = "9"
+jsonwebtoken = { version = "10", features = ["rust_crypto"] }
 p256 = { version = "0.14.0", features = ["ecdh", "ecdsa"] }
 qrcode = { version = "0.15.0", default-features = false, features = ["svg"] }
 quick-xml = "0.42.0"

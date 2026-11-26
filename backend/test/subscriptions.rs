@@ -91,7 +91,7 @@ fn events_of_a_feed() {
     assert!(uids.contains(&"newyear@example.org"));
     assert!(uids.contains(&"weekly@example.org"));
     let moved = format!("weekly@example.org#{}", chrono::TimeZone::with_ymd_and_hms(&Utc, 2027, 1, 11, 9, 0, 0).unwrap().timestamp());
-    assert!(uids.contains(&moved.as_str()), "{uids:?}");
+    assert!(uids.contains(&moved.as_str()));
 
     let get = |uid: &str| &events.iter().find(|(u, _)| u == uid).unwrap().1;
     // Floating times use X-WR-TIMEZONE; the moved occurrence is excluded from the series

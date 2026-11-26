@@ -247,7 +247,30 @@
     "defaultReminders": "Default reminders",
     "defaultRemindersHint": "Apply to all events in this calendar that have no reminders of their own.",
     "timedEvents": "Events with a time",
-    "allDayEvents": "All-day events"
+    "allDayEvents": "All-day events",
+    "add": "Add calendar"
+  },
+  "subscription": {
+    "new": "Subscribe to calendar",
+    "edit": "Edit subscription",
+    "created": "Calendar subscribed",
+    "url": "Calendar address (.ics)",
+    "urlHint": "The server fetches the calendar from this address every few hours. Its events cannot be edited.",
+    "urlRequired": "Please enter an address",
+    "nameOptional": "Name (optional, otherwise from the calendar)",
+    "holidays": "Public holidays",
+    "region": {
+      "german": "Germany",
+      "austrian": "Austria",
+      "ch": "Switzerland",
+      "usa": "USA",
+      "uk": "United Kingdom"
+    },
+    "lastSync": "Last updated: {date}",
+    "lastError": "Last update failed: {error}",
+    "refresh": "Update now",
+    "refreshed": "Calendar updated",
+    "refreshFailed": "Update failed: {error}"
   },
   "taskList": {
     "saved": "List saved",

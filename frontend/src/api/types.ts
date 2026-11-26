@@ -132,12 +132,21 @@ export interface Calendar {
   color: string
   description: string
   visible: boolean
-  /** `birthdays`: generated automatically from the contacts, events read-only */
-  kind: 'default' | 'birthdays'
+  /**
+   * `birthdays`: generated automatically from the contacts, events read-only;
+   * `subscription`: fetched from `source_url` by the server, events read-only
+   */
+  kind: 'default' | 'birthdays' | 'subscription'
   /** Default reminders in minutes before the start (timed events) */
   default_reminders: number[]
   /** Default reminders for all-day events (negative = time on the day itself) */
   default_all_day_reminders: number[]
+  /** Subscriptions: address of the .ics file */
+  source_url: string | null
+  /** Subscriptions: last successful refresh */
+  synced_at: string | null
+  /** Subscriptions: why the last refresh failed */
+  sync_error: string | null
   created_at: string
   updated_at: string
 }
@@ -150,6 +159,8 @@ export interface CalendarInput {
   /** If the field is missing, the existing default reminders are kept */
   default_reminders?: number[]
   default_all_day_reminders?: number[]
+  /** Creating: subscribe to this .ics address (name may be empty); updating a subscription: new address */
+  source_url?: string
 }
 
 /** Event (for series: the series itself) */

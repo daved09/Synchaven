@@ -9,14 +9,18 @@ use crate::{
     auth::AuthUser,
     error::{AppError, AppResult},
     birthdays,
+    i18n,
     models::{Calendar, CalendarInput, CalendarRow},
-    reminders, time, AppState,
+    reminders, subscriptions, time, AppState,
 };
 
 /// Events in this calendar are generated automatically and must not be changed by hand.
 pub fn ensure_writable(cal: &CalendarRow) -> AppResult<()> {
     if cal.kind == birthdays::KIND {
         return Err(AppError::BadRequest(tr!("calendar.birthdays_read_only")));
+    }
+    if cal.kind == subscriptions::KIND {
+        return Err(AppError::BadRequest(tr!("calendar.subscription_read_only")));
     }
     Ok(())
 }
@@ -42,11 +46,68 @@ fn validate_defaults(input: &CalendarInput) -> AppResult<(Option<String>, Option
 }
 
 fn validate(input: &CalendarInput) -> AppResult<(String, Option<String>)> {
-    let name = input.name.trim();
+    let name = validate_name(&input.name)?;
+    Ok((name, parse_color(input.color.as_deref())?))
+}
+
+fn validate_name(name: &str) -> AppResult<String> {
+    let name = name.trim();
     if name.is_empty() || name.chars().count() > 100 {
         return Err(AppError::BadRequest(tr!("validation.name_length")));
     }
-    Ok((name.to_string(), parse_color(input.color.as_deref())?))
+    Ok(name.to_string())
+}
+
+/// Fetches a new subscription's file before anything is stored, so a wrong address is reported right away.
+async fn fetch_new(state: &AppState, source_url: &str) -> AppResult<(reqwest::Url, subscriptions::Feed)> {
+    let lang = i18n::current();
+    let url = subscriptions::normalize_url(source_url).map_err(|e| AppError::BadRequest(e.message(lang)))?;
+    let feed = state.subscriptions.fetch(&url).await.map_err(|e| AppError::BadRequest(e.message(lang)))?;
+    // Checks that it is a calendar at all
+    subscriptions::events_of(&feed, "").map_err(|e| AppError::BadRequest(e.message(lang)))?;
+    Ok((url, feed))
+}
+
+/// Subscribes to a calendar file: the name may be empty, it is then taken from the file (or the host).
+async fn create_subscription(state: &AppState, user_id: &str, input: &CalendarInput, source_url: &str) -> AppResult<String> {
+    let color = parse_color(input.color.as_deref())?;
+    let (defaults, all_day_defaults) = validate_defaults(input)?;
+    let (url, feed) = fetch_new(state, source_url).await?;
+    let name = match input.name.trim() {
+        "" => subscriptions::feed_name(&feed).filter(|n| !n.is_empty()).unwrap_or_else(|| url.host_str().unwrap_or_default().to_string()),
+        n => n.to_string(),
+    };
+    let name = validate_name(&name)?;
+    let id = uuid::Uuid::new_v4().to_string();
+    let events = subscriptions::events_of(&feed, &id).map_err(|e| AppError::BadRequest(e.message(i18n::current())))?;
+    let now = time::to_db(time::now());
+    let mut tx = state.db.begin().await?;
+    sqlx::query(
+        "INSERT INTO calendars (id, user_id, name, color, description, visible, kind, default_reminders,
+         default_all_day_reminders, source_url, synced_at, sync_attempted_at, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    )
+    .bind(&id)
+    .bind(user_id)
+    .bind(&name)
+    .bind(color.unwrap_or_else(|| "#6750A4".into()))
+    .bind(input.description.trim())
+    .bind(input.visible.unwrap_or(true))
+    .bind(subscriptions::KIND)
+    // Without a choice no reminders: nobody wants to be woken for every public holiday
+    .bind(defaults.unwrap_or_else(|| reminders::to_json(&[])))
+    .bind(all_day_defaults.unwrap_or_else(|| reminders::to_json(&[])))
+    .bind(url.as_str())
+    .bind(&now)
+    .bind(&now)
+    .bind(&now)
+    .bind(&now)
+    .execute(&mut *tx)
+    .await?;
+    subscriptions::apply(&mut tx, &id, &events).await?;
+    tx.commit().await?;
+    tracing::info!("Account {user_id} subscribed to a calendar ({id}) with {} event(s)", events.len());
+    Ok(id)
 }
 
 /// Color in the format `#RRGGBB` (upper case); `None` if missing or empty.
@@ -81,6 +142,10 @@ pub async fn create(
     auth: AuthUser,
     Json(input): Json<CalendarInput>,
 ) -> AppResult<(StatusCode, Json<Calendar>)> {
+    if let Some(source_url) = input.source_url.as_deref().filter(|u| !u.trim().is_empty()) {
+        let id = create_subscription(&state, &auth.id, &input, source_url).await?;
+        return Ok((StatusCode::CREATED, Json(owned_calendar(&state, &auth.id, &id).await?.into())));
+    }
     let (name, color) = validate(&input)?;
     let (defaults, all_day_defaults) = validate_defaults(&input)?;
     let id = uuid::Uuid::new_v4().to_string();
@@ -110,6 +175,21 @@ pub async fn update(
     let existing = owned_calendar(&state, &auth.id, &id).await?;
     let (name, color) = validate(&input)?;
     let (defaults, all_day_defaults) = validate_defaults(&input)?;
+    // A new address of a subscription: fetch it first, so a wrong one leaves the calendar as it is
+    let new_source = match input.source_url.as_deref().map(str::trim) {
+        Some(u) if existing.kind == subscriptions::KIND && !u.is_empty() => {
+            let url = subscriptions::normalize_url(u).map_err(|e| AppError::BadRequest(e.message(i18n::current())))?;
+            (existing.source_url.as_deref() != Some(url.as_str())).then_some(u)
+        }
+        _ => None,
+    };
+    let new_source = match new_source {
+        Some(u) => {
+            let (url, feed) = fetch_new(&state, u).await?;
+            Some((url, subscriptions::events_of(&feed, &id).map_err(|e| AppError::BadRequest(e.message(i18n::current())))?))
+        }
+        None => None,
+    };
     sqlx::query(
         "UPDATE calendars SET name = ?, color = ?, description = ?, visible = ?, default_reminders = ?,
          default_all_day_reminders = ?, updated_at = ? WHERE id = ?",
@@ -124,6 +204,32 @@ pub async fn update(
         .bind(&id)
         .execute(&state.db)
         .await?;
+    if let Some((url, events)) = new_source {
+        let now = time::to_db(time::now());
+        let mut tx = state.db.begin().await?;
+        subscriptions::apply(&mut tx, &id, &events).await?;
+        sqlx::query(
+            "UPDATE calendars SET source_url = ?, synced_at = ?, sync_attempted_at = ?, sync_error = NULL WHERE id = ?",
+        )
+        .bind(url.as_str())
+        .bind(&now)
+        .bind(&now)
+        .bind(&id)
+        .execute(&mut *tx)
+        .await?;
+        tx.commit().await?;
+    }
+    Ok(Json(owned_calendar(&state, &auth.id, &id).await?.into()))
+}
+
+/// Fetches a subscribed calendar now. A failed fetch is not an error of the request: the calendar is returned with
+/// `sync_error` set (and keeps its previous events).
+pub async fn refresh(State(state): State<AppState>, auth: AuthUser, Path(id): Path<String>) -> AppResult<Json<Calendar>> {
+    let cal = owned_calendar(&state, &auth.id, &id).await?;
+    if cal.kind != subscriptions::KIND {
+        return Err(AppError::BadRequest(tr!("calendar.not_subscription")));
+    }
+    subscriptions::refresh(&state, &id, i18n::current()).await?;
     Ok(Json(owned_calendar(&state, &auth.id, &id).await?.into()))
 }
 

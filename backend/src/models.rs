@@ -68,12 +68,18 @@ pub struct CalendarRow {
     pub color: String,
     pub description: String,
     pub visible: bool,
-    /// `default` or `birthdays` (see `birthdays.rs`)
+    /// `default`, `birthdays` (see `birthdays.rs`) or `subscription` (see `subscriptions.rs`)
     pub kind: String,
     pub default_reminders: String,
     pub default_all_day_reminders: String,
     pub created_at: String,
     pub updated_at: String,
+    /// Subscriptions: address of the .ics file
+    pub source_url: Option<String>,
+    pub synced_at: Option<String>,
+    #[allow(dead_code)]
+    pub sync_attempted_at: Option<String>,
+    pub sync_error: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -88,6 +94,12 @@ pub struct Calendar {
     pub default_reminders: Vec<i32>,
     /// Default reminders for all-day events (negative = time on the day itself)
     pub default_all_day_reminders: Vec<i32>,
+    /// Subscriptions: address of the .ics file the events are fetched from
+    pub source_url: Option<String>,
+    /// Subscriptions: last successful refresh
+    pub synced_at: Option<DateTime<Utc>>,
+    /// Subscriptions: why the last refresh failed; `null` if it succeeded
+    pub sync_error: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -103,6 +115,9 @@ impl From<CalendarRow> for Calendar {
             kind: r.kind,
             default_reminders: reminders::from_json(&r.default_reminders),
             default_all_day_reminders: reminders::from_json(&r.default_all_day_reminders),
+            source_url: r.source_url,
+            synced_at: r.synced_at.as_deref().map(from_db),
+            sync_error: r.sync_error,
             created_at: from_db(&r.created_at),
             updated_at: from_db(&r.updated_at),
         }
@@ -119,6 +134,9 @@ pub struct CalendarInput {
     /// If the field is missing, the existing default reminders are kept.
     pub default_reminders: Option<Vec<i32>>,
     pub default_all_day_reminders: Option<Vec<i32>>,
+    /// Creating: subscribe to the .ics file at this address (`http`, `https` or `webcal`); the name may then be
+    /// empty and is taken from the file. Updating a subscription: a new address; missing = unchanged.
+    pub source_url: Option<String>,
 }
 
 // ---------- Events ----------
@@ -144,6 +162,8 @@ pub struct EventRow {
     pub reminders: Option<String>,
     pub created_at: String,
     pub updated_at: String,
+    /// Comes from a subscribed calendar
+    pub subscribed: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -187,7 +207,7 @@ impl From<EventRow> for Event {
             rrule: r.rrule,
             exdates: exdates.iter().map(|s| from_db(s)).collect(),
             reminders: r.reminders.as_deref().map(reminders::from_json),
-            read_only: r.contact_id.is_some(),
+            read_only: r.contact_id.is_some() || r.subscribed,
             contact_id: r.contact_id,
             created_at: from_db(&r.created_at),
             updated_at: from_db(&r.updated_at),

@@ -126,6 +126,7 @@ export const api = {
   createCalendar: (data: CalendarInput) => request<Calendar>('POST', '/calendars', { body: data }),
   updateCalendar: (id: string, data: CalendarInput) => request<Calendar>('PUT', `/calendars/${id}`, { body: data }),
   deleteCalendar: (id: string) => request<void>('DELETE', `/calendars/${id}`),
+  refreshCalendar: (id: string) => request<Calendar>('POST', `/calendars/${id}/refresh`),
   exportCalendar: (id: string) => request<string>('GET', `/calendars/${id}/export`, { asText: true }),
   importCalendar: (id: string, ics: string, timezone: string) =>
     request<ImportResult>('POST', `/calendars/${id}/import`, {

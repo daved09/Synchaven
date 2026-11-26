@@ -137,7 +137,9 @@ private fun CalendarItem(cal: Calendar, onToggle: (Calendar) -> Unit, onAction: 
                     MenuItem(stringResource(R.string.action_edit), Icons.Outlined.Edit) { menu = false; onAction(cal, CalendarAction.EDIT) }
                     MenuItem(stringResource(R.string.calendar_export), Icons.Outlined.Download) { menu = false; onAction(cal, CalendarAction.EXPORT) }
                     if (!cal.isBirthdays) {
-                        MenuItem(stringResource(R.string.calendar_import), Icons.Outlined.Upload) { menu = false; onAction(cal, CalendarAction.IMPORT) }
+                        if (!cal.isReadOnly) {
+                            MenuItem(stringResource(R.string.calendar_import), Icons.Outlined.Upload) { menu = false; onAction(cal, CalendarAction.IMPORT) }
+                        }
                         MenuItem(stringResource(R.string.action_delete), Icons.Outlined.Delete) { menu = false; onAction(cal, CalendarAction.DELETE) }
                     }
                 }

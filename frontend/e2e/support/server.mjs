@@ -29,6 +29,8 @@ const env = {
   STATIC_DIR: staticDir,
   SETUP_TOKEN,
   ALLOW_REGISTRATION: 'true',
+  // The subscription test serves its calendar file from 127.0.0.1
+  SUBSCRIPTIONS_ALLOW_PRIVATE: 'true',
   JWT_SECRET: 'e2e-jwt-secret-0123456789abcdef0123456789abcdef',
   TOTP_ENCRYPTION_KEY: 'e2e-totp-key-0123456789abcdef0123456789abcdef',
   RUST_LOG: process.env.RUST_LOG ?? 'synchaven=error',

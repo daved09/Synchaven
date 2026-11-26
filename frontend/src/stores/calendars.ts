@@ -8,8 +8,8 @@ export const useCalendarsStore = defineStore('calendars', () => {
   const list = ref<Calendar[]>([])
   const byId = computed(() => new Map(list.value.map((c) => [c.id, c])))
   const visibleIds = computed(() => new Set(list.value.filter((c) => c.visible).map((c) => c.id)))
-  /** Calendars that events can be added to (without the birthday calendar) */
-  const writable = computed(() => list.value.filter((c) => c.kind !== 'birthdays'))
+  /** Calendars that events can be added to (without the birthday calendar and subscriptions) */
+  const writable = computed(() => list.value.filter((c) => c.kind === 'default'))
 
   async function load() {
     list.value = await api.calendars()
@@ -21,6 +21,12 @@ export const useCalendarsStore = defineStore('calendars', () => {
   }
   async function update(id: string, data: CalendarInput) {
     const c = await api.updateCalendar(id, data)
+    list.value = list.value.map((x) => (x.id === id ? c : x))
+    return c
+  }
+  /** Fetches a subscription now; a failed fetch shows up in `sync_error` of the returned calendar */
+  async function refresh(id: string) {
+    const c = await api.refreshCalendar(id)
     list.value = list.value.map((x) => (x.id === id ? c : x))
     return c
   }
@@ -52,5 +58,5 @@ export const useCalendarsStore = defineStore('calendars', () => {
   function reset() {
     list.value = []
   }
-  return { list, byId, visibleIds, writable, load, create, update, remove, toggleVisible, exportIcs, importIcs, reset }
+  return { list, byId, visibleIds, writable, load, create, update, refresh, remove, toggleVisible, exportIcs, importIcs, reset }
 })

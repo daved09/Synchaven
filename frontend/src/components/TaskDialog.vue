@@ -44,6 +44,10 @@ watch(open, async (v) => {
   formRef.value?.resetValidation()
 })
 
+// Opened before the task lists had loaded: preselect the first one as soon as they are there
+watch(() => tasks.lists, (lists) => {
+  if (open.value && !props.task && !listId.value) listId.value = lists[0]?.id ?? ''
+})
 const listItems = computed(() => tasks.lists.map((l) => ({ title: l.name, value: l.id, color: l.color })))
 /** Hint when the list change affects subtasks */
 const listHint = computed(() => {

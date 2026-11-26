@@ -6,3 +6,7 @@ backend/target
 .git
 *.md
 .env
+frontend/e2e/.data
+frontend/e2e/.auth
+frontend/e2e/.results
+frontend/e2e/.report

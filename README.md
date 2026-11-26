@@ -360,6 +360,23 @@ cd backend && cargo test
 cd frontend && npm run typecheck && npm run build
 ```
 
+### End-to-end tests
+
+The web UI has end-to-end tests with [Playwright](https://playwright.dev) in `frontend/e2e/`. They build the web UI,
+start the backend on `127.0.0.1:18080` with a fresh, empty data directory (`frontend/e2e/.data`) and drive Chromium
+through the initial setup, sign-in, calendar, tasks, contacts, administration and language switching.
+
+```bash
+cd frontend
+npx playwright install chromium   # once
+npm run test:e2e                  # or test:e2e:ui for the interactive runner
+```
+
+The backend is started with `cargo run`; set `E2E_BACKEND_BIN` to use a prebuilt binary instead (as CI does), and
+`E2E_PORT` for another port. Each test signs up its own account through the API (`e2e/support/fixtures.ts`), so the
+tests run in parallel and don't depend on each other; only `setup.setup.ts` runs first, on the empty database, and
+creates the administrator. The HTML report of the last run is in `frontend/e2e/.report`.
+
 ### Translations
 
 Every text exists once per language, in JSON files with the same keys:
@@ -392,6 +409,7 @@ frontend/           Vue 3 + Vuetify 3 (Material 3) + Pinia
   src/views/        Sign-in, calendar, contacts
   src/plugins/      Vuetify setup and M3 color scheme generator
   src/locales/      Texts of the web UI per language
+  e2e/              Playwright end-to-end tests (tests/, support/ with server start and fixtures)
   icons/            SVG sources of the PNG app icons (render with scripts/generate-icons.sh)
 Android/            Android app (Kotlin, Jetpack Compose, Material 3, MVVM)
 docs/API.md         API reference

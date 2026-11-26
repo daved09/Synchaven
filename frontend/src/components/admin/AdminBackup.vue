@@ -3,13 +3,13 @@ import { t } from '@/i18n'
 import { ref } from 'vue'
 import { api, ApiError } from '@/api/client'
 import type { DbImportReport } from '@/api/types'
-import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import { useAuthStore } from '@/stores/auth'
+import { useConfirmStore } from '@/stores/confirm'
 import { useNotifyStore } from '@/stores/notify'
 
 const notify = useNotifyStore()
 const auth = useAuthStore()
-const confirmRef = ref<InstanceType<typeof ConfirmDialog>>()
+const confirm = useConfirmStore()
 const fileInput = ref<HTMLInputElement>()
 const busy = ref<'export' | 'import' | null>(null)
 const report = ref<DbImportReport | null>(null)
@@ -79,7 +79,7 @@ const importError = ref('')
 async function onFile(e: Event) {
   const file = (e.target as HTMLInputElement).files?.[0]
   if (!file) return
-  const ok = await confirmRef.value!.ask(
+  const ok = await confirm.ask(
     t('backup.replaceTitle'),
     t('backup.replaceText', { file: file.name }),
     t('backup.replace'),
@@ -225,7 +225,6 @@ function reload() {
     </v-card>
   </v-dialog>
 
-  <ConfirmDialog ref="confirmRef" />
 </template>
 
 <style scoped>

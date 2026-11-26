@@ -36,8 +36,6 @@ async function logout() {
   tasks.reset()
   router.replace({ name: 'login' })
 }
-
-defineExpose({ dialogOpen: computed(() => profileOpen.value || settingsOpen.value || securityOpen.value) })
 </script>
 
 <template>

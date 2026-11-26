@@ -3,15 +3,15 @@ import { t } from '@/i18n'
 import { computed, onMounted, ref } from 'vue'
 import { api } from '@/api/client'
 import type { AdminUser } from '@/api/types'
-import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import AdminUserDialog from '@/components/admin/AdminUserDialog.vue'
 import { useAuthStore } from '@/stores/auth'
+import { useConfirmStore } from '@/stores/confirm'
 import { useNotifyStore } from '@/stores/notify'
 import { LOCALE } from '@/utils/date'
 
 const auth = useAuthStore()
 const notify = useNotifyStore()
-const confirmRef = ref<InstanceType<typeof ConfirmDialog>>()
+const confirm = useConfirmStore()
 
 const users = ref<AdminUser[]>([])
 const loading = ref(false)
@@ -89,7 +89,7 @@ async function run(u: AdminUser, action: () => Promise<AdminUser | void>, messag
 
 async function toggleDisabled(u: AdminUser) {
   if (!u.disabled) {
-    const ok = await confirmRef.value!.ask(
+    const ok = await confirm.ask(
       t('users.disableTitle'),
       t('users.disableText', { name: u.name, email: u.email }),
       t('users.disable'),
@@ -100,7 +100,7 @@ async function toggleDisabled(u: AdminUser) {
 }
 
 async function logoutEverywhere(u: AdminUser) {
-  const ok = await confirmRef.value!.ask(
+  const ok = await confirm.ask(
     t('users.signOutTitle'),
     t('users.signOutText', { name: u.name }),
     t('account.signOut'), 'primary',
@@ -109,7 +109,7 @@ async function logoutEverywhere(u: AdminUser) {
 }
 
 async function remove(u: AdminUser) {
-  const ok = await confirmRef.value!.ask(
+  const ok = await confirm.ask(
     t('users.deleteTitle'),
     t('users.deleteText', { name: u.name, email: u.email, stats: stats(u) }),
   )
@@ -189,7 +189,6 @@ async function remove(u: AdminUser) {
   </v-card>
 
   <AdminUserDialog v-model="dialogOpen" :user="editing" :own-id="auth.user?.id" @saved="replace" />
-  <ConfirmDialog ref="confirmRef" />
 </template>
 
 <style scoped>

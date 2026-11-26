@@ -1,37 +1,16 @@
 <script setup lang="ts">
-import { t } from '@/i18n'
-import { ref } from 'vue'
+import { useConfirmStore } from '@/stores/confirm'
 
-const open = ref(false)
-const title = ref('')
-const text = ref('')
-const confirmText = ref('OK')
-const confirmColor = ref('error')
-let resolver: ((v: boolean) => void) | null = null
-
-function ask(heading: string, body: string, ok = t('common.delete'), color = 'error'): Promise<boolean> {
-  title.value = heading
-  text.value = body
-  confirmText.value = ok
-  confirmColor.value = color
-  open.value = true
-  return new Promise((resolve) => (resolver = resolve))
-}
-function close(result: boolean) {
-  open.value = false
-  resolver?.(result)
-  resolver = null
-}
-defineExpose({ ask })
+const confirm = useConfirmStore()
 </script>
 
 <template>
-  <v-dialog v-model="open" max-width="400" @update:model-value="(v) => !v && close(false)">
-    <v-card :title="title" :text="text" color="surface-container-high">
+  <v-dialog :model-value="confirm.open" max-width="400" @update:model-value="(v) => !v && confirm.close(false)">
+    <v-card :title="confirm.title" :text="confirm.text" color="surface-container-high">
       <template #actions>
         <v-spacer />
-        <v-btn @click="close(false)">{{ $t('common.cancel') }}</v-btn>
-        <v-btn :color="confirmColor" @click="close(true)">{{ confirmText }}</v-btn>
+        <v-btn @click="confirm.close(false)">{{ $t('common.cancel') }}</v-btn>
+        <v-btn :color="confirm.confirmColor" @click="confirm.close(true)">{{ confirm.confirmText }}</v-btn>
       </template>
     </v-card>
   </v-dialog>

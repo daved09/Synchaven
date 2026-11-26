@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onBeforeUnmount, ref, watchEffect } from 'vue'
 import { useTheme } from 'vuetify'
+import ConfirmDialog from './components/ConfirmDialog.vue'
 import { buildM3Colors } from './plugins/theme'
 import { useNotifyStore } from './stores/notify'
 import { useSettingsStore } from './stores/settings'
@@ -29,6 +30,7 @@ watchEffect(() => {
 <template>
   <v-app>
     <router-view />
+    <ConfirmDialog />
     <v-snackbar v-model="notify.show" :color="notify.error ? 'error' : undefined" timeout="4000" location="bottom">
       {{ notify.text }}
       <template #actions>

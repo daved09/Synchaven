@@ -17,6 +17,9 @@ Material 3 design** (Vuetify), a **REST API** for custom clients such as an Andr
   also for birthdays): as a push notification in the
   browser – even with the tab closed – and as an Android notification in the app
 * iCalendar import and export (.ics) – compatible with Google Calendar, Outlook, Thunderbird, Apple
+* **Calendar subscriptions:** subscribe to public calendars by address (`https://` or `webcal://`), e.g. public
+  holidays (suggestions for Germany, Austria, Switzerland, USA and the UK built in); the server refreshes them every
+  6 hours, their events are read-only
 * Views: month, week, day, event list with search
 * **Tasks** like in Google Calendar: multiple colored task lists, tasks with a due date (all-day or with a
   time) appear in the calendar and can be checked off and moved via drag & drop there; task panel with
@@ -108,6 +111,7 @@ docker run -d --name synchaven -p 8080:8080 -v synchaven-data:/data ghcr.io/dave
 | `TOTP_ENCRYPTION_KEY`| *(automatic)*     | Key for the two-factor secrets in the database (≥ 32 characters); without it, one is generated in `totp_key` in the data directory |
 | `SETUP_TOKEN`        | *(automatic)*     | Fixed setup token for the first account (≥ 16 characters) instead of a random one |
 | `VAPID_SUBJECT`      | `mailto:synchaven@example.org` | Contact address for push services (`mailto:` or `https:`) |
+| `SUBSCRIPTIONS_ALLOW_PRIVATE` | `false` | Allow calendar subscriptions from private networks (localhost, home network). Off by default, so accounts cannot use the server to probe its own network |
 | `RUST_LOG`           | `synchaven=info`  | Log level |
 | `PUID` / `PGID`      | `10001`           | User/group ID for the program and `/data` (Docker only) |
 

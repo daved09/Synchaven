@@ -84,7 +84,7 @@ impl EventData {
         })
     }
 
-    fn exdates_json(&self) -> String {
+    pub fn exdates_json(&self) -> String {
         serde_json::to_string(&self.exdates.iter().map(|d| time::to_db(*d)).collect::<Vec<_>>()).unwrap()
     }
 
@@ -153,6 +153,9 @@ async fn editable_event(state: &AppState, user_id: &str, id: &str) -> AppResult<
     let row = owned_event(state, user_id, id).await?;
     if row.contact_id.is_some() {
         return Err(AppError::BadRequest(tr!("event.birthday_read_only")));
+    }
+    if row.subscribed {
+        return Err(AppError::BadRequest(tr!("event.subscription_read_only")));
     }
     Ok(row)
 }

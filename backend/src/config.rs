@@ -15,6 +15,8 @@ pub struct Config {
     pub cors_origins: Vec<String>,
     /// Contact address for push services (VAPID `sub`), `mailto:` or `https:`
     pub vapid_subject: String,
+    /// Calendar subscriptions may fetch addresses in private networks (home network, localhost)
+    pub subscriptions_allow_private: bool,
 }
 
 fn env_or(key: &str, default: &str) -> String {
@@ -50,6 +52,11 @@ impl Config {
             );
         }
 
+        let subscriptions_allow_private = matches!(
+            env_or("SUBSCRIPTIONS_ALLOW_PRIVATE", "false").to_lowercase().as_str(),
+            "1" | "true" | "yes" | "ja"
+        );
+
         let vapid_subject = env_or("VAPID_SUBJECT", "mailto:synchaven@example.org");
 
         let jwt_secret = match std::env::var("JWT_SECRET").ok().filter(|s| s.len() >= 32) {
@@ -57,7 +64,7 @@ impl Config {
             None => load_or_create_secret(&data_dir)?,
         };
 
-        Ok(Self { bind, data_dir, static_dir, jwt_secret, token_ttl_days, allow_registration, cors_origins, vapid_subject })
+        Ok(Self { bind, data_dir, static_dir, jwt_secret, token_ttl_days, allow_registration, cors_origins, vapid_subject, subscriptions_allow_private })
     }
 
     pub fn db_path(&self) -> PathBuf {

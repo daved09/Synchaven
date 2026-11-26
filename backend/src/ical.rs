@@ -366,6 +366,17 @@ impl Builder {
     }
 }
 
+/// A property of the calendar itself (before the first component), e.g. `X-WR-CALNAME`; `None` if missing or empty.
+pub fn calendar_property(text: &str, name: &str) -> Option<String> {
+    unfold(text)
+        .iter()
+        .filter_map(|l| parse_prop(l))
+        .take_while(|p| !(p.name == "BEGIN" && !p.value.trim().eq_ignore_ascii_case("VCALENDAR")))
+        .find(|p| p.name == name)
+        .map(|p| unescape(&p.value).trim().to_string())
+        .filter(|v| !v.is_empty())
+}
+
 pub fn parse(text: &str, default_tz: Tz) -> Result<Vec<ParsedEvent>, String> {
     let lines = unfold(text);
     if !lines.iter().any(|l| l.trim().eq_ignore_ascii_case("BEGIN:VCALENDAR")) {

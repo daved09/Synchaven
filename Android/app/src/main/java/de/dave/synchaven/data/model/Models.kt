@@ -101,7 +101,10 @@ data class Calendar(
     val color: String = "#6750A4",
     val description: String = "",
     val visible: Boolean = true,
-    /** `default` or `birthdays` (generated automatically from the contacts) */
+    /**
+     * `default`, `birthdays` (generated automatically from the contacts) or `subscription` (fetched by the server from
+     * an .ics address, e.g. public holidays)
+     */
     val kind: String = "default",
     /** Default reminders (minutes before the start) for timed events */
     @SerialName("default_reminders") val defaultReminders: List<Int> = Reminders.DEFAULT_TIMED,
@@ -117,6 +120,9 @@ data class Calendar(
 
     /** Birthday calendar: cannot be deleted, events read-only */
     val isBirthdays get() = kind == "birthdays"
+
+    /** Events cannot be added or changed (birthday calendar, subscriptions) */
+    val isReadOnly get() = kind == "birthdays" || kind == "subscription"
 }
 
 @Serializable

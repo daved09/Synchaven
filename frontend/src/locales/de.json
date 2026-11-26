@@ -247,7 +247,30 @@
     "defaultReminders": "Standard-Erinnerungen",
     "defaultRemindersHint": "Gelten für alle Termine dieses Kalenders, die keine eigenen Erinnerungen haben.",
     "timedEvents": "Termine mit Uhrzeit",
-    "allDayEvents": "Ganztägige Termine"
+    "allDayEvents": "Ganztägige Termine",
+    "add": "Kalender hinzufügen"
+  },
+  "subscription": {
+    "new": "Kalender abonnieren",
+    "edit": "Abo bearbeiten",
+    "created": "Kalender abonniert",
+    "url": "Kalenderadresse (.ics)",
+    "urlHint": "Der Server ruft den Kalender alle paar Stunden von dieser Adresse ab. Seine Termine können nicht bearbeitet werden.",
+    "urlRequired": "Bitte eine Adresse eingeben",
+    "nameOptional": "Name (optional, sonst aus dem Kalender)",
+    "holidays": "Feiertage",
+    "region": {
+      "german": "Deutschland",
+      "austrian": "Österreich",
+      "ch": "Schweiz",
+      "usa": "USA",
+      "uk": "Großbritannien"
+    },
+    "lastSync": "Zuletzt aktualisiert: {date}",
+    "lastError": "Letzte Aktualisierung fehlgeschlagen: {error}",
+    "refresh": "Jetzt aktualisieren",
+    "refreshed": "Kalender aktualisiert",
+    "refreshFailed": "Aktualisierung fehlgeschlagen: {error}"
   },
   "taskList": {
     "saved": "Liste gespeichert",

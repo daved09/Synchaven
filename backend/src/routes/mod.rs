@@ -11,7 +11,7 @@ mod admin;
 mod auth;
 mod calendars;
 mod contacts;
-mod events;
+pub mod events;
 mod ical;
 mod push;
 mod security;
@@ -36,6 +36,7 @@ pub fn api_router() -> Router<AppState> {
             "/calendars/{id}",
             get(calendars::get).put(calendars::update).delete(calendars::delete),
         )
+        .route("/calendars/{id}/refresh", post(calendars::refresh))
         .route("/calendars/{id}/events", get(events::list_series))
         .route("/calendars/{id}/export", get(ical::export))
         .route("/calendars/{id}/import", post(ical::import))

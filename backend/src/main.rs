@@ -17,6 +17,7 @@ mod reminders;
 mod routes;
 mod settings;
 mod setup;
+mod subscriptions;
 mod throttle;
 mod time;
 mod totp;
@@ -62,6 +63,8 @@ pub struct AppState {
     pub secrets: Arc<crypto::SecretBox>,
     /// One-time token for creating the first account
     pub setup: Arc<setup::Setup>,
+    /// Fetches subscribed calendars
+    pub subscriptions: Arc<subscriptions::Fetcher>,
 }
 
 #[tokio::main]
@@ -128,9 +131,11 @@ async fn main() -> anyhow::Result<()> {
         login_throttle: Arc::default(),
         secrets: Arc::new(secrets),
         setup: Arc::new(setup),
+        subscriptions: Arc::new(subscriptions::Fetcher::new(config.subscriptions_allow_private)?),
     };
 
     reminders::spawn(state.clone());
+    subscriptions::spawn(state.clone());
 
     // Without CORS_ORIGINS no CORS headers are sent: browsers then only allow the web UI of the same origin.
     // Apps and CardDAV clients are not affected by CORS.

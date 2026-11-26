@@ -175,11 +175,12 @@ accepts app passwords; without it, both the account password and app passwords w
   "id": "uuid", "name": "Work", "color": "#0B57D0", "description": "",
   "visible": true, "kind": "default",
   "default_reminders": [10], "default_all_day_reminders": [900],
+  "source_url": null, "synced_at": null, "sync_error": null,
   "created_at": "…", "updated_at": "…"
 }
 ```
 
-`kind` is `default` or `birthdays`. Every user has exactly one **birthday calendar** ("Geburtstage"), which
+`kind` is `default`, `birthdays` or `subscription`. Every user has exactly one **birthday calendar** ("Geburtstage"), which
 the server creates automatically and fills from the contacts: for each contact with a birthday there is an
 all-day, yearly event (`🎂 Name`; people born on Feb 29 appear on Feb 28 in non-leap years). Changes to
 contacts – via the API or CardDAV – are applied immediately. Name, color and visibility can be changed;
@@ -195,11 +196,32 @@ deleting, importing as well as creating, editing and deleting single events are 
 | GET     | `/calendars/{id}/events`     | –                 | `Event[]` (series not expanded) |
 | GET     | `/calendars/{id}/export`     | –                 | `text/calendar` (.ics) |
 | POST    | `/calendars/{id}/import?timezone=Europe/Berlin` | .ics file as body (`text/calendar`) | `{ "imported": 12, "skipped": [] }` |
+| POST    | `/calendars/{id}/refresh`    | –                 | `Calendar` (subscriptions only) |
 
 `CalendarInput`: `{ "name": "Work", "color": "#0B57D0", "description": "", "visible": true, "default_reminders": [10], "default_all_day_reminders": [900] }`
 (everything except `name` optional). If `default_reminders` or `default_all_day_reminders` is missing, the existing
 default reminders are kept (see [Reminders](#reminders)). New calendars – including the birthday calendar –
 remind 15 minutes before by default (`[15]`), or for all-day events on the day itself at 09:00 (`[-540]`).
+
+### Subscriptions
+
+A **subscribed calendar** (`kind: "subscription"`) shows an iCalendar file from the web, e.g. public holidays. It is
+created with `POST /calendars` and `source_url` in the `CalendarInput` (`http`, `https` or `webcal`; `webcal://` is
+stored as `https://`): `{ "name": "", "source_url": "webcal://example.org/holidays.ics" }`. The server fetches the
+file right away – an address that cannot be fetched or is not an iCalendar file is rejected with `400` and nothing is
+created. An empty `name` is taken from the file (`X-WR-CALNAME`). Subscriptions start without default reminders
+(`[]`); reminders in the file (`VALARM`) are ignored.
+
+The server fetches the file again every 6 hours (after a failed attempt: after one hour) and replaces the events
+with its content; events keep their `id` as long as their `UID` stays the same. `POST /calendars/{id}/refresh`
+fetches it immediately. `synced_at` is the last successful refresh; `sync_error` says why the last one failed
+(in the account's language, `null` after a success) – the calendar keeps its previous events then. `PUT` with a
+different `source_url` switches to the new address (fetched first, `400` if that fails).
+
+Events of subscriptions have `read_only: true`: creating, editing and deleting them as well as importing into the
+calendar are rejected with `400`. Name, color, visibility and default reminders can be changed; deleting the calendar
+ends the subscription. Addresses that resolve to private networks (localhost, `192.168.…`, …) are refused unless
+the server allows them (`SUBSCRIPTIONS_ALLOW_PRIVATE`).
 
 `/calendars/{id}/events` returns all events of a calendar as `Event` – series as one entry with `rrule` and
 `exdates`. Intended for clients that sync themselves (the Android app uses it to transfer into the Android calendar).
@@ -241,6 +263,7 @@ events are **expanded into single occurrences on the server** – the app does n
 `reminders` are the event's reminders as in `Event` (`null` = calendar default).
 Hiding via `Calendar.visible` is done on the client.
 
+Events of subscribed calendars have `read_only: true` as well (see [Subscriptions](#subscriptions)).
 Birthdays have `read_only: true` and the contact's ID in `contact_id`. If the birth year is known, the
 occurrence's title contains the age, e.g. `🎂 Erika Mustermann (62)`. `Event` contains the same two fields.
 

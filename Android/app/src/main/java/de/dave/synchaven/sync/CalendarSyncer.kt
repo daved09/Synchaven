@@ -125,7 +125,7 @@ class CalendarSyncer(
                 put(Calendars.CALENDAR_COLOR, parseColor(cal.color))
                 put(
                     Calendars.CALENDAR_ACCESS_LEVEL,
-                    if (cal.isBirthdays) Calendars.CAL_ACCESS_READ else Calendars.CAL_ACCESS_OWNER,
+                    if (cal.isReadOnly) Calendars.CAL_ACCESS_READ else Calendars.CAL_ACCESS_OWNER,
                 )
                 put(Calendars.OWNER_ACCOUNT, account.name)
                 put(Calendars.SYNC_EVENTS, 1)

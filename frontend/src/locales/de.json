@@ -556,6 +556,8 @@
     "importVcfButton": ".vcf importieren",
     "setUpDav": "DAVx⁵ einrichten",
     "select": "Kontakt auswählen",
+    "matches": "{n} Treffer | {n} Treffer",
+    "dropHere": ".vcf-Datei hier ablegen",
     "dropTarget": "Import in „{name}“",
     "renameCategory": "Kategorie umbenennen",
     "renameHint": "Gilt für alle Kontakte. Gibt es den neuen Namen schon, werden beide Kategorien zusammengeführt."

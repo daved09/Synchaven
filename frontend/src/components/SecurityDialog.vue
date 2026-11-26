@@ -3,15 +3,15 @@ import { t } from '@/i18n'
 import { computed, ref, watch } from 'vue'
 import { api } from '@/api/client'
 import type { AppPassword, TotpSetup, TotpStatus } from '@/api/types'
-import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import { useAuthStore } from '@/stores/auth'
+import { useConfirmStore } from '@/stores/confirm'
 import { useNotifyStore } from '@/stores/notify'
 import { fmt } from '@/utils/date'
 
 const open = defineModel<boolean>({ required: true })
 const auth = useAuthStore()
 const notify = useNotifyStore()
-const confirmRef = ref<InstanceType<typeof ConfirmDialog>>()
+const confirm = useConfirmStore()
 
 /**
  * What the dialog shows: the overview, or one step of a change
@@ -116,7 +116,7 @@ const createAppPassword = () => step(async () => {
 })
 
 async function deleteAppPassword(p: AppPassword) {
-  if (!(await confirmRef.value?.ask(t('security.revokeTitle'), t('security.revokeText', { name: p.name }), t('security.revoke')))) return
+  if (!(await confirm.ask(t('security.revokeTitle'), t('security.revokeText', { name: p.name }), t('security.revoke')))) return
   try {
     await api.deleteAppPassword(p.id)
     appPasswords.value = appPasswords.value.filter((x) => x.id !== p.id)
@@ -332,7 +332,6 @@ const title = computed(() => {
       </template>
     </v-card>
   </v-dialog>
-  <ConfirmDialog ref="confirmRef" />
 </template>
 
 <style scoped>

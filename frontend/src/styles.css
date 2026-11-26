@@ -19,3 +19,16 @@ button:focus-visible { outline: 2px solid rgb(var(--v-theme-primary)); outline-o
 
 /* While an event is being dragged */
 body.event-dragging, body.event-dragging * { cursor: grabbing !important; user-select: none; }
+
+/* Layout shared by the calendar and contacts views */
+.app-main { height: 100dvh; background: rgb(var(--v-theme-surface-container-low)); }
+.view-surface {
+  height: 100%; background: rgb(var(--v-theme-surface)); border-top-left-radius: 24px; overflow: hidden;
+}
+@media (max-width: 959px) { .view-surface { border-radius: 0; } }
+.create-btn { text-transform: none; letter-spacing: .1px; font-weight: 500; }
+.fab { position: fixed; right: 16px; bottom: 16px; z-index: 5; }
+/* Sidebar entries whose ⋮ menu only appears on hover (always on touch screens) */
+.menu-item .item-menu { opacity: 0; transition: opacity .15s; }
+.menu-item:hover .item-menu, .menu-item:focus-within .item-menu { opacity: 1; }
+@media (hover: none) { .menu-item .item-menu { opacity: 1; } }

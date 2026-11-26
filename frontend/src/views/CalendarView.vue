@@ -1,28 +1,28 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { LOCALE, t as tr } from '@/i18n'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useDisplay } from 'vuetify'
-import type { Calendar, Task, TaskList, ViewEvent } from '@/api/types'
+import type { Task, TaskList, ViewEvent } from '@/api/types'
 import AccountMenu from '@/components/AccountMenu.vue'
-import CalendarDialog from '@/components/CalendarDialog.vue'
-import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import EventDetails from '@/components/EventDetails.vue'
 import EventDialog, { type EventPreset } from '@/components/EventDialog.vue'
-import MonthView from '@/components/MonthView.vue'
-import AgendaView from '@/components/AgendaView.vue'
-import TimeGrid from '@/components/TimeGrid.vue'
 import TaskDetails from '@/components/TaskDetails.vue'
 import TaskDialog, { type TaskPreset } from '@/components/TaskDialog.vue'
-import TaskListDialog from '@/components/TaskListDialog.vue'
 import TaskPanel from '@/components/TaskPanel.vue'
+import CalendarList from '@/components/calendar/CalendarList.vue'
+import CalendarPager from '@/components/calendar/CalendarPager.vue'
+import TaskListList from '@/components/calendar/TaskListList.vue'
+import ViewModeMenu from '@/components/calendar/ViewModeMenu.vue'
+import { useEventActions } from '@/composables/eventActions'
+import { useShortcuts } from '@/composables/shortcuts'
+import { useTaskActions } from '@/composables/taskActions'
 import { useAuthStore } from '@/stores/auth'
 import { useCalendarsStore } from '@/stores/calendars'
 import { useEventsStore } from '@/stores/events'
 import { useNotifyStore } from '@/stores/notify'
 import { useSettingsStore, type ViewMode } from '@/stores/settings'
 import { useTasksStore } from '@/stores/tasks'
-import { LIST_DAYS, useViewStore } from '@/stores/view'
+import { useViewStore, VIEW_MODES } from '@/stores/view'
 import { addDays, addMinutes, dayKey, parseDayKey } from '@/utils/date'
 import { draftEvent, isDraft, type EventDraft } from '@/utils/draft'
 
@@ -36,13 +36,14 @@ const notify = useNotifyStore()
 const view = useViewStore()
 const tasks = useTasksStore()
 const { settings } = useSettingsStore()
+const eventActions = useEventActions()
+const taskActions = useTaskActions()
 
 const drawer = ref(mdAndUp.value)
 const searchOpen = ref(false)
-const confirmRef = ref<InstanceType<typeof ConfirmDialog>>()
-const importInput = ref<HTMLInputElement>()
-let importTarget: Calendar | null = null
+const pager = ref<InstanceType<typeof CalendarPager>>()
 
+// Events
 const detailsOpen = ref(false)
 const selected = ref<ViewEvent | null>(null)
 const editorOpen = ref(false)
@@ -51,9 +52,6 @@ const preset = ref<EventPreset | null>(null)
 /** Draft card of the event currently being created */
 const draft = ref<EventDraft | null>(null)
 const draftAnchor = ref<HTMLElement | null>(null)
-const calendarDialog = ref(false)
-const editCalendar = ref<Calendar | null>(null)
-const accountMenu = ref<InstanceType<typeof AccountMenu>>()
 
 // Tasks
 const taskPanel = ref(false)
@@ -64,26 +62,6 @@ const taskDetailsId = ref<string | null>(null)
 const taskEditorOpen = ref(false)
 const editTask = ref<Task | null>(null)
 const taskPreset = ref<TaskPreset | null>(null)
-const taskListDialog = ref(false)
-const editTaskList = ref<TaskList | null>(null)
-
-const modes: { value: ViewMode; title: string; icon: string; key: string }[] = [
-  { value: 'month', title: tr('views.month'), icon: 'mdi-calendar-month-outline', key: 'M' },
-  { value: 'week', title: tr('views.week'), icon: 'mdi-calendar-week-outline', key: 'W' },
-  { value: 'day', title: tr('views.day'), icon: 'mdi-calendar-today-outline', key: 'T' },
-  { value: 'list', title: tr('views.list'), icon: 'mdi-format-list-bulleted', key: 'L' },
-]
-const currentMode = computed(() => modes.find((m) => m.value === view.mode)!)
-// On touch devices, the neighboring periods sit left and right of the current page, ready for swiping
-const touchDevice = window.matchMedia('(pointer: coarse)').matches
-const pages = computed(() => (touchDevice ? [-1, 0, 1] : [0]).map((off) => {
-  const date = off === 0 ? view.date : view.shift(view.date, off)
-  const { start, end } = view.rangeOf(date)
-  const n = Math.round((end.getTime() - start.getTime()) / 86_400_000)
-  // Keyed by date: after a swipe the neighboring page becomes the current one without rebuilding
-  const key = `${view.mode}:${touchDevice ? dayKey(date) : 0}`
-  return { off, key, date, start, end, days: Array.from({ length: n }, (_, i) => addDays(start, i)) }
-}))
 
 /** Events and due tasks, sorted by start (all-day first) */
 const calendarItems = computed(() =>
@@ -96,7 +74,7 @@ const gridEvents = computed(() => {
   if (!d) return calendarItems.value
   return [...calendarItems.value, draftEvent(d, calendars.byId.get(d.calendarId)?.color ?? '#6750A4')]
 })
-const findDraftEl = () => surface.value?.querySelector<HTMLElement>('.page.current .draft') ?? null
+const findDraftEl = () => pager.value?.findDraftEl() ?? null
 // If the card moves (other day, all-day …), a new element is created; the dialog follows it.
 // If it disappears from the visible range, the dialog stays at the last position.
 watch(draft, () => nextTick(() => {
@@ -107,7 +85,7 @@ watch(draft, () => nextTick(() => {
 // --- URL sync (?view=week&date=2026-11-22) ---
 function readRoute() {
   const m = route.query.view as ViewMode | undefined
-  if (m && modes.some((x) => x.value === m)) view.show(m)
+  if (m && VIEW_MODES.includes(m)) view.show(m)
   const d = parseDayKey((route.query.date as string) ?? '')
   if (d) view.date = d
 }
@@ -131,11 +109,9 @@ onMounted(async () => {
   } catch (e) {
     notify.fail(e)
   }
-  window.addEventListener('keydown', onKey)
 })
-onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 
-// --- Actions ---
+// --- Events ---
 function openEvent(ev: ViewEvent) {
   if (isDraft(ev)) return
   if (ev.task) return openTask(ev.task)
@@ -172,43 +148,14 @@ function editEvent(ev: ViewEvent) {
   editorOpen.value = true
 }
 async function deleteEvent(ev: ViewEvent, scope: 'one' | 'all') {
-  const text = scope === 'one'
-    ? tr('calendarView.deleteOccurrence', { date: ev.startDate.toLocaleDateString(LOCALE) })
-    : ev.recurring ? tr('calendarView.deleteSeries') : tr('common.deletesNamed', { name: ev.title })
-  if (!(await confirmRef.value!.ask(tr('calendarView.deleteEventTitle'), text))) return
-  try {
-    if (scope === 'one') await events.removeOccurrence(ev.event_id, ev.start)
-    else await events.remove(ev.event_id)
-    detailsOpen.value = false
-    notify.info(tr('calendarView.eventDeleted'))
-  } catch (e) {
-    notify.fail(e)
-  }
+  if (await eventActions.remove(ev, scope)) detailsOpen.value = false
 }
-async function moveEvent(ev: ViewEvent, newStart: Date) {
+function moveEvent(ev: ViewEvent, newStart: Date) {
   if (isDraft(ev)) return
-  if (ev.task) {
-    try {
-      await tasks.move(ev.task, newStart)
-      notify.info(tr('calendarView.taskMoved'))
-    } catch (e) {
-      notify.fail(e)
-    }
-    return
-  }
-  if (ev.recurring && !(await confirmRef.value!.ask(
-    tr('calendarView.moveOccurrenceTitle'),
-    tr('calendarView.moveOccurrenceText', { date: ev.startDate.toLocaleDateString(LOCALE) }),
-    tr('calendarView.move'),
-    'primary',
-  ))) return
-  try {
-    await events.move(ev, newStart)
-    notify.info(tr('calendarView.eventMoved'))
-  } catch (e) {
-    notify.fail(e)
-  }
+  if (ev.task) taskActions.move(ev.task, newStart)
+  else eventActions.move(ev, newStart)
 }
+
 // --- Tasks ---
 function openTask(t: Task) {
   taskDetailsId.value = t.id
@@ -226,204 +173,38 @@ function editTaskOpen(t: Task) {
   taskPreset.value = null
   taskEditorOpen.value = true
 }
-async function toggleTask(t: Task) {
-  try {
-    const done = !t.completed
-    await tasks.setCompleted(t, done)
-    notify.info(done ? tr('calendarView.taskDone') : tr('calendarView.taskReopened'))
-  } catch (e) {
-    notify.fail(e)
-  }
-}
 async function deleteTask(t: Task) {
-  const subs = tasks.subtasksOf(t.id).length
-  const text = subs === 0 ? tr('common.deletesNamed', { name: t.title })
-    : tr('calendarView.deleteTaskWithSubtasks', { name: t.title, n: subs }, subs)
-  if (!(await confirmRef.value!.ask(tr('calendarView.deleteTaskTitle'), text))) return
-  try {
-    await tasks.remove(t.id)
-    taskDetailsOpen.value = false
-    notify.info(tr('calendarView.taskDeleted'))
-  } catch (e) {
-    notify.fail(e)
-  }
-}
-async function toggleTaskList(l: TaskList) {
-  try {
-    await tasks.toggleListVisible(l)
-  } catch (e) {
-    notify.fail(e)
-  }
-}
-function newTaskList() {
-  editTaskList.value = null
-  taskListDialog.value = true
-}
-function editTaskListOpen(l: TaskList) {
-  editTaskList.value = l
-  taskListDialog.value = true
+  if (await taskActions.remove(t)) taskDetailsOpen.value = false
 }
 function showTaskList(l: TaskList) {
   taskListId.value = l.id
   taskPanel.value = true
 }
-async function deleteTaskList(l: TaskList) {
-  if (!(await confirmRef.value!.ask(tr('calendarView.deleteListTitle'), tr('calendarView.deleteListText', { name: l.name })))) return
-  try {
-    await tasks.removeList(l.id)
-    notify.info(tr('calendarView.listDeleted'))
-  } catch (e) {
-    notify.fail(e)
-  }
+
+function openSearch() {
+  view.show('list')
+  searchOpen.value = true
+}
+function closeSearch() {
+  searchOpen.value = false
+  view.search = ''
 }
 
-function openDay(d: Date) {
-  view.goto(d, 'day')
-}
-
-function newCalendar() {
-  editCalendar.value = null
-  calendarDialog.value = true
-}
-function editCal(cal: Calendar) {
-  editCalendar.value = cal
-  calendarDialog.value = true
-}
-async function toggleCalendar(cal: Calendar) {
-  try {
-    await calendars.toggleVisible(cal)
-  } catch (e) {
-    notify.fail(e)
-  }
-}
-async function deleteCalendar(cal: Calendar) {
-  if (!(await confirmRef.value!.ask(tr('calendarView.deleteCalendarTitle'), tr('calendarView.deleteCalendarText', { name: cal.name })))) return
-  try {
-    await calendars.remove(cal.id)
-    await events.reload()
-    notify.info(tr('calendarView.calendarDeleted'))
-  } catch (e) {
-    notify.fail(e)
-  }
-}
-async function exportCalendar(cal: Calendar) {
-  try {
-    await calendars.exportIcs(cal)
-  } catch (e) {
-    notify.fail(e)
-  }
-}
-function startImport(cal: Calendar) {
-  importTarget = cal
-  importInput.value!.value = ''
-  importInput.value!.click()
-}
-async function onImportFile(e: Event) {
-  const file = (e.target as HTMLInputElement).files?.[0]
-  if (!file || !importTarget) return
-  try {
-    const r = await calendars.importIcs(importTarget, file)
-    await events.reload()
-    notify.info(tr('calendarView.imported', r.imported) + (r.skipped.length ? ', ' + tr('calendarView.importNotes', r.skipped.length) : ''))
-  } catch (err) {
-    notify.fail(err)
-  }
-}
-watch(calendarDialog, (v) => !v && events.reload())
-
-// --- Swipe gestures (touch): the view follows the finger and snaps to a period on release ---
-const SETTLE_MS = 250
-const surface = ref<HTMLElement>()
-/** Current offset of the pages in pixels */
-const dragX = ref(0)
-/** Pages are currently gliding into their final position */
-const settling = ref(false)
-let swipe: { x: number; y: number; axis: 'x' | 'y' | null; lastX: number; lastT: number; v: number } | null = null
-
-function onTouchStart(e: TouchEvent) {
-  if (!touchDevice || settling.value || e.touches.length !== 1) {
-    swipe = null
-    return
-  }
-  const t = e.touches[0]
-  swipe = { x: t.clientX, y: t.clientY, axis: null, lastX: t.clientX, lastT: e.timeStamp, v: 0 }
-}
-function onTouchMove(e: TouchEvent) {
-  if (!swipe) return
-  if (e.touches.length !== 1) return endSwipe(e, true)
-  const t = e.touches[0]
-  const dx = t.clientX - swipe.x
-  const dy = t.clientY - swipe.y
-  if (!swipe.axis) {
-    // Only determine the direction after some movement – vertical stays normal scrolling
-    if (Math.hypot(dx, dy) < 10) return
-    swipe.axis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y'
-    if (swipe.axis === 'x') syncGridScroll()
-  }
-  if (swipe.axis !== 'x') return
-  const dt = e.timeStamp - swipe.lastT
-  if (dt > 0) swipe.v = 0.8 * ((t.clientX - swipe.lastX) / dt) + 0.2 * swipe.v
-  swipe.lastX = t.clientX
-  swipe.lastT = e.timeStamp
-  dragX.value = dx
-}
-function endSwipe(e: TouchEvent, cancel = false) {
-  const s = swipe
-  swipe = null
-  if (!s || s.axis !== 'x') return
-  const w = surface.value?.clientWidth || window.innerWidth
-  const dx = dragX.value
-  // Finger stopped before release → no momentum
-  const v = e.timeStamp - s.lastT > 100 ? 0 : s.v
-  const fling = Math.abs(v) > 0.4 && Math.sign(v) === Math.sign(dx)
-  const dir: -1 | 0 | 1 = cancel || (Math.abs(dx) < w / 2 && !fling) ? 0 : dx < 0 ? 1 : -1
-  settling.value = true
-  dragX.value = -dir * w
-  setTimeout(() => {
-    // Reset without transition: the neighboring page is now the current one and already in place
-    settling.value = false
-    if (dir) view.step(dir)
-    dragX.value = 0
-  }, SETTLE_MS)
-}
-/** Scroll neighboring pages to the same time as the current one, so the hours line up while swiping */
-function syncGridScroll() {
-  const current = surface.value?.querySelector<HTMLElement>('.page.current .tg-scroll')
-  if (!current) return
-  surface.value!.querySelectorAll<HTMLElement>('.page:not(.current) .tg-scroll').forEach((el) => {
-    el.scrollTop = current.scrollTop
-  })
-}
-
-// --- Keyboard shortcuts ---
-const anyDialog = () => detailsOpen.value || editorOpen.value || calendarDialog.value || !!accountMenu.value?.dialogOpen
-  || taskDetailsOpen.value || taskEditorOpen.value || taskListDialog.value
-function onKey(e: KeyboardEvent) {
-  const t = e.target as HTMLElement
-  if (e.ctrlKey || e.metaKey || e.altKey || anyDialog()) return
-  if (t.closest('input, textarea, select, [contenteditable="true"], .v-overlay')) return
-  const k = e.key.toLowerCase()
-  const byKey: Record<string, () => void> = {
-    m: () => view.select('month'),
-    w: () => view.select('week'),
-    t: () => view.select('day'),
-    l: () => view.select('list'),
-    h: () => view.today(),
-    c: () => newEvent(),
-    n: () => newEvent(),
-    a: () => newTask(),
-    arrowleft: () => view.step(-1),
-    arrowright: () => view.step(1),
-    j: () => view.step(1),
-    k: () => view.step(-1),
-    '/': () => { view.show('list'); searchOpen.value = true },
-  }
-  const fn = byKey[k]
-  if (fn) {
-    e.preventDefault()
-    fn()
-  }
-}
+useShortcuts({
+  m: () => view.select('month'),
+  w: () => view.select('week'),
+  t: () => view.select('day'),
+  l: () => view.select('list'),
+  h: () => view.today(),
+  c: () => newEvent(),
+  n: () => newEvent(),
+  a: () => newTask(),
+  arrowleft: () => view.step(-1),
+  arrowright: () => view.step(1),
+  j: () => view.step(1),
+  k: () => view.step(-1),
+  '/': openSearch,
+})
 </script>
 
 <template>
@@ -458,63 +239,8 @@ function onKey(e: KeyboardEvent) {
       class="mini"
       @update:model-value="(d: unknown) => view.goto(d as Date)"
     />
-    <v-list nav density="comfortable" class="pt-0" bg-color="transparent">
-      <div class="d-flex align-center pl-4 pr-2">
-        <v-list-subheader class="flex-grow-1 px-0">{{ $t('calendarView.myCalendars') }}</v-list-subheader>
-        <v-btn icon="mdi-plus" size="small" variant="text" :title="$t('calendar.new')" @click="newCalendar" />
-      </div>
-      <v-list-item v-for="cal in calendars.list" :key="cal.id" rounded="xl" class="cal-item" @click="toggleCalendar(cal)">
-        <template #prepend>
-          <v-checkbox-btn :model-value="cal.visible" :color="cal.color" :base-color="cal.color" density="compact" class="mr-1" @click.stop="toggleCalendar(cal)" />
-        </template>
-        <v-list-item-title>{{ cal.name }}</v-list-item-title>
-        <template #append>
-          <v-menu location="end">
-            <template #activator="{ props: p }">
-              <v-btn v-bind="p" icon="mdi-dots-vertical" size="small" variant="text" class="cal-menu" @click.stop />
-            </template>
-            <v-list density="compact" rounded="lg">
-              <v-list-item prepend-icon="mdi-pencil-outline" :title="$t('common.edit')" @click="editCal(cal)" />
-              <v-list-item prepend-icon="mdi-download-outline" :title="$t('calendarView.exportIcs')" @click="exportCalendar(cal)" />
-              <template v-if="cal.kind !== 'birthdays'">
-                <v-list-item prepend-icon="mdi-upload-outline" :title="$t('calendarView.importIcs')" @click="startImport(cal)" />
-                <v-divider />
-                <v-list-item prepend-icon="mdi-delete-outline" :title="$t('common.delete')" base-color="error" @click="deleteCalendar(cal)" />
-              </template>
-            </v-list>
-          </v-menu>
-        </template>
-      </v-list-item>
-    </v-list>
-    <v-list nav density="comfortable" class="pt-0" bg-color="transparent">
-      <div class="d-flex align-center pl-4 pr-2">
-        <v-list-subheader class="flex-grow-1 px-0">{{ $t('tasks.title') }}</v-list-subheader>
-        <v-btn icon="mdi-plus" size="small" variant="text" :title="$t('taskList.new')" @click="newTaskList" />
-      </div>
-      <v-list-item v-for="l in tasks.lists" :key="l.id" rounded="xl" class="cal-item" @click="toggleTaskList(l)">
-        <template #prepend>
-          <v-checkbox-btn :model-value="l.visible" :color="l.color" :base-color="l.color" density="compact" class="mr-1" @click.stop="toggleTaskList(l)" />
-        </template>
-        <v-list-item-title>{{ l.name }}</v-list-item-title>
-        <template #append>
-          <span v-if="tasks.openCount(l.id)" class="text-label-medium text-medium-emphasis mr-1">{{ tasks.openCount(l.id) }}</span>
-          <v-menu location="end">
-            <template #activator="{ props: p }">
-              <v-btn v-bind="p" icon="mdi-dots-vertical" size="small" variant="text" class="cal-menu" @click.stop />
-            </template>
-            <v-list density="compact" rounded="lg">
-              <v-list-item prepend-icon="mdi-format-list-checks" :title="$t('calendarView.showTasks')" @click="showTaskList(l)" />
-              <v-list-item prepend-icon="mdi-pencil-outline" :title="$t('common.edit')" @click="editTaskListOpen(l)" />
-              <template v-if="tasks.lists.length > 1">
-                <v-divider />
-                <v-list-item prepend-icon="mdi-delete-outline" :title="$t('common.delete')" base-color="error" @click="deleteTaskList(l)" />
-              </template>
-            </v-list>
-          </v-menu>
-        </template>
-      </v-list-item>
-    </v-list>
-    <input ref="importInput" type="file" accept=".ics,text/calendar" hidden @change="onImportFile" />
+    <CalendarList />
+    <TaskListList @show="showTaskList" />
   </v-navigation-drawer>
 
   <v-app-bar flat color="surface" density="comfortable" class="app-bar">
@@ -531,47 +257,20 @@ function onKey(e: KeyboardEvent) {
     <v-spacer />
     <v-progress-circular v-if="events.loading" indeterminate size="20" width="2" color="primary" class="mr-3" />
 
-    <template v-if="view.mode === 'list' || searchOpen">
-      <v-text-field
-        v-if="searchOpen" v-model="view.search" :placeholder="$t('calendarView.search')" density="compact" variant="solo-filled"
-        flat rounded="xl" hide-details autofocus clearable prepend-inner-icon="mdi-magnify" class="search mr-2"
-        bg-color="surface-container-high"
-        @keydown.esc="searchOpen = false; view.search = ''"
-      />
-    </template>
-    <v-btn
-      v-if="!searchOpen" icon="mdi-magnify" :title="`${$t('common.search')} (/)`"
-      @click="view.show('list'); searchOpen = true"
+    <v-text-field
+      v-if="searchOpen" v-model="view.search" :placeholder="$t('calendarView.search')" density="compact" variant="solo-filled"
+      flat rounded="xl" hide-details autofocus clearable prepend-inner-icon="mdi-magnify" class="search mr-2"
+      bg-color="surface-container-high" @keydown.esc="closeSearch"
     />
+    <v-btn v-else icon="mdi-magnify" :title="`${$t('common.search')} (/)`" @click="openSearch" />
 
-    <v-menu location="bottom end">
-      <template #activator="{ props: p }">
-        <v-btn
-          v-if="mdAndUp" v-bind="p" variant="outlined" rounded="xl" class="mx-2" :prepend-icon="currentMode.icon"
-          append-icon="mdi-menu-down" :title="currentMode.title"
-        >
-          {{ currentMode.title }}
-        </v-btn>
-        <v-btn v-else v-bind="p" :icon="currentMode.icon" :title="currentMode.title" />
-      </template>
-      <v-list density="compact" rounded="lg">
-        <v-list-item
-          v-for="m in modes" :key="m.value" :prepend-icon="m.icon" :title="m.title" :active="view.mode === m.value"
-          @click="view.select(m.value)"
-        >
-          <template #append>
-            <span class="text-body-small text-medium-emphasis ml-4">{{ m.key }}</span>
-          </template>
-        </v-list-item>
-      </v-list>
-    </v-menu>
-
+    <ViewModeMenu />
     <v-btn
       :icon="taskPanel ? 'mdi-checkbox-marked-circle' : 'mdi-checkbox-marked-circle-outline'" :title="$t('tasks.title')"
       :active="taskPanel" @click="taskPanel = !taskPanel"
     />
     <v-btn icon="mdi-account-box-multiple-outline" :title="$t('nav.contacts')" :to="{ name: 'contacts' }" />
-    <AccountMenu ref="accountMenu" />
+    <AccountMenu />
   </v-app-bar>
 
   <v-navigation-drawer
@@ -580,41 +279,12 @@ function onKey(e: KeyboardEvent) {
     <TaskPanel v-model:list-id="taskListId" @open="openTask" @close="taskPanel = false" />
   </v-navigation-drawer>
 
-  <v-main class="main">
-    <div
-      ref="surface" class="view-surface"
-      @touchstart.passive="onTouchStart" @touchmove.passive="onTouchMove"
-      @touchend.passive="endSwipe($event)" @touchcancel.passive="endSwipe($event, true)"
-    >
-      <div
-        class="track" :class="{ settling }"
-        :style="touchDevice ? { transform: `translateX(calc(-100% + ${dragX}px))` } : undefined"
-      >
-        <div
-          v-for="p in pages" :key="p.key" class="page" :class="{ current: p.off === 0 }"
-          :inert="p.off !== 0 || undefined"
-        >
-          <MonthView
-            v-if="view.mode === 'month'"
-            :events="gridEvents" :start="p.start" :end="p.end" :month="p.date.getMonth()"
-            :week-starts-on="settings.weekStartsOn" :show-week-numbers="settings.showWeekNumbers && mdAndUp"
-            @select="openEvent" @create="(d) => newEvent(d)" @open-day="openDay" @move="moveEvent"
-            @toggle="(ev) => ev.task && toggleTask(ev.task)"
-          />
-          <TimeGrid
-            v-else-if="view.mode === 'week' || view.mode === 'day'"
-            :events="gridEvents" :days="p.days"
-            @select="openEvent" @create="(s, allDay) => newEvent(s, allDay)" @open-day="openDay" @move="moveEvent"
-            @toggle="(ev) => ev.task && toggleTask(ev.task)"
-          />
-          <AgendaView
-            v-else
-            :events="calendarItems" :start="p.start" :days="LIST_DAYS" :search="view.search"
-            @select="openEvent" @open-day="openDay" @toggle="(ev) => ev.task && toggleTask(ev.task)"
-          />
-        </div>
-      </div>
-    </div>
+  <v-main class="app-main">
+    <CalendarPager
+      ref="pager" :events="gridEvents" :agenda-events="calendarItems"
+      @select="openEvent" @create="newEvent" @open-day="(d) => view.goto(d, 'day')" @move="moveEvent"
+      @toggle="taskActions.toggle"
+    />
     <v-btn
       v-if="smAndDown" class="fab" color="primary-container" size="x-large" icon="mdi-plus" rounded="lg" elevation="3"
       :title="$t('calendarView.createEvent')" @click="newEvent()"
@@ -623,38 +293,20 @@ function onKey(e: KeyboardEvent) {
 
   <EventDetails v-model="detailsOpen" :event="selected" @edit="editEvent" @delete="deleteEvent" />
   <EventDialog v-model="editorOpen" v-model:draft="draft" :event-id="editId" :preset="preset" :anchor="draftAnchor" />
-  <CalendarDialog v-model="calendarDialog" :calendar="editCalendar" />
   <TaskDetails
-    v-model="taskDetailsOpen" :task-id="taskDetailsId" @edit="editTaskOpen" @delete="deleteTask" @toggle="toggleTask"
+    v-model="taskDetailsOpen" :task-id="taskDetailsId" @edit="editTaskOpen" @delete="deleteTask" @toggle="taskActions.toggle"
     @open="openTask"
   />
   <TaskDialog v-model="taskEditorOpen" :task="editTask" :preset="taskPreset" />
-  <TaskListDialog v-model="taskListDialog" :list="editTaskList" />
-  <ConfirmDialog ref="confirmRef" />
 </template>
 
 <style scoped>
 .app-bar { border-bottom: none; }
 .title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-.main { height: 100dvh; background: rgb(var(--v-theme-surface-container-low)); }
-.view-surface {
-  height: 100%; background: rgb(var(--v-theme-surface)); border-top-left-radius: 24px; overflow: hidden;
-}
-.track { display: flex; height: 100%; }
-.track.settling { transition: transform .25s cubic-bezier(.2, 0, 0, 1); }
-.page { flex: 0 0 100%; min-width: 0; height: 100%; overflow: hidden; }
-/* Horizontal dragging belongs to the swipe gesture, vertical to scrolling */
-.page, .page :deep(.tg-scroll), .page :deep(.agenda) { touch-action: pan-y; }
-.create-btn { text-transform: none; letter-spacing: .1px; font-weight: 500; }
 .search { width: 280px; max-width: 40vw; }
-.cal-item .cal-menu { opacity: 0; transition: opacity .15s; }
-.cal-item:hover .cal-menu, .cal-item:focus-within .cal-menu { opacity: 1; }
-@media (hover: none) { .cal-item .cal-menu { opacity: 1; } }
 .mini { min-width: 0; }
 .mini :deep(.v-date-picker-month) { padding: 0 12px; }
 .mini :deep(.v-date-picker-month__days) { column-gap: 0; flex: 1; grid-template-columns: repeat(7, minmax(0, 1fr)); }
 .mini :deep(.v-date-picker-month__day) { width: auto; }
 .mini :deep(.v-date-picker-controls) { padding-inline: 12px 4px; }
-.fab { position: fixed; right: 16px; bottom: 16px; z-index: 5; }
-@media (max-width: 959px) { .view-surface { border-radius: 0; } }
 </style>

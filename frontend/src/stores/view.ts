@@ -9,6 +9,7 @@ import { useNotifyStore } from './notify'
 import { useSettingsStore, type ViewMode } from './settings'
 
 export const LIST_DAYS = 60
+export const VIEW_MODES: readonly ViewMode[] = ['month', 'week', 'day', 'list']
 
 /** Current view and displayed range */
 export const useViewStore = defineStore('view', () => {

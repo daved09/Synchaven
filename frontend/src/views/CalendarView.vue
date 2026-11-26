@@ -544,21 +544,25 @@ function onKey(e: KeyboardEvent) {
       @click="view.show('list'); searchOpen = true"
     />
 
-    <v-btn-toggle
-      v-if="lgAndUp" :model-value="view.mode" mandatory divided variant="outlined" rounded="xl" density="comfortable" class="mx-2"
-      @update:model-value="(m: ViewMode) => view.select(m)"
-    >
-      <v-btn v-for="m in modes" :key="m.value" :value="m.value" :title="`${m.title} (${m.key})`">{{ m.title }}</v-btn>
-    </v-btn-toggle>
-    <v-menu v-else>
+    <v-menu location="bottom end">
       <template #activator="{ props: p }">
-        <v-btn v-bind="p" :icon="currentMode.icon" :title="currentMode.title" />
+        <v-btn
+          v-if="mdAndUp" v-bind="p" variant="outlined" rounded="xl" class="mx-2" :prepend-icon="currentMode.icon"
+          append-icon="mdi-menu-down" :title="currentMode.title"
+        >
+          {{ currentMode.title }}
+        </v-btn>
+        <v-btn v-else v-bind="p" :icon="currentMode.icon" :title="currentMode.title" />
       </template>
       <v-list density="compact" rounded="lg">
         <v-list-item
           v-for="m in modes" :key="m.value" :prepend-icon="m.icon" :title="m.title" :active="view.mode === m.value"
           @click="view.select(m.value)"
-        />
+        >
+          <template #append>
+            <span class="text-body-small text-medium-emphasis ml-4">{{ m.key }}</span>
+          </template>
+        </v-list-item>
       </v-list>
     </v-menu>
 

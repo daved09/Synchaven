@@ -3,6 +3,7 @@ package de.dave.synchaven.data.local
 import de.dave.synchaven.R
 import de.dave.synchaven.data.model.CalEvent
 import de.dave.synchaven.data.model.Calendar
+import de.dave.synchaven.data.model.CalendarKind
 import de.dave.synchaven.data.offline.OfflineData
 import de.dave.synchaven.util.displayName
 import java.time.LocalDate
@@ -16,7 +17,6 @@ import java.util.Locale
  * to the title from the contact's birth year.
  */
 object Birthdays {
-    const val KIND = "birthdays"
     private const val COLOR = "#D81B60"
     /** Year for birthdays without a year (a leap year, so Feb 29 is valid too) */
     private const val NO_YEAR = 2000
@@ -43,12 +43,12 @@ object Birthdays {
     fun sync(data: OfflineData, newId: () -> String, now: String, texts: LocalTexts): OfflineData {
         val wanted = data.contacts.orEmpty().mapNotNull { c -> parse(c.birthday)?.let { c to it } }
         var calendars = data.calendars.orEmpty()
-        var calendar = calendars.firstOrNull { it.kind == KIND }
+        var calendar = calendars.firstOrNull { it.isBirthdays }
         if (calendar == null) {
             if (wanted.isEmpty()) return data
             calendar = Calendar(
                 id = newId(), name = texts.get(R.string.api_birthdays_calendar_name), color = COLOR,
-                description = texts.get(R.string.api_birthdays_calendar_description), kind = KIND, createdAt = now, updatedAt = now,
+                description = texts.get(R.string.api_birthdays_calendar_description), kind = CalendarKind.BIRTHDAYS, createdAt = now, updatedAt = now,
             )
             calendars = calendars + calendar
         }

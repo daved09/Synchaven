@@ -4,6 +4,7 @@ import de.dave.synchaven.data.api.AppJson
 import de.dave.synchaven.data.model.AddressBook
 import de.dave.synchaven.data.model.CalEvent
 import de.dave.synchaven.data.model.Calendar
+import de.dave.synchaven.data.model.CalendarKind
 import de.dave.synchaven.data.model.Contact
 import de.dave.synchaven.data.model.EventInput
 import de.dave.synchaven.data.offline.OfflineData
@@ -99,7 +100,7 @@ class OfflineDataTest {
     // ---------- Local state ----------
 
     private val base = OfflineData(
-        calendars = listOf(Calendar("c1", "Privat"), Calendar("bd", "Geburtstage", kind = "birthdays")),
+        calendars = listOf(Calendar("c1", "Privat"), Calendar("bd", "Geburtstage", kind = CalendarKind.BIRTHDAYS)),
         events = listOf(
             CalEvent(id = "e1", calendarId = "c1", title = "Sport", start = "2026-11-23T17:00:00Z",
                 end = "2026-11-23T18:00:00Z", rrule = "FREQ=WEEKLY"),

@@ -101,11 +101,7 @@ data class Calendar(
     val color: String = "#6750A4",
     val description: String = "",
     val visible: Boolean = true,
-    /**
-     * `default`, `birthdays` (generated automatically from the contacts) or `subscription` (fetched by the server from
-     * an .ics address, e.g. public holidays)
-     */
-    val kind: String = "default",
+    val kind: CalendarKind = CalendarKind.DEFAULT,
     /** Default reminders (minutes before the start) for timed events */
     @SerialName("default_reminders") val defaultReminders: List<Int> = Reminders.DEFAULT_TIMED,
     /** Default reminders for all-day events (negative = time on the day itself) */
@@ -119,10 +115,28 @@ data class Calendar(
     fun defaultReminders(allDay: Boolean) = if (allDay) defaultAllDayReminders else defaultReminders
 
     /** Birthday calendar: cannot be deleted, events read-only */
-    val isBirthdays get() = kind == "birthdays"
+    val isBirthdays get() = kind == CalendarKind.BIRTHDAYS
 
     /** Events cannot be added or changed (birthday calendar, subscriptions) */
-    val isReadOnly get() = kind == "birthdays" || kind == "subscription"
+    val isReadOnly get() = kind.isReadOnly
+}
+
+/**
+ * Kind of a calendar (`Calendar.kind` in the API). A kind this app version doesn't know yet becomes [DEFAULT]
+ * (`coerceInputValues` in [de.dave.synchaven.data.api.AppJson]); the server still rejects changes it doesn't allow.
+ */
+@Serializable
+enum class CalendarKind {
+    @SerialName("default") DEFAULT,
+
+    /** Generated automatically from the contacts */
+    @SerialName("birthdays") BIRTHDAYS,
+
+    /** Fetched by the server from an .ics address, e.g. public holidays */
+    @SerialName("subscription") SUBSCRIPTION;
+
+    /** Events cannot be added or changed */
+    val isReadOnly get() = this != DEFAULT
 }
 
 @Serializable

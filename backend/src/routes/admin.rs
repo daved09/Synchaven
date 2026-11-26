@@ -445,7 +445,7 @@ pub async fn update(
     .bind(input.is_admin.unwrap_or(user.is_admin))
     .bind(input.disabled.unwrap_or(user.disabled))
     .bind(revoke)
-    .bind(Utc::now().timestamp())
+    .bind(crate::auth::revoke_tokens_now())
     .bind(time::to_db(time::now()))
     .bind(&id)
     .execute(&state.db)
@@ -481,7 +481,7 @@ pub async fn logout_everywhere(
         return Err(AppError::BadRequest(tr!("admin.sign_out_self")));
     }
     let res = sqlx::query("UPDATE users SET tokens_valid_after = ? WHERE id = ?")
-        .bind(Utc::now().timestamp())
+        .bind(crate::auth::revoke_tokens_now())
         .bind(&id)
         .execute(&state.db)
         .await?;

@@ -186,6 +186,10 @@ watch(allDay, () => {
   if (!loading.value) ownReminders.value = null
 }, { flush: 'sync' })
 
+// Opened before the calendars had loaded (e.g. right after the page loads): preselect one as soon as they are there
+watch(() => calendars.writable, (list) => {
+  if (open.value && !props.eventId && !calendarId.value) calendarId.value = list.find((c) => c.visible)?.id ?? list[0]?.id ?? ''
+})
 const calendarItems = computed(() => calendars.writable.map((c) => ({ title: c.name, value: c.id, color: c.color })))
 
 async function save() {

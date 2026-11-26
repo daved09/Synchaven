@@ -330,7 +330,7 @@ pub async fn update_me(
     .bind(time::to_db(time::now()))
     // A new password ends all sessions – e.g. on a device that someone else got hold of
     .bind(wants_password)
-    .bind(chrono::Utc::now().timestamp())
+    .bind(crate::auth::revoke_tokens_now())
     .bind(&user.id)
     .execute(&mut *tx)
     .await?;

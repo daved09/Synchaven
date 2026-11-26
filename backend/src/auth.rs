@@ -22,6 +22,10 @@ struct Claims {
     sub: String,
     iat: i64,
     exp: i64,
+    /// Issue time in Unix milliseconds: `iat` has whole seconds only, too coarse to tell a token issued just
+    /// before "sign out everywhere" from one issued just after it. Missing in tokens of older versions.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    iat_ms: Option<i64>,
 }
 
 impl JwtKeys {
@@ -36,18 +40,33 @@ impl JwtKeys {
     pub fn issue(&self, user_id: &str, ttl_days: i64) -> Result<(String, chrono::DateTime<Utc>), AppError> {
         let now = Utc::now();
         let exp = now + Duration::days(ttl_days);
-        let claims = Claims { sub: user_id.to_string(), iat: now.timestamp(), exp: exp.timestamp() };
+        let claims = Claims {
+            sub: user_id.to_string(),
+            iat: now.timestamp(),
+            exp: exp.timestamp(),
+            iat_ms: Some(now.timestamp_millis()),
+        };
         let token = encode(&Header::default(), &claims, &self.encoding)
             .map_err(|e| AppError::Internal(e.into()))?;
         Ok((token, exp))
     }
 
-    /// User ID and issue time (Unix seconds) of a valid token
+    /// User ID and issue time (Unix milliseconds) of a valid token
     fn verify(&self, token: &str) -> Result<(String, i64), AppError> {
         decode::<Claims>(token, &self.decoding, &Validation::default())
-            .map(|d| (d.claims.sub, d.claims.iat))
+            .map(|d| (d.claims.sub, d.claims.iat_ms.unwrap_or(d.claims.iat * 1000)))
             .map_err(|_| AppError::Unauthorized(tr!("auth.token_invalid")))
     }
+}
+
+/// Value for `users.tokens_valid_after` that ends all sessions issued until now (Unix milliseconds)
+pub fn revoke_tokens_now() -> i64 {
+    Utc::now().timestamp_millis()
+}
+
+/// Was a token issued at `issued_at_ms` ended by "sign out everywhere" or a new password at `valid_after_ms`?
+fn revoked(issued_at_ms: i64, valid_after_ms: Option<i64>) -> bool {
+    valid_after_ms.is_some_and(|after| issued_at_ms < after)
 }
 
 pub fn hash_password(password: &str) -> Result<String, AppError> {
@@ -94,10 +113,14 @@ impl FromRequestParts<AppState> for AuthUser {
         match row {
             None => Err(AppError::Unauthorized(tr!("auth.user_gone"))),
             Some((true, _)) => Err(AppError::Unauthorized(tr!("auth.account_disabled"))),
-            Some((false, Some(after))) if issued_at < after => {
+            Some((false, after)) if revoked(issued_at, after) => {
                 Err(AppError::Unauthorized(tr!("auth.session_ended")))
             }
             Some(_) => Ok(AuthUser { id }),
         }
     }
 }
+
+#[cfg(test)]
+#[path = "../test/auth.rs"]
+mod tests;

@@ -58,10 +58,34 @@ fn completed_at_is_kept_while_completed() {
         due_at: None,
         all_day: true,
         completed_at: Some("2026-01-01T00:00:00Z".into()),
+        position: 0,
         created_at: String::new(),
         updated_at: String::new(),
     };
     assert_eq!(completed_at(&row, Some(true)).as_deref(), Some("2026-01-01T00:00:00Z"));
     assert_eq!(completed_at(&row, None).as_deref(), Some("2026-01-01T00:00:00Z"));
     assert_eq!(completed_at(&row, Some(false)), None);
+}
+
+#[test]
+fn reorder_inserts_after_the_given_sibling() {
+    let sibs = || vec!["a".to_string(), "b".into(), "c".into()];
+    assert_eq!(reorder(sibs(), "x", None).unwrap(), ["x", "a", "b", "c"]);
+    assert_eq!(reorder(sibs(), "x", Some("b")).unwrap(), ["a", "b", "x", "c"]);
+    assert_eq!(reorder(sibs(), "x", Some("c")).unwrap(), ["a", "b", "c", "x"]);
+    assert!(reorder(sibs(), "x", Some("other")).is_err());
+    assert_eq!(reorder(vec![], "x", None).unwrap(), ["x"]);
+}
+
+#[test]
+fn list_sort_by_is_validated() {
+    let list = |sort_by: Option<&str>| TaskListInput {
+        name: "Einkauf".into(),
+        color: None,
+        visible: None,
+        sort_by: sort_by.map(Into::into),
+    };
+    assert_eq!(validate_list(&list(None)).unwrap().sort_by, None);
+    assert_eq!(validate_list(&list(Some("due"))).unwrap().sort_by.as_deref(), Some("due"));
+    assert!(validate_list(&list(Some("title"))).is_err());
 }

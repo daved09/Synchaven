@@ -7,6 +7,7 @@ import de.dave.synchaven.data.model.ContactInput
 import de.dave.synchaven.data.model.EventInput
 import de.dave.synchaven.data.model.ExdateRequest
 import de.dave.synchaven.data.model.LoginRequest
+import de.dave.synchaven.data.model.MoveTaskRequest
 import de.dave.synchaven.data.model.RegisterRequest
 import de.dave.synchaven.data.model.TaskInput
 import de.dave.synchaven.data.model.TaskListInput
@@ -58,6 +59,7 @@ class SessionApi(
     override suspend fun updateTask(id: String, body: TaskInput) = api.updateTask(id, body)
     override suspend fun setTaskCompleted(id: String, body: CompletedRequest) = api.setTaskCompleted(id, body)
     override suspend fun deleteTask(id: String) = api.deleteTask(id)
+    override suspend fun moveTask(id: String, body: MoveTaskRequest) = api.moveTask(id, body)
 
     override suspend fun addressBooks() = api.addressBooks()
     override suspend fun createAddressBook(body: AddressBookInput) = api.createAddressBook(body)

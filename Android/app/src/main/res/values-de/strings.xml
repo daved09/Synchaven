@@ -501,6 +501,10 @@
     <string name="tasks_no_lists">Noch keine Aufgabenlisten vorhanden</string>
     <string name="tasks_completed_section">Erledigt (%1$d)</string>
     <string name="tasks_clear_completed">Erledigte Aufgaben löschen</string>
+    <string name="tasks_sort_manual">Meine Reihenfolge</string>
+    <string name="tasks_sort_due">Datum</string>
+    <string name="tasks_move_up">Nach oben</string>
+    <string name="tasks_move_down">Nach unten</string>
     <string name="tasks_select_list">Liste wählen</string>
     <string name="task_new">Neue Aufgabe</string>
     <string name="task_edit">Aufgabe bearbeiten</string>
@@ -581,6 +585,8 @@
     <string name="api_tasks_own_subtask">Eine Aufgabe kann nicht ihre eigene Unteraufgabe sein</string>
     <string name="api_tasks_parent_missing">Die übergeordnete Aufgabe gibt es nicht</string>
     <string name="api_tasks_nested_subtask">Unteraufgaben können keine eigenen Unteraufgaben haben</string>
+    <string name="api_tasks_not_sibling">Die Aufgabe kann nur zwischen Aufgaben derselben Ebene verschoben werden</string>
+    <string name="api_tasks_sort_by">Unbekannte Sortierung</string>
     <string name="api_tasks_parent_with_subtasks">Eine Aufgabe mit Unteraufgaben kann keine Unteraufgabe werden</string>
     <string name="api_tasks_invalid_due">Ungültige Fälligkeit</string>
     <string name="api_calendar_birthdays_not_deletable">Der Geburtstagskalender kann nicht gelöscht, aber ausgeblendet werden</string>

@@ -68,12 +68,28 @@ async fn list_response(state: &AppState, user_id: &str, id: &str) -> AppResult<T
     Ok(TaskList::from_row(row, count))
 }
 
-fn validate_list(input: &TaskListInput) -> AppResult<(String, Option<String>)> {
+/// Ways to sort a list's open tasks
+const SORT_BY: [&str; 2] = ["manual", "due"];
+
+struct ListData {
+    name: String,
+    color: Option<String>,
+    sort_by: Option<String>,
+}
+
+fn validate_list(input: &TaskListInput) -> AppResult<ListData> {
     let name = input.name.trim();
     if name.is_empty() || name.chars().count() > 100 {
         return Err(AppError::BadRequest(tr!("validation.name_length")));
     }
-    Ok((name.to_string(), parse_color(input.color.as_deref())?))
+    if input.sort_by.as_deref().is_some_and(|s| !SORT_BY.contains(&s)) {
+        return Err(AppError::BadRequest(tr!("tasks.sort_by")));
+    }
+    Ok(ListData {
+        name: name.to_string(),
+        color: parse_color(input.color.as_deref())?,
+        sort_by: input.sort_by.clone(),
+    })
 }
 
 pub async fn list_lists(State(state): State<AppState>, auth: AuthUser) -> AppResult<Json<Vec<TaskList>>> {
@@ -98,17 +114,19 @@ pub async fn create_list(
     auth: AuthUser,
     Json(input): Json<TaskListInput>,
 ) -> AppResult<(StatusCode, Json<TaskList>)> {
-    let (name, color) = validate_list(&input)?;
+    let data = validate_list(&input)?;
     let id = uuid::Uuid::new_v4().to_string();
     let now = time::to_db(time::now());
     sqlx::query(
-        "INSERT INTO task_lists (id, user_id, name, color, visible, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO task_lists (id, user_id, name, color, visible, sort_by, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(&id)
     .bind(&auth.id)
-    .bind(&name)
-    .bind(color.unwrap_or_else(|| DEFAULT_LIST_COLOR.into()))
+    .bind(&data.name)
+    .bind(data.color.unwrap_or_else(|| DEFAULT_LIST_COLOR.into()))
     .bind(input.visible.unwrap_or(true))
+    .bind(data.sort_by.as_deref().unwrap_or("manual"))
     .bind(&now)
     .bind(&now)
     .execute(&state.db)
@@ -123,11 +141,12 @@ pub async fn update_list(
     Json(input): Json<TaskListInput>,
 ) -> AppResult<Json<TaskList>> {
     let existing = owned_list(&state, &auth.id, &id).await?;
-    let (name, color) = validate_list(&input)?;
-    sqlx::query("UPDATE task_lists SET name = ?, color = ?, visible = ?, updated_at = ? WHERE id = ?")
-        .bind(&name)
-        .bind(color.unwrap_or(existing.color))
+    let data = validate_list(&input)?;
+    sqlx::query("UPDATE task_lists SET name = ?, color = ?, visible = ?, sort_by = ?, updated_at = ? WHERE id = ?")
+        .bind(&data.name)
+        .bind(data.color.unwrap_or(existing.color))
         .bind(input.visible.unwrap_or(existing.visible))
+        .bind(data.sort_by.unwrap_or(existing.sort_by))
         .bind(time::to_db(time::now()))
         .bind(&id)
         .execute(&state.db)
@@ -204,6 +223,18 @@ async fn owned_task(state: &AppState, user_id: &str, id: &str) -> AppResult<Task
     .fetch_optional(&state.db)
     .await?
     .ok_or(AppError::NotFound)
+}
+
+/// Position for a task that newly joins the tasks with this list and parent task: new top-level tasks
+/// come first (as in Google Tasks), new subtasks last – they are usually entered one after another.
+async fn new_position(state: &AppState, list_id: &str, parent_id: Option<&str>) -> AppResult<i64> {
+    let sql = if parent_id.is_none() {
+        "SELECT COALESCE(MIN(position) - 1, 0) FROM tasks WHERE list_id = ? AND parent_id IS ?"
+    } else {
+        "SELECT COALESCE(MAX(position) + 1, 0) FROM tasks WHERE list_id = ? AND parent_id IS ?"
+    };
+    let (pos,): (i64,) = sqlx::query_as(sql).bind(list_id).bind(parent_id).fetch_one(&state.db).await?;
+    Ok(pos)
 }
 
 /// Parent task after saving. Subtasks are only one level deep and only within one
@@ -301,11 +332,12 @@ pub async fn create(
     let data = validate_task(input)?;
     owned_list(&state, &auth.id, &data.list_id).await?;
     let parent_id = resolve_parent(&state, &auth.id, None, &data).await?;
+    let position = new_position(&state, &data.list_id, parent_id.as_deref()).await?;
     let id = uuid::Uuid::new_v4().to_string();
     let now = time::to_db(time::now());
     sqlx::query(
-        "INSERT INTO tasks (id, list_id, parent_id, title, notes, due_at, all_day, completed_at, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO tasks (id, list_id, parent_id, title, notes, due_at, all_day, completed_at, position, created_at,
+         updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(&id)
     .bind(&data.list_id)
@@ -315,6 +347,7 @@ pub async fn create(
     .bind(&data.due)
     .bind(data.all_day)
     .bind(data.completed.unwrap_or(false).then(|| now.clone()))
+    .bind(position)
     .bind(&now)
     .bind(&now)
     .execute(&state.db)
@@ -345,10 +378,16 @@ pub async fn update(
     let data = validate_task(input)?;
     owned_list(&state, &auth.id, &data.list_id).await?;
     let parent_id = resolve_parent(&state, &auth.id, Some(&existing), &data).await?;
+    // In another list or under another parent task, it gets a place among its new siblings
+    let position = if data.list_id != existing.list_id || parent_id != existing.parent_id {
+        new_position(&state, &data.list_id, parent_id.as_deref()).await?
+    } else {
+        existing.position
+    };
     let now = time::to_db(time::now());
     sqlx::query(
         "UPDATE tasks SET list_id = ?, parent_id = ?, title = ?, notes = ?, due_at = ?, all_day = ?, completed_at = ?,
-         updated_at = ? WHERE id = ?",
+         position = ?, updated_at = ? WHERE id = ?",
     )
     .bind(&data.list_id)
     .bind(&parent_id)
@@ -357,6 +396,7 @@ pub async fn update(
     .bind(&data.due)
     .bind(data.all_day)
     .bind(completed_at(&existing, data.completed))
+    .bind(position)
     .bind(&now)
     .bind(&id)
     .execute(&state.db)
@@ -399,6 +439,71 @@ pub async fn set_completed(
     let row = owned_task(&state, &auth.id, &id).await?;
     cascade_completed(&state, &row).await?;
     Ok(Json(row.into()))
+}
+
+#[derive(Deserialize)]
+pub struct MoveInput {
+    /// Task directly before it afterwards (same list and parent task); `null` = first
+    #[serde(default)]
+    after: Option<String>,
+}
+
+/// Order of a task among its siblings after moving it behind `after` (`None` = to the front).
+/// `siblings` are the other tasks with the same list and parent task in their current order.
+fn reorder(siblings: Vec<String>, id: &str, after: Option<&str>) -> AppResult<Vec<String>> {
+    let index = match after {
+        None => 0,
+        Some(a) => siblings
+            .iter()
+            .position(|s| s == a)
+            .ok_or_else(|| AppError::BadRequest(tr!("tasks.not_sibling")))?
+            + 1,
+    };
+    let mut order = siblings;
+    order.insert(index, id.to_string());
+    Ok(order)
+}
+
+/// Moves a task within its list and parent task (manual order). Returns all tasks of that level with their
+/// new positions.
+pub async fn move_task(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(id): Path<String>,
+    Json(input): Json<MoveInput>,
+) -> AppResult<Json<Vec<Task>>> {
+    let task = owned_task(&state, &auth.id, &id).await?;
+    let mut tx = state.db.begin().await?;
+    let siblings: Vec<(String,)> = sqlx::query_as(
+        "SELECT id FROM tasks WHERE list_id = ? AND parent_id IS ? AND id != ? ORDER BY position, created_at, id",
+    )
+    .bind(&task.list_id)
+    .bind(&task.parent_id)
+    .bind(&id)
+    .fetch_all(&mut *tx)
+    .await?;
+    let order = reorder(siblings.into_iter().map(|(s,)| s).collect(), &id, input.after.as_deref())?;
+    for (pos, sid) in order.iter().enumerate() {
+        sqlx::query("UPDATE tasks SET position = ? WHERE id = ? AND position != ?")
+            .bind(pos as i64)
+            .bind(sid)
+            .bind(pos as i64)
+            .execute(&mut *tx)
+            .await?;
+    }
+    sqlx::query("UPDATE tasks SET updated_at = ? WHERE id = ?")
+        .bind(time::to_db(time::now()))
+        .bind(&id)
+        .execute(&mut *tx)
+        .await?;
+    let rows: Vec<TaskRow> =
+        sqlx::query_as("SELECT * FROM tasks WHERE list_id = ? AND parent_id IS ? ORDER BY position, created_at, id")
+            .bind(&task.list_id)
+            .bind(&task.parent_id)
+            .fetch_all(&mut *tx)
+            .await?;
+    tx.commit().await?;
+    Ok(Json(rows.into_iter().map(Into::into).collect()))
 }
 
 pub async fn delete(State(state): State<AppState>, auth: AuthUser, Path(id): Path<String>) -> AppResult<StatusCode> {

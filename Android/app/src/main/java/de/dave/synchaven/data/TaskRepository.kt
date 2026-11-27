@@ -4,6 +4,7 @@ import de.dave.synchaven.data.api.ApiException
 import de.dave.synchaven.data.api.SyncHavenApi
 import de.dave.synchaven.data.api.apiCall
 import de.dave.synchaven.data.model.CompletedRequest
+import de.dave.synchaven.data.model.MoveTaskRequest
 import de.dave.synchaven.data.model.Task
 import de.dave.synchaven.data.model.TaskInput
 import de.dave.synchaven.data.model.TaskList
@@ -71,6 +72,18 @@ class TaskRepository(
         sync.mergeServer { it.apply(PendingOp.UpdateTaskList(list.id, toggled.toInput())) }
         try {
             updateList(list.id, toggled.toInput())
+        } catch (e: Exception) {
+            sync.mergeServer { it.apply(PendingOp.UpdateTaskList(list.id, list.toInput())) }
+            throw e
+        }
+    }
+
+    /** Own order or by due date – immediately locally, then on the server. */
+    suspend fun setSortBy(list: TaskList, sortBy: String) {
+        val changed = list.copy(sortBy = sortBy)
+        sync.mergeServer { it.apply(PendingOp.UpdateTaskList(list.id, changed.toInput())) }
+        try {
+            updateList(list.id, changed.toInput())
         } catch (e: Exception) {
             sync.mergeServer { it.apply(PendingOp.UpdateTaskList(list.id, list.toInput())) }
             throw e
@@ -161,6 +174,29 @@ class TaskRepository(
             },
             offline = { },
         )
+    }
+
+    /**
+     * Moves a task behind [after] among the tasks with the same list and parent task (`null` = first) – visible
+     * immediately, without a connection via the queue.
+     */
+    suspend fun moveTask(task: Task, after: String?) {
+        val before = store.data.value.tasks
+        sync.mergeServer { d -> d.copy(tasks = d.tasks?.withTaskMoved(task.id, after)) }
+        try {
+            sync.write(
+                PendingOp.MoveTask(task.id, after),
+                online = {
+                    val level = apiCall { api.moveTask(task.id, MoveTaskRequest(after)) }.associateBy { it.id }
+                    sync.mergeServer { d -> d.copy(tasks = d.tasks?.map { level[it.id] ?: it }) }
+                },
+                offline = { },
+            )
+        } catch (e: Exception) {
+            val ids = before.orEmpty().associateBy { it.id }
+            sync.mergeServer { d -> d.copy(tasks = d.tasks?.map { t -> ids[t.id]?.let { t.copy(position = it.position) } ?: t }) }
+            throw e
+        }
     }
 
     /** Takes a task returned by the server into the cache. */

@@ -69,12 +69,12 @@ class SubtasksTest {
 
     @Test
     fun movingParentMovesSubtasksAndMovingSubtaskDetachesIt() {
-        val moved = all.withTaskSaved(parent.copy(listId = "l2"), set).associateBy { it.id }
+        val moved = all.withTaskSaved(parent.copy(listId = "l2"), set = set).associateBy { it.id }
         assertEquals("l2", moved.getValue("s1").listId)
         assertEquals("l2", moved.getValue("s2").listId)
         assertEquals("l1", moved.getValue("o").listId)
 
-        val detached = all.withTaskSaved(sub1.copy(listId = "l2"), set).associateBy { it.id }
+        val detached = all.withTaskSaved(sub1.copy(listId = "l2"), set = set).associateBy { it.id }
         assertNull(detached.getValue("s1").parentId)
         assertEquals("l1", detached.getValue("s2").listId)
     }

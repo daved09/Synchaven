@@ -278,6 +278,7 @@ pub struct TaskListRow {
     pub name: String,
     pub color: String,
     pub visible: bool,
+    pub sort_by: String,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -289,6 +290,8 @@ pub struct TaskList {
     pub color: String,
     /// Show this list's tasks in the calendar
     pub visible: bool,
+    /// Order of the open tasks: `manual` (own order, see `Task::position`) or `due` (by due date)
+    pub sort_by: String,
     /// Number of open tasks
     pub open_count: i64,
     pub created_at: DateTime<Utc>,
@@ -302,6 +305,7 @@ impl TaskList {
             name: r.name,
             color: r.color,
             visible: r.visible,
+            sort_by: r.sort_by,
             open_count,
             created_at: from_db(&r.created_at),
             updated_at: from_db(&r.updated_at),
@@ -314,6 +318,8 @@ pub struct TaskListInput {
     pub name: String,
     pub color: Option<String>,
     pub visible: Option<bool>,
+    /// `manual` or `due`; if the field is missing, it is kept (new lists: `manual`)
+    pub sort_by: Option<String>,
 }
 
 #[derive(Debug, Clone, FromRow)]
@@ -326,6 +332,7 @@ pub struct TaskRow {
     pub due_at: Option<String>,
     pub all_day: bool,
     pub completed_at: Option<String>,
+    pub position: i64,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -343,6 +350,8 @@ pub struct Task {
     pub all_day: bool,
     pub completed: bool,
     pub completed_at: Option<DateTime<Utc>>,
+    /// Manual order among the tasks with the same list and parent task (smaller first)
+    pub position: i64,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -359,6 +368,7 @@ impl From<TaskRow> for Task {
             all_day: r.all_day,
             completed: r.completed_at.is_some(),
             completed_at: r.completed_at.as_deref().map(from_db),
+            position: r.position,
             created_at: from_db(&r.created_at),
             updated_at: from_db(&r.updated_at),
         }

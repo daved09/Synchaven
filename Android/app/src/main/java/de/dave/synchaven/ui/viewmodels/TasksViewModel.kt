@@ -58,7 +58,7 @@ class TasksViewModel(private val repo: TaskRepository) : ViewModel() {
         val list = l.firstOrNull { it.id == sel } ?: l.firstOrNull()
         TasksUiState(
             lists = l, list = list,
-            open = list?.let { openTasks(all, it.id) }.orEmpty(),
+            open = list?.let { openTasks(all, it.id, it.sortBy) }.orEmpty(),
             subtasks = list?.let { openSubtasks(all, it.id) }.orEmpty(),
             completed = list?.let { completedTasks(all, it.id) }.orEmpty(),
             all = all, showCompleted = showDone,
@@ -120,6 +120,14 @@ class TasksViewModel(private val repo: TaskRepository) : ViewModel() {
         repo.deleteTask(task.id)
         messages.send(uiText(R.string.msg_task_deleted))
     }
+
+    fun setSortBy(sortBy: String) {
+        val list = state.value.list ?: return
+        if (list.sortBy != sortBy) launchAction { repo.setSortBy(list, sortBy) }
+    }
+
+    /** Moves [task] behind [after] among its siblings (`null` = first) */
+    fun move(task: Task, after: String?) = launchAction { repo.moveTask(task, after) }
 
     fun clearCompleted() {
         val listId = state.value.list?.id ?: return

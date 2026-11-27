@@ -2,7 +2,10 @@ package de.dave.synchaven.util
 
 import de.dave.synchaven.R
 import de.dave.synchaven.UiText
+import de.dave.synchaven.data.TaskOrder
 import de.dave.synchaven.data.model.Occurrence
+import de.dave.synchaven.data.model.TASK_SORT_DUE
+import de.dave.synchaven.data.model.TASK_SORT_MANUAL
 import de.dave.synchaven.data.model.Task
 import de.dave.synchaven.data.model.TaskList
 import de.dave.synchaven.toUiText
@@ -57,20 +60,21 @@ fun calendarTasks(lists: List<TaskList>, tasks: List<Task>, zone: ZoneId = devic
 }
 
 /**
- * Open top-level tasks of a list by due date, without date last. Open subtasks without an open parent task
- * in the list are listed here too, so nothing gets lost.
+ * Open top-level tasks of a list in the list's order: own order ([TASK_SORT_MANUAL]) or by due date, without date
+ * last. Open subtasks without an open parent task in the list are listed here too, so nothing gets lost.
  */
-fun openTasks(tasks: List<Task>, listId: String): List<Task> {
+fun openTasks(tasks: List<Task>, listId: String, sortBy: String = TASK_SORT_DUE): List<Task> {
     val open = tasks.filter { it.listId == listId && !it.completed }
     val openIds = open.mapTo(HashSet()) { it.id }
+    val byDue = compareBy<Task>({ it.due == null }, { it.due?.let(::parseInstant) }, { it.createdAt }, { it.id })
     return open.filter { it.parentId == null || it.parentId !in openIds }
-        .sortedWith(compareBy<Task>({ it.due == null }, { it.due?.let(::parseInstant) }, { it.createdAt }))
+        .sortedWith(if (sortBy == TASK_SORT_MANUAL) TaskOrder else byDue)
 }
 
-/** Open subtasks per open top-level task of the list, in the order they were created */
+/** Open subtasks per open top-level task of the list, in their own order */
 fun openSubtasks(tasks: List<Task>, listId: String): Map<String, List<Task>> =
     tasks.filter { it.listId == listId && !it.completed && it.parentId != null }
-        .sortedWith(compareBy<Task>({ it.createdAt }, { it.id }))
+        .sortedWith(TaskOrder)
         .groupBy { it.parentId!! }
 
 /** Completed tasks of a list, most recently completed first */

@@ -89,7 +89,13 @@ sealed interface PendingOp {
         override val targetId get() = id
     }
 
-    /** Name, color or visibility of a task list */
+    /** Own order: behind [after] among the tasks with the same list and parent task; `null` = first */
+    @Serializable @SerialName("task_move")
+    data class MoveTask(val id: String, val after: String?) : PendingOp {
+        override val targetId get() = id
+    }
+
+    /** Name, color, visibility or sort order of a task list */
     @Serializable @SerialName("task_list_update")
     data class UpdateTaskList(val id: String, val input: TaskListInput) : PendingOp {
         override val targetId get() = id
@@ -109,7 +115,8 @@ private fun PendingOp.isContactOp() =
     this is PendingOp.CreateContact || this is PendingOp.UpdateContact || this is PendingOp.DeleteContact
 
 private fun PendingOp.isTaskOp() =
-    this is PendingOp.CreateTask || this is PendingOp.UpdateTask || this is PendingOp.SetTaskCompleted || this is PendingOp.DeleteTask
+    this is PendingOp.CreateTask || this is PendingOp.UpdateTask || this is PendingOp.SetTaskCompleted ||
+        this is PendingOp.DeleteTask || this is PendingOp.MoveTask
 
 private fun PendingOp.sameTarget(other: PendingOp) = targetId == other.targetId &&
     ((isEventOp() && other.isEventOp()) || (isContactOp() && other.isContactOp()) || (isTaskOp() && other.isTaskOp()))
@@ -183,6 +190,9 @@ private fun List<PendingOp>.merge(op: PendingOp): List<PendingOp> = when (op) {
         if (createdOffline) rest else rest + op
     }
 
+    // Only the last move counts: it places the task relative to the order that results from all others
+    is PendingOp.MoveTask -> filterNot { it is PendingOp.MoveTask && it.id == op.id } + op
+
     is PendingOp.UpdateCalendar -> filterNot { it is PendingOp.UpdateCalendar && it.id == op.id } + op
 
     is PendingOp.UpdateTaskList -> filterNot { it is PendingOp.UpdateTaskList && it.id == op.id } + op
@@ -197,6 +207,9 @@ fun List<PendingOp>.remap(localId: String, serverId: String): List<PendingOp> = 
         op is PendingOp.CreateTask && op.input.parentId == localId -> op.copy(input = op.input.copy(parentId = serverId))
         op is PendingOp.UpdateTask && op.input.parentId == localId ->
             op.copy(id = if (op.id == localId) serverId else op.id, input = op.input.copy(parentId = serverId))
+        // Moved behind a task created offline
+        op is PendingOp.MoveTask && (op.id == localId || op.after == localId) ->
+            op.copy(id = if (op.id == localId) serverId else op.id, after = if (op.after == localId) serverId else op.after)
         op.targetId != localId -> op
         op is PendingOp.UpdateEvent -> op.copy(id = serverId)
         op is PendingOp.DeleteEvent -> op.copy(id = serverId)

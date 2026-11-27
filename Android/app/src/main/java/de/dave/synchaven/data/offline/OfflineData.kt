@@ -11,6 +11,7 @@ import de.dave.synchaven.data.model.Task
 import de.dave.synchaven.data.model.TaskInput
 import de.dave.synchaven.data.model.TaskList
 import de.dave.synchaven.data.withTaskCompleted
+import de.dave.synchaven.data.withTaskMoved
 import de.dave.synchaven.data.withTaskSaved
 import de.dave.synchaven.data.withoutTask
 import de.dave.synchaven.util.RRuleExpander
@@ -97,21 +98,28 @@ data class OfflineData(
         })
         is PendingOp.CreateTask -> withTasks { list ->
             val base = list.firstOrNull { it.id == op.localId }
-            list.withTaskSaved(op.input.toLocalTask(op.localId, base = base, createdAt = op.createdAt)) { t, done ->
+            list.withTaskSaved(op.input.toLocalTask(op.localId, base = base, createdAt = op.createdAt), place = true) { t, done ->
                 t.withCompleted(done, op.createdAt)
             }
         }
         is PendingOp.UpdateTask -> withTasks { list ->
             val base = list.firstOrNull { it.id == op.id } ?: return@withTasks list
-            list.withTaskSaved(op.input.toLocalTask(base.id, base = base)) { t, done -> t.withCompleted(done, "") }
+            list.withTaskSaved(op.input.toLocalTask(base.id, base = base), place = true) { t, done -> t.withCompleted(done, "") }
         }
+        is PendingOp.MoveTask -> withTasks { list -> list.withTaskMoved(op.id, op.after) }
         is PendingOp.SetTaskCompleted -> withTasks { list ->
             list.withTaskCompleted(op.id, op.completed, op.at) { t, done -> t.withCompleted(done, op.at) }
         }
         is PendingOp.DeleteTask -> withTasks { list -> list.withoutTask(op.id) }
         is PendingOp.UpdateTaskList -> copy(taskLists = taskLists?.map { l ->
-            if (l.id == op.id) l.copy(name = op.input.name, color = op.input.color ?: l.color, visible = op.input.visible ?: l.visible)
-            else l
+            if (l.id == op.id) {
+                l.copy(
+                    name = op.input.name, color = op.input.color ?: l.color, visible = op.input.visible ?: l.visible,
+                    sortBy = op.input.sortBy ?: l.sortBy,
+                )
+            } else {
+                l
+            }
         })
         is PendingOp.SetDefaultView -> this
     }
@@ -239,6 +247,7 @@ fun TaskInput.toLocalTask(id: String, base: Task? = null, createdAt: String = ""
         completedAt = if (done) base?.completedAt?.takeIf { base.completed } ?: createdAt.ifEmpty { null } else null,
         createdAt = base?.createdAt ?: createdAt,
         updatedAt = base?.updatedAt ?: createdAt,
+        position = base?.position ?: 0,
     )
 }
 

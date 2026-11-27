@@ -15,6 +15,7 @@ import de.dave.synchaven.data.model.EventInput
 import de.dave.synchaven.data.model.ExdateRequest
 import de.dave.synchaven.data.model.ImportResult
 import de.dave.synchaven.data.model.LoginRequest
+import de.dave.synchaven.data.model.MoveTaskRequest
 import de.dave.synchaven.data.model.Occurrence
 import de.dave.synchaven.data.model.RegisterRequest
 import de.dave.synchaven.data.model.ServerInfo
@@ -152,6 +153,10 @@ interface SyncHavenApi {
 
     @DELETE("tasks/{id}")
     suspend fun deleteTask(@Path("id") id: String)
+
+    /** Own order; returns all tasks of that level with their new positions */
+    @PUT("tasks/{id}/position")
+    suspend fun moveTask(@Path("id") id: String, @Body body: MoveTaskRequest): List<Task>
 
     // ---------- Address books & contacts ----------
 

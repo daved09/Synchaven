@@ -57,6 +57,7 @@ pub fn api_router() -> Router<AppState> {
         .route("/tasks", get(tasks::list).post(tasks::create))
         .route("/tasks/{id}", get(tasks::get).put(tasks::update).delete(tasks::delete))
         .route("/tasks/{id}/completed", put(tasks::set_completed))
+        .route("/tasks/{id}/position", put(tasks::move_task))
         .route("/push/public-key", get(push::public_key))
         .route("/push/subscriptions", post(push::subscribe).delete(push::unsubscribe))
         .route("/push/test", post(push::test))

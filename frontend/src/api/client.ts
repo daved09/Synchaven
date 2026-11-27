@@ -153,6 +153,8 @@ export const api = {
   setTaskCompleted: (id: string, completed: boolean) =>
     request<Task>('PUT', `/tasks/${id}/completed`, { body: { completed } }),
   deleteTask: (id: string) => request<void>('DELETE', `/tasks/${id}`),
+  /** Moves a task behind `after` (same list and parent task; `null` = first); returns that level's tasks */
+  moveTask: (id: string, after: string | null) => request<Task[]>('PUT', `/tasks/${id}/position`, { body: { after } }),
 
   pushPublicKey: () => request<{ public_key: string }>('GET', '/push/public-key'),
   pushSubscribe: (data: PushSubscriptionInput) => request<void>('POST', '/push/subscriptions', { body: data }),

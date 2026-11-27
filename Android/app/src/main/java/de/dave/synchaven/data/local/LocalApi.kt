@@ -27,6 +27,9 @@ import de.dave.synchaven.data.model.LoginRequest
 import de.dave.synchaven.data.model.Occurrence
 import de.dave.synchaven.data.model.RegisterRequest
 import de.dave.synchaven.data.model.ServerInfo
+import de.dave.synchaven.data.model.MoveTaskRequest
+import de.dave.synchaven.data.model.TASK_SORT_DUE
+import de.dave.synchaven.data.model.TASK_SORT_MANUAL
 import de.dave.synchaven.data.model.Task
 import de.dave.synchaven.data.model.TaskInput
 import de.dave.synchaven.data.model.TaskList
@@ -37,7 +40,9 @@ import de.dave.synchaven.data.model.User
 import de.dave.synchaven.data.offline.OfflineData
 import de.dave.synchaven.data.offline.OfflineStore
 import de.dave.synchaven.data.offline.toLocalTask
+import de.dave.synchaven.data.TaskOrder
 import de.dave.synchaven.data.withTaskCompleted
+import de.dave.synchaven.data.withTaskMoved
 import de.dave.synchaven.data.withTaskSaved
 import de.dave.synchaven.data.withoutCompleted
 import de.dave.synchaven.data.withoutTask
@@ -131,7 +136,14 @@ class LocalApi(
     /** Creates the default list ("My tasks", like the server) if there is none yet. */
     private fun OfflineData.withDefaultTaskList(ts: String): OfflineData =
         if (!taskLists.isNullOrEmpty()) this
-        else copy(taskLists = listOf(TaskList(newId(), texts.get(R.string.api_tasks_default_list_name), DEFAULT_TASK_COLOR, createdAt = ts, updatedAt = ts)))
+        else copy(
+            taskLists = listOf(
+                TaskList(
+                    newId(), texts.get(R.string.api_tasks_default_list_name), DEFAULT_TASK_COLOR, sortBy = TASK_SORT_MANUAL,
+                    createdAt = ts, updatedAt = ts,
+                ),
+            ),
+        )
     // Like backend/src/routes/tasks.rs: at least one list, the last one cannot be deleted.
 
     override suspend fun taskLists(): List<TaskList> {
@@ -142,7 +154,10 @@ class LocalApi(
     override suspend fun createTaskList(body: TaskListInput): TaskList {
         val (name, color) = validateTaskList(body)
         val ts = now()
-        val list = TaskList(newId(), name, color ?: DEFAULT_TASK_COLOR, body.visible ?: true, createdAt = ts, updatedAt = ts)
+        val list = TaskList(
+            newId(), name, color ?: DEFAULT_TASK_COLOR, body.visible ?: true, sortBy = body.sortBy ?: TASK_SORT_MANUAL,
+            createdAt = ts, updatedAt = ts,
+        )
         edit { d -> d.copy(taskLists = d.taskLists.orEmpty() + list).recount() }
         return data().taskLists.orEmpty().first { it.id == list.id }
     }
@@ -151,7 +166,10 @@ class LocalApi(
         val (name, color) = validateTaskList(body)
         edit { d ->
             val old = taskList(d, id)
-            val list = old.copy(name = name, color = color ?: old.color, visible = body.visible ?: old.visible, updatedAt = now())
+            val list = old.copy(
+                name = name, color = color ?: old.color, visible = body.visible ?: old.visible, sortBy = body.sortBy ?: old.sortBy,
+                updatedAt = now(),
+            )
             d.copy(taskLists = d.taskLists.orEmpty().map { if (it.id == id) list else it })
         }
         return taskList(data(), id)
@@ -191,7 +209,7 @@ class LocalApi(
         edit { d ->
             taskList(d, t.listId)
             validateParent(d, null, body)
-            d.copy(tasks = d.tasks.orEmpty().withTaskSaved(t) { x, done -> x.withCompleted(done, ts) }).recount()
+            d.copy(tasks = d.tasks.orEmpty().withTaskSaved(t, place = true) { x, done -> x.withCompleted(done, ts) }).recount()
         }
         return task(data(), t.id)
     }
@@ -204,7 +222,9 @@ class LocalApi(
             val ts = now()
             validateParent(d, old, body)
             val t = body.toLocalTask(id, base = old, createdAt = ts).copy(updatedAt = ts)
-            d.copy(tasks = d.tasks.orEmpty().withTaskSaved(t) { x, done -> x.withCompleted(done, ts).copy(updatedAt = ts) }).recount()
+            d.copy(
+                tasks = d.tasks.orEmpty().withTaskSaved(t, place = true) { x, done -> x.withCompleted(done, ts).copy(updatedAt = ts) },
+            ).recount()
         }
         return task(data(), id)
     }
@@ -229,12 +249,30 @@ class LocalApi(
         }
     }
 
+    /** Like `PUT /tasks/{id}/position`: [MoveTaskRequest.after] must be a task of the same level */
+    override suspend fun moveTask(id: String, body: MoveTaskRequest): List<Task> {
+        var level: List<Task> = emptyList()
+        edit { d ->
+            val t = task(d, id)
+            val all = d.tasks.orEmpty()
+            if (body.after != null && all.none { it.id == body.after && it.id != id && it.listId == t.listId && it.parentId == t.parentId }) {
+                bad(R.string.api_tasks_not_sibling)
+            }
+            val ts = now()
+            val moved = all.withTaskMoved(id, body.after).map { if (it.id == id) it.copy(updatedAt = ts) else it }
+            level = moved.filter { it.listId == t.listId && it.parentId == t.parentId }.sortedWith(TaskOrder)
+            d.copy(tasks = moved)
+        }
+        return level
+    }
+
     private fun taskList(d: OfflineData, id: String) = d.taskLists.orEmpty().firstOrNull { it.id == id } ?: notFound()
     private fun task(d: OfflineData, id: String) = d.tasks.orEmpty().firstOrNull { it.id == id } ?: notFound()
 
     private fun validateTaskList(input: TaskListInput): Pair<String, String?> {
         val name = input.name.trim()
         if (name.isEmpty() || name.length > 100) bad(R.string.api_validation_name_length)
+        if (input.sortBy != null && input.sortBy != TASK_SORT_MANUAL && input.sortBy != TASK_SORT_DUE) bad(R.string.api_tasks_sort_by)
         val color = input.color?.trim()?.takeIf { it.isNotEmpty() }?.let {
             if (!Regex("#[0-9A-Fa-f]{6}").matches(it)) bad(R.string.api_validation_color_format)
             it.uppercase()

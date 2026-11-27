@@ -362,14 +362,15 @@ list "Meine Aufgaben" (my tasks); the last list cannot be deleted.
 
 ### `GET /task-lists` → `TaskList[]`
 ```json
-[{ "id": "…", "name": "Meine Aufgaben", "color": "#1A73E8", "visible": true, "open_count": 3,
+[{ "id": "…", "name": "Meine Aufgaben", "color": "#1A73E8", "visible": true, "sort_by": "manual", "open_count": 3,
    "created_at": "…", "updated_at": "…" }]
 ```
-`visible`: show this list's tasks in the calendar. `open_count`: number of open tasks.
+`visible`: show this list's tasks in the calendar. `sort_by`: how clients sort the open tasks – `manual` (own order,
+see `position`) or `due` (by due date, without date last). `open_count`: number of open tasks.
 
 ### `POST /task-lists` → `201 TaskList`  ·  `PUT /task-lists/{id}` → `TaskList`
-Body `{ "name": "Shopping", "color": "#0B57D0", "visible": true }`. `color` and `visible` are optional; when
-editing, missing values are kept.
+Body `{ "name": "Shopping", "color": "#0B57D0", "visible": true, "sort_by": "due" }`. `color`, `visible` and `sort_by`
+are optional; when editing, missing values are kept (new lists: `manual`).
 
 ### `DELETE /task-lists/{id}` → `204`  (deletes all contained tasks; `400` for the last list)
 
@@ -380,13 +381,16 @@ Deletes all completed tasks of the list.
 All of the user's tasks: open before completed, then by due date (without date last).
 ```json
 [{ "id": "…", "list_id": "…", "parent_id": null, "title": "File taxes", "notes": "", "due": "2026-11-25T00:00:00Z",
-   "all_day": true, "completed": false, "completed_at": null, "created_at": "…", "updated_at": "…" }]
+   "all_day": true, "completed": false, "completed_at": null, "position": 0, "created_at": "…", "updated_at": "…" }]
 ```
 `due` follows the events' time model: all-day as midnight UTC of the day, otherwise a point in time in UTC;
 `null` = without date (then `all_day` is always `true`).
 
 `parent_id`: parent task if this is a **subtask**, otherwise `null`. As in Google Tasks, subtasks are
 only one level deep and only within one list.
+
+`position`: own order among the tasks with the same list and parent task (smaller first; ties by `created_at`).
+New top-level tasks come first, new subtasks last; a task moved to another list or parent task likewise.
 
 ### `POST /tasks` → `201 Task`  ·  `PUT /tasks/{id}` → `Task`
 ```json
@@ -407,6 +411,11 @@ Body `{ "completed": true }` – check off or reopen. `completed_at` is kept as 
 stays completed. Completing a parent task also checks off its open subtasks; reopening a
 subtask also reopens its parent task. The response only contains the given task – clients apply these
 rules themselves or reload the tasks. The same applies when `completed` changes via `PUT /tasks/{id}`.
+
+### `PUT /tasks/{id}/position` → `Task[]`
+Body `{ "after": "…" }` – moves the task behind `after` among the tasks with the same list and parent task;
+`null` (or missing) moves it to the front. `400` if `after` is not such a task. The response contains all tasks of
+that level with their new positions (numbered from 0).
 
 ### `GET /tasks/{id}` → `Task`  ·  `DELETE /tasks/{id}` → `204`  (also deletes the subtasks)
 

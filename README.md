@@ -24,7 +24,8 @@ Material 3 design** (Vuetify), a **REST API** for custom clients such as an Andr
 * **Tasks** like in Google Calendar: multiple colored task lists, tasks with a due date (all-day or with a
   time) appear in the calendar and can be checked off and moved via drag & drop there; task panel with
   quick entry, also for tasks without a date; **subtasks** (one level deep; completing a parent task also checks
-  off its subtasks); open tasks remind when due (all-day ones at 09:00)
+  off its subtasks); **own order** by drag & drop (or `Alt`+`↑`/`↓`), or sorted by date per list; open tasks remind
+  when due (all-day ones at 09:00)
 * **Contacts:** multiple address books, search, phone/email/addresses/websites with types and custom labels,
   birthday (also without year), notes, categories (for filtering, renamable; contact groups in DAVx⁵), photos from imported or synced contacts
 * **Birthday calendar:** birthdays of all contacts automatically appear as yearly events in a separate
@@ -240,7 +241,7 @@ The full API reference is in [docs/API.md](docs/API.md). Quick overview:
 | Account   | `POST /api/auth/register`, `POST /api/auth/login`, `POST /api/auth/refresh`, `GET/PUT /api/auth/me` |
 | Calendars | `GET/POST /api/calendars`, `GET/PUT/DELETE /api/calendars/{id}`, `GET …/export`, `POST …/import` |
 | Events    | `GET /api/events?start&end`, `POST /api/events`, `GET/PUT/DELETE /api/events/{id}`, `POST /api/events/{id}/exdates` |
-| Tasks     | `GET/POST /api/task-lists`, `PUT/DELETE /api/task-lists/{id}`, `GET/POST /api/tasks`, `GET/PUT/DELETE /api/tasks/{id}`, `PUT /api/tasks/{id}/completed` |
+| Tasks     | `GET/POST /api/task-lists`, `PUT/DELETE /api/task-lists/{id}`, `GET/POST /api/tasks`, `GET/PUT/DELETE /api/tasks/{id}`, `PUT /api/tasks/{id}/completed`, `PUT /api/tasks/{id}/position` |
 | Address books | `GET/POST /api/addressbooks`, `PUT/DELETE /api/addressbooks/{id}`, `GET …/export`, `POST …/import` |
 | Contacts  | `GET /api/contacts[?addressbook_id&q]`, `POST /api/contacts`, `GET/PUT/DELETE /api/contacts/{id}` |
 | CardDAV   | `/dav/` (Basic auth, see [docs/API.md](docs/API.md#carddav-davx-thunderbird-ios)) |
@@ -259,7 +260,8 @@ deleting events (also single occurrences) and moving them by long-pressing, recu
 struck through); tapping opens the details with *Mark as completed*, in the event list the icon checks them off
 directly, and in the time grid they can be moved by long-pressing. Task lists are shown and hidden, edited
 and created in the drawer; *All tasks* opens the task panel with quick entry and a completed
-section, and the create button offers *Event* or *Task*. Also available in local
+section, and the create button offers *Event* or *Task*. In the task panel, tasks and subtasks are put in order by
+long-pressing and dragging (or sorted by date, chosen per list in the menu). Also available in local
 mode.
 
 **Sync with Android (replaces DAVx⁵):** the app creates an Android account "Synchaven" and itself writes calendars
@@ -290,8 +292,8 @@ a local cache on the device; contact photos are saved when a contact is opened. 
 reachable (on the go, server off), the app shows the stored data – it then computes occurrences of series and the age in the
 birthday calendar itself – and a notice above the navigation bar makes the offline state
 visible. Events and contacts can also be created, edited, moved and deleted offline, calendars shown and
-hidden and the default view changed; likewise tasks can be created, edited, checked off and deleted and
-task lists shown/hidden. These changes go into a queue and are transferred in order
+hidden and the default view changed; likewise tasks can be created, edited, checked off, moved and deleted and
+task lists shown/hidden or their sorting changed. These changes go into a queue and are transferred in order
 as soon as the server is reachable again (on network change, when opening the app, every minute in the foreground
 or via *Settings → Offline data → Sync now*); afterwards the app reloads everything. If the server rejects a
 change (e.g. because the event has been deleted in the meantime), it is discarded and this is shown. Online only:

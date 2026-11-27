@@ -12,6 +12,7 @@ import de.dave.synchaven.data.api.SyncHavenApi
 import de.dave.synchaven.data.api.apiCall
 import de.dave.synchaven.data.model.CalEvent
 import de.dave.synchaven.data.model.CompletedRequest
+import de.dave.synchaven.data.model.MoveTaskRequest
 import de.dave.synchaven.data.model.Task
 import de.dave.synchaven.data.model.TaskList
 import de.dave.synchaven.data.withoutTask
@@ -291,7 +292,7 @@ class OfflineSync(
                 is PendingOp.UpdateCalendar -> result.events = true
                 // The views show tasks directly from the store – nothing else to trigger
                 is PendingOp.CreateTask, is PendingOp.UpdateTask, is PendingOp.SetTaskCompleted,
-                is PendingOp.DeleteTask, is PendingOp.UpdateTaskList, is PendingOp.SetDefaultView -> Unit
+                is PendingOp.DeleteTask, is PendingOp.MoveTask, is PendingOp.UpdateTaskList, is PendingOp.SetDefaultView -> Unit
             }
             if (token != store.token) return result.also { it.complete = false }
         }
@@ -372,6 +373,17 @@ class OfflineSync(
             val f: (OfflineData) -> OfflineData = { d -> d.copy(tasks = d.tasks?.withoutTask(op.id)) }
             f
         }
+        is PendingOp.MoveTask -> {
+            // The order is not worth an error: if the task or its neighbour is gone (or the server is too old),
+            // the server's order stays
+            val moved = try {
+                apiCall { api.moveTask(op.id, MoveTaskRequest(op.after)) }
+            } catch (e: ApiException) {
+                if (e.status != 400 && e.status != 404) throw e
+                emptyList()
+            }
+            replaceTasks(moved)
+        }
         is PendingOp.UpdateTaskList -> {
             val list = apiCall { api.updateTaskList(op.id, op.input) }
             val f: (OfflineData) -> OfflineData = { d -> d.copy(taskLists = d.taskLists?.map { if (it.id == list.id) list else it }) }
@@ -389,8 +401,11 @@ class OfflineSync(
         d.copy(events = d.events?.map { if (it.id == ev.id) ev else it })
     }
 
-    private fun replaceTask(t: Task): (OfflineData) -> OfflineData = { d ->
-        d.copy(tasks = d.tasks?.map { if (it.id == t.id) t else it })
+    private fun replaceTask(t: Task): (OfflineData) -> OfflineData = replaceTasks(listOf(t))
+
+    private fun replaceTasks(ts: List<Task>): (OfflineData) -> OfflineData = { d ->
+        val byId = ts.associateBy { it.id }
+        d.copy(tasks = d.tasks?.map { byId[it.id] ?: it })
     }
 
     private suspend fun ignoreNotFound(block: suspend () -> Unit) {

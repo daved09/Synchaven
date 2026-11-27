@@ -34,6 +34,7 @@ fn task(due: Option<DateTime<Utc>>, all_day: bool, completed: bool) -> Task {
         due,
         all_day,
         completed,
+        position: 0,
         completed_at: completed.then_some(t),
         created_at: t,
         updated_at: t,

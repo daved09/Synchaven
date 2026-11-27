@@ -1,6 +1,7 @@
 package de.dave.synchaven.data
 
 import de.dave.synchaven.data.api.AppJson
+import de.dave.synchaven.data.model.TASK_SORT_DUE
 import de.dave.synchaven.data.model.Task
 import de.dave.synchaven.data.model.TaskInput
 import de.dave.synchaven.data.model.TaskList
@@ -37,7 +38,8 @@ class TaskOfflineTest {
               "created_at": "…", "updated_at": "…" }
         """)
         assertEquals(3, l.openCount)
-        assertEquals(TaskListInput("Meine Aufgaben", "#1A73E8", true), l.toInput())
+        // Without `sort_by` (older server): by due date, as before
+        assertEquals(TaskListInput("Meine Aufgaben", "#1A73E8", true, TASK_SORT_DUE), l.toInput())
     }
 
     @Test

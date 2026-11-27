@@ -240,16 +240,22 @@ export interface TaskList {
   color: string
   /** Show this list's tasks in the calendar */
   visible: boolean
+  /** Order of the open tasks: own order (`Task.position`) or by due date */
+  sort_by: TaskSortBy
   /** Number of open tasks */
   open_count: number
   created_at: string
   updated_at: string
 }
 
+export type TaskSortBy = 'manual' | 'due'
+
 export interface TaskListInput {
   name: string
   color?: string
   visible?: boolean
+  /** If the field is missing, it is kept */
+  sort_by?: TaskSortBy
 }
 
 export interface Task {
@@ -264,6 +270,8 @@ export interface Task {
   all_day: boolean
   completed: boolean
   completed_at: string | null
+  /** Manual order among the tasks with the same list and parent task (smaller first) */
+  position: number
   created_at: string
   updated_at: string
 }

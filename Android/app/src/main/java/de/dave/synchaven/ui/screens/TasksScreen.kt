@@ -1,6 +1,33 @@
 package de.dave.synchaven.ui.screens
 
+import androidx.compose.animation.core.animate
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.lazy.LazyItemScope
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.zIndex
+import de.dave.synchaven.data.model.TASK_SORT_DUE
+import de.dave.synchaven.data.model.TASK_SORT_MANUAL
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -83,7 +110,7 @@ import de.dave.synchaven.ui.common.MainTab
 import de.dave.synchaven.ui.common.MainBottomBar
 import androidx.compose.material.icons.outlined.Settings
 
-/** Tasks of a list: quick entry, open tasks by due date, completed ones below. */
+/** Tasks of a list: quick entry, open tasks in own order (drag to move) or by due date, completed ones below. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TasksScreen(onSelectTab: (MainTab) -> Unit, onOpenSettings: () -> Unit) {
@@ -108,6 +135,18 @@ fun TasksScreen(onSelectTab: (MainTab) -> Unit, onOpenSettings: () -> Unit) {
                     Box {
                         IconButton(onClick = { menu = true }) { Icon(Icons.Outlined.MoreVert, stringResource(R.string.action_more)) }
                         DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                            s.list?.let { l ->
+                                for ((sortBy, label) in listOf(TASK_SORT_MANUAL to R.string.tasks_sort_manual, TASK_SORT_DUE to R.string.tasks_sort_due)) {
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(label)) },
+                                        leadingIcon = {
+                                            if (l.sortBy == sortBy) Icon(Icons.Outlined.Check, null) else Spacer(Modifier.size(24.dp))
+                                        },
+                                        onClick = { menu = false; vm.setSortBy(sortBy) },
+                                    )
+                                }
+                                HorizontalDivider()
+                            }
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.task_list_new)) },
                                 leadingIcon = { Icon(Icons.AutoMirrored.Outlined.PlaylistAdd, null) },
@@ -154,6 +193,7 @@ fun TasksScreen(onSelectTab: (MainTab) -> Unit, onOpenSettings: () -> Unit) {
                     onToggle = { vm.setCompleted(it, !it.completed) },
                     onOpen = { selectedTaskId = it.id },
                     onToggleCompleted = vm::toggleShowCompleted,
+                    onMove = vm::move,
                 )
             }
         }
@@ -207,9 +247,25 @@ private fun TaskListContent(
     onToggle: (Task) -> Unit,
     onOpen: (Task) -> Unit,
     onToggleCompleted: () -> Unit,
+    onMove: (Task, String?) -> Unit,
 ) {
     val list = s.list ?: return
     val color = parseHexColor(list.color)
+    val listState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
+    val haptic = LocalHapticFeedback.current
+    val reorder = remember(listState) { TaskReorder(listState, scope) }
+    reorder.state = s
+    reorder.onMove = onMove
+    reorder.onPickUp = { haptic.performHapticFeedback(HapticFeedbackType.LongPress) }
+    val drag = reorder.drag
+    // After dropping, the previewed order stays until the saved one arrives (no jumping back and forth)
+    LaunchedEffect(s, drag?.dropped) {
+        if (drag?.dropped == true) {
+            if (reorder.items(drag.group).map { it.id } != drag.order) delay(1000)
+            reorder.drag = null
+        }
+    }
     var quick by rememberSaveable { mutableStateOf("") }
     fun submit() {
         if (quick.isNotBlank()) {
@@ -217,7 +273,7 @@ private fun TaskListContent(
             quick = ""
         }
     }
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 88.dp)) {
+    LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(bottom = 88.dp)) {
         if (s.lists.size > 1) {
             item(key = "lists") {
                 LazyRow(
@@ -260,9 +316,13 @@ private fun TaskListContent(
                 }
             }
         }
-        for (t in s.open) {
-            item(key = t.id) { TaskRow(t, color, onToggle, onOpen) }
-            items(s.subtasks[t.id].orEmpty(), key = { it.id }) { sub -> TaskRow(sub, color, onToggle, onOpen, indent = true) }
+        for (t in reorder.preview(TOP)) {
+            item(key = t.id) {
+                TaskRow(t, color, onToggle, onOpen, Modifier.reorderable(reorder, this, t, TOP, follows = null))
+            }
+            items(reorder.preview(t.id), key = { it.id }) { sub ->
+                TaskRow(sub, color, onToggle, onOpen, Modifier.reorderable(reorder, this, sub, t.id, follows = t), indent = true)
+            }
         }
         if (s.completed.isNotEmpty()) {
             item(key = "done-head") {
@@ -299,13 +359,14 @@ private fun TaskRow(
     color: Color,
     onToggle: (Task) -> Unit,
     onOpen: (Task) -> Unit,
+    modifier: Modifier = Modifier,
     /** Subtask under its parent task: indented and slightly smaller */
     indent: Boolean = false,
     /** Parent task, as a hint below the title (for completed subtasks) */
     parent: Task? = null,
 ) {
     Row(
-        Modifier
+        modifier
             .fillMaxWidth()
             .clickable { onOpen(task) }
             .padding(start = if (indent) 44.dp else 4.dp, end = 16.dp, top = if (indent) 0.dp else 2.dp, bottom = if (indent) 2.dp else 6.dp),
@@ -363,4 +424,186 @@ private fun CenteredText(text: String) {
     Box(Modifier.fillMaxSize().padding(32.dp), contentAlignment = Alignment.Center) {
         Text(text, textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
+}
+
+/** Level of the top-level tasks; subtasks are grouped by their parent task's ID */
+private const val TOP = ""
+
+/** Ongoing drag: [order] is the previewed order of the dragged task's level */
+private class TaskDrag(val task: Task, val group: String, order: List<String>, val startOffset: Int) {
+    var order by mutableStateOf(order)
+    /** Distance dragged so far (plus the list's own scrolling) */
+    var delta by mutableFloatStateOf(0f)
+    var moved = false
+    /** Let go; the list shows [order] until the saved order arrives */
+    var dropped by mutableStateOf(false)
+}
+
+/**
+ * Own order in the task list: hold a task, then drag it among the tasks of its level (top-level tasks with their
+ * subtasks, or the subtasks of one task). The others slide aside; TalkBack offers "Move up/down" instead.
+ */
+private class TaskReorder(private val listState: LazyListState, private val scope: CoroutineScope) {
+    var state = TasksUiState()
+    var onMove: (Task, String?) -> Unit = { _, _ -> }
+    var onPickUp: () -> Unit = {}
+    var drag by mutableStateOf<TaskDrag?>(null)
+
+    private val manual get() = state.list?.sortBy == TASK_SORT_MANUAL
+
+    fun items(group: String): List<Task> = if (group == TOP) state.open else state.subtasks[group].orEmpty()
+
+    /** The level's tasks, in the previewed order while one of them is dragged */
+    fun preview(group: String): List<Task> {
+        val all = items(group)
+        val d = drag?.takeIf { it.group == group } ?: return all
+        val byId = all.associateBy { it.id }
+        return d.order.mapNotNull { byId[it] } + all.filter { it.id !in d.order }
+    }
+
+    /** Subtasks can always be moved, top-level tasks in own order. Open subtasks listed at the top level because their
+     *  parent task is completed stay where they are. */
+    fun movable(t: Task, group: String) = if (group == TOP) manual && t.parentId == null else t.parentId == group
+
+    /** Lazy items of a task's block: a top-level task with its subtasks */
+    private fun members(id: String, group: String) =
+        if (group == TOP) listOf(id) + state.subtasks[id].orEmpty().map { it.id } else listOf(id)
+
+    private fun extent(ids: List<String>): Pair<Int, Int>? {
+        val infos = listState.layoutInfo.visibleItemsInfo.filter { it.key in ids }
+        if (infos.isEmpty()) return null
+        return infos.minOf { it.offset } to infos.maxOf { it.offset + it.size }
+    }
+
+    private fun offsetOf(id: String) = listState.layoutInfo.visibleItemsInfo.firstOrNull { it.key == id }?.offset
+
+    /** How far the dragged task (and its subtasks) is shifted from its place in the layout */
+    fun shift(d: TaskDrag): Float = offsetOf(d.task.id)?.let { d.startOffset + d.delta - it } ?: 0f
+
+    fun start(t: Task, group: String) {
+        val offset = offsetOf(t.id) ?: return
+        val current = items(group)
+        drag = TaskDrag(current.firstOrNull { it.id == t.id } ?: t, group, current.map { it.id }, offset)
+        onPickUp()
+    }
+
+    fun dragBy(dy: Float) {
+        val d = drag?.takeIf { !it.dropped } ?: return
+        d.delta += dy
+        val own = extent(members(d.task.id, d.group)) ?: return
+        val center = d.startOffset + d.delta + (own.second - own.first) / 2f
+        // Past the middle of the neighbour below or above: swap places
+        val order = d.order.toMutableList()
+        var i = order.indexOf(d.task.id)
+        while (i + 1 < order.size) {
+            val e = extent(members(order[i + 1], d.group)) ?: break
+            if (center <= (e.first + e.second) / 2f) break
+            order[i] = order[i + 1].also { order[i + 1] = order[i] }
+            i++
+        }
+        while (i > 0) {
+            val e = extent(members(order[i - 1], d.group)) ?: break
+            if (center >= (e.first + e.second) / 2f) break
+            order[i] = order[i - 1].also { order[i - 1] = order[i] }
+            i--
+        }
+        if (order != d.order) {
+            d.order = order
+            d.moved = true
+        }
+        // Scroll along near the edges; the dragged task stays under the finger
+        val info = listState.layoutInfo
+        val top = d.startOffset + d.delta
+        val step = when {
+            top < info.viewportStartOffset + EDGE -> -SCROLL_STEP
+            top + (own.second - own.first) > info.viewportEndOffset - EDGE -> SCROLL_STEP
+            else -> 0f
+        }
+        // (scrolling moves the layout, which the shift makes up for)
+        if (step != 0f) listState.dispatchRawDelta(step)
+    }
+
+    fun end(cancel: Boolean) {
+        val d = drag ?: return
+        if (cancel || !d.moved) {
+            drag = null
+            return
+        }
+        d.dropped = true
+        // Slide into the new place, then save
+        scope.launch {
+            val target = offsetOf(d.task.id)?.let { (it - d.startOffset).toFloat() } ?: d.delta
+            animate(d.delta, target, animationSpec = tween(150)) { v, _ -> d.delta = v }
+        }
+        val byId = items(d.group).associateBy { it.id }
+        place(d.task, d.order.mapNotNull { byId[it] })
+    }
+
+    /** Saves the place: behind the nearest real sibling above it (open subtasks of completed tasks don't count) */
+    private fun place(t: Task, order: List<Task>) {
+        val i = order.indexOfFirst { it.id == t.id }
+        onMove(t, order.take(i).lastOrNull { it.parentId == t.parentId }?.id)
+    }
+
+    /** One place up or down (accessibility actions) */
+    fun moveBy(t: Task, group: String, step: Int) {
+        val order = items(group).toMutableList()
+        val i = order.indexOfFirst { it.id == t.id }
+        val j = i + step
+        if (i < 0 || j !in order.indices) return
+        order.add(j, order.removeAt(i))
+        place(t, order)
+    }
+
+    private companion object {
+        const val EDGE = 48f
+        const val SCROLL_STEP = 12f
+    }
+}
+
+/**
+ * Gestures, shift and animation of a row. [follows]: the parent task of a subtask – it moves along while its
+ * parent task is dragged.
+ */
+@Composable
+private fun Modifier.reorderable(reorder: TaskReorder, scope: LazyItemScope, t: Task, group: String, follows: Task?): Modifier {
+    val d = reorder.drag
+    val carried = d != null && !d.dropped && (d.task.id == t.id || d.task.id == follows?.id)
+    val lifted = d != null && !d.dropped && d.task.id == t.id
+    val canMove = reorder.movable(t, group)
+    val up = stringResource(R.string.tasks_move_up)
+    val down = stringResource(R.string.tasks_move_down)
+    val elevation by animateDpAsState(if (lifted) 6.dp else 0.dp, label = "lift")
+    var m = this.then(
+        if (carried) {
+            Modifier.zIndex(1f).graphicsLayer { translationY = reorder.drag?.let(reorder::shift) ?: 0f }
+        } else {
+            with(scope) { Modifier.animateItem() }
+        },
+    )
+    if (elevation > 0.dp) {
+        val shape = RoundedCornerShape(12.dp)
+        m = m.shadow(elevation, shape).background(MaterialTheme.colorScheme.surfaceContainerHighest, shape)
+    }
+    if (!canMove) return m
+    return m
+        .pointerInput(t.id, group) {
+            detectDragGesturesAfterLongPress(
+                onDragStart = { if (reorder.movable(t, group)) reorder.start(t, group) },
+                onDrag = { change, amount ->
+                    if (reorder.drag != null) {
+                        change.consume()
+                        reorder.dragBy(amount.y)
+                    }
+                },
+                onDragEnd = { reorder.end(cancel = false) },
+                onDragCancel = { reorder.end(cancel = true) },
+            )
+        }
+        .semantics {
+            customActions = listOf(
+                CustomAccessibilityAction(up) { reorder.moveBy(t, group, -1); true },
+                CustomAccessibilityAction(down) { reorder.moveBy(t, group, 1); true },
+            )
+        }
 }

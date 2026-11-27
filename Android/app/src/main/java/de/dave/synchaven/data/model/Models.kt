@@ -332,20 +332,29 @@ data class TaskList(
     val color: String = "#1A73E8",
     /** Show this list's tasks in the calendar */
     val visible: Boolean = true,
+    /** Order of the open tasks: [TASK_SORT_MANUAL] or [TASK_SORT_DUE] (servers before 1.6 know only the latter) */
+    @SerialName("sort_by") val sortBy: String = TASK_SORT_DUE,
     /** Number of open tasks */
     @SerialName("open_count") val openCount: Int = 0,
     @SerialName("created_at") val createdAt: String = "",
     @SerialName("updated_at") val updatedAt: String = "",
 ) {
-    fun toInput() = TaskListInput(name, color, visible)
+    fun toInput() = TaskListInput(name, color, visible, sortBy)
 }
 
-/** `color` and `visible` are optional; when editing, missing values are kept. */
+/** Own order of the tasks ([Task.position]), changed by dragging */
+const val TASK_SORT_MANUAL = "manual"
+
+/** By due date, without date last */
+const val TASK_SORT_DUE = "due"
+
+/** `color`, `visible` and `sortBy` are optional; when editing, missing values are kept. */
 @Serializable
 data class TaskListInput(
     val name: String,
     val color: String? = null,
     val visible: Boolean? = null,
+    @SerialName("sort_by") val sortBy: String? = null,
 )
 
 /**
@@ -366,6 +375,8 @@ data class Task(
     @SerialName("updated_at") val updatedAt: String = "",
     /** Parent task if this is a subtask */
     @SerialName("parent_id") val parentId: String? = null,
+    /** Own order among the tasks with the same list and parent task (smaller first) */
+    val position: Long = 0,
 ) {
     /** Input for saving with unchanged status (`completed` missing) */
     fun toInput() = TaskInput(listId, title, notes, due, allDay, parentId = parentId)
@@ -391,6 +402,10 @@ data class TaskInput(
 
 @Serializable
 data class CompletedRequest(val completed: Boolean)
+
+/** Moves a task behind [after] among the tasks with the same list and parent task; `null` = first */
+@Serializable
+data class MoveTaskRequest(val after: String?)
 
 @Serializable
 data class ClearCompletedResult(val deleted: Int = 0)

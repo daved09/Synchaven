@@ -348,7 +348,10 @@
     "title": "Aufgaben",
     "deleteCompleted": "Erledigte Aufgaben löschen",
     "add": "Aufgabe hinzufügen",
-    "noneOpen": "Keine offenen Aufgaben"
+    "noneOpen": "Keine offenen Aufgaben",
+    "sortBy": "Sortieren nach",
+    "sortManual": "Meine Reihenfolge",
+    "sortDue": "Datum"
   },
   "contactDialog": {
     "birthdayFormat": "Format: TT.MM.JJJJ oder TT.MM.",

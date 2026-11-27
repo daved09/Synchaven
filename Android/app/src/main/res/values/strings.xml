@@ -506,6 +506,10 @@
     <string name="tasks_no_lists">No task lists yet</string>
     <string name="tasks_completed_section">Completed (%1$d)</string>
     <string name="tasks_clear_completed">Delete completed tasks</string>
+    <string name="tasks_sort_manual">My order</string>
+    <string name="tasks_sort_due">Date</string>
+    <string name="tasks_move_up">Move up</string>
+    <string name="tasks_move_down">Move down</string>
     <string name="tasks_select_list">Choose list</string>
     <string name="task_new">New task</string>
     <string name="task_edit">Edit task</string>
@@ -586,6 +590,8 @@
     <string name="api_tasks_own_subtask">A task cannot be its own subtask</string>
     <string name="api_tasks_parent_missing">The parent task does not exist</string>
     <string name="api_tasks_nested_subtask">Subtasks cannot have subtasks of their own</string>
+    <string name="api_tasks_not_sibling">The task can only be moved among the tasks of the same level</string>
+    <string name="api_tasks_sort_by">Unknown sort order</string>
     <string name="api_tasks_parent_with_subtasks">A task with subtasks cannot become a subtask</string>
     <string name="api_tasks_invalid_due">Invalid due date</string>
     <string name="api_calendar_birthdays_not_deletable">The birthday calendar cannot be deleted, but it can be hidden</string>

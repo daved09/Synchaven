@@ -348,7 +348,10 @@
     "title": "Tasks",
     "deleteCompleted": "Delete completed tasks",
     "add": "Add task",
-    "noneOpen": "No open tasks"
+    "noneOpen": "No open tasks",
+    "sortBy": "Sort by",
+    "sortManual": "My order",
+    "sortDue": "Date"
   },
   "contactDialog": {
     "birthdayFormat": "Format: DD.MM.YYYY or DD.MM.",

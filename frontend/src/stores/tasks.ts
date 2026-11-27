@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { api } from '@/api/client'
-import type { Task, TaskInput, TaskList, TaskListInput, ViewEvent } from '@/api/types'
+import type { Task, TaskInput, TaskList, TaskListInput, TaskSortBy, ViewEvent } from '@/api/types'
 import { addDays, addMinutes, allDayToLocal, localToAllDay } from '@/utils/date'
 
 /** Prefix of the IDs under which tasks appear in the calendar (separate from event IDs) */
@@ -47,9 +47,16 @@ function toViewEvent(t: Task, color: string): ViewEvent | null {
   }
 }
 
+function byCreated(a: Task, b: Task) {
+  return a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id)
+}
 function byDue(a: Task, b: Task) {
   if (!a.due !== !b.due) return a.due ? -1 : 1
-  return (a.due ?? '').localeCompare(b.due ?? '') || a.created_at.localeCompare(b.created_at)
+  return (a.due ?? '').localeCompare(b.due ?? '') || byCreated(a, b)
+}
+/** Manual order (as in the backend) */
+export function byPosition(a: Task, b: Task) {
+  return a.position - b.position || byCreated(a, b)
 }
 
 export const useTasksStore = defineStore('tasks', () => {
@@ -69,18 +76,21 @@ export const useTasksStore = defineStore('tasks', () => {
   function openCount(listId: string) {
     return tasks.value.filter((t) => t.list_id === listId && !t.completed).length
   }
-  /** Open top-level tasks of a list by due date, without date last. Open subtasks without an open
-   *  parent task in the list are listed here too, so nothing gets lost. */
+  function sortOf(listId: string): TaskSortBy {
+    return listById.value.get(listId)?.sort_by ?? 'manual'
+  }
+  /** Open top-level tasks of a list in the list's order (manual, or by due date with undated last).
+   *  Open subtasks without an open parent task in the list are listed here too, so nothing gets lost. */
   function openOf(listId: string) {
     const open = tasks.value.filter((t) => t.list_id === listId && !t.completed)
     const openIds = new Set(open.map((t) => t.id))
-    return open.filter((t) => !t.parent_id || !openIds.has(t.parent_id)).sort(byDue)
+    return open
+      .filter((t) => !t.parent_id || !openIds.has(t.parent_id))
+      .sort(sortOf(listId) === 'due' ? byDue : byPosition)
   }
-  /** Subtasks of a task in the order they were created */
+  /** Subtasks of a task in their manual order */
   function subtasksOf(id: string) {
-    return tasks.value
-      .filter((t) => t.parent_id === id)
-      .sort((a, b) => a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id))
+    return tasks.value.filter((t) => t.parent_id === id).sort(byPosition)
   }
   /** Completed tasks of a list, most recently completed first */
   function completedOf(listId: string) {
@@ -123,6 +133,17 @@ export const useTasksStore = defineStore('tasks', () => {
       await updateList(list.id, { name: list.name, color: list.color, visible: list.visible })
     } catch (e) {
       list.visible = !list.visible
+      throw e
+    }
+  }
+  /** Switch between own order and by due date – visible immediately, reverted on error */
+  async function setSortBy(list: TaskList, sortBy: TaskSortBy) {
+    const before = list.sort_by
+    list.sort_by = sortBy
+    try {
+      await updateList(list.id, { name: list.name, sort_by: sortBy })
+    } catch (e) {
+      list.sort_by = before
       throw e
     }
   }
@@ -176,6 +197,27 @@ export const useTasksStore = defineStore('tasks', () => {
       throw e
     }
   }
+  /** Moves a task behind `after` among the tasks with the same list and parent task (`null` = first).
+   *  Visible immediately, reverted on error. */
+  let reorderSeq = 0
+  async function reorder(task: Task, after: string | null) {
+    const seq = ++reorderSeq
+    const snapshot = tasks.value
+    const siblings = tasks.value
+      .filter((t) => t.list_id === task.list_id && t.parent_id === task.parent_id && t.id !== task.id)
+      .sort(byPosition)
+    siblings.splice(after ? siblings.findIndex((t) => t.id === after) + 1 : 0, 0, task)
+    const pos = new Map(siblings.map((t, i) => [t.id, i]))
+    tasks.value = tasks.value.map((t) => (pos.has(t.id) ? { ...t, position: pos.get(t.id)! } : t))
+    try {
+      const fresh = new Map((await api.moveTask(task.id, after)).map((t) => [t.id, t]))
+      // A later move (already shown) must not be undone by this older answer
+      if (seq === reorderSeq) tasks.value = tasks.value.map((t) => fresh.get(t.id) ?? t)
+    } catch (e) {
+      if (seq === reorderSeq) tasks.value = snapshot
+      throw e
+    }
+  }
   /** Move the due date (drag & drop in the calendar); the time moves along */
   async function move(task: Task, newStart: Date) {
     const due = task.all_day ? localToAllDay(newStart) : newStart.toISOString()
@@ -195,8 +237,8 @@ export const useTasksStore = defineStore('tasks', () => {
   }
   return {
     lists, tasks, listById, visibleListIds, calendarEvents, openCount, openOf, subtasksOf, completedOf,
-    load, createList, updateList, removeList, toggleListVisible, clearCompleted,
-    create, createSubtask, update, remove, setCompleted, move, reset,
+    load, createList, updateList, removeList, toggleListVisible, setSortBy, clearCompleted,
+    create, createSubtask, update, remove, setCompleted, reorder, move, reset,
   }
 })
 
